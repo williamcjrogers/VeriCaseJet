@@ -181,6 +181,129 @@ def get_optional_current_user(creds: OptionalBearerCreds, db: DbDep) -> User | N
         return None
 
 
+def _split_keyword_variations(value: str | None) -> list[str]:
+    """Split keyword variations into clean terms.
+
+    Supports comma, semicolon, or newline separated values.
+    """
+
+    if not value:
+        return []
+    parts = re.split(r"[,;\n]+", str(value))
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for raw in parts:
+        term = str(raw or "").strip()
+        if not term:
+            continue
+        key = term.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(term)
+    return cleaned
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in values:
+        v = str(raw or "").strip()
+        if not v:
+            continue
+        if v in seen:
+            continue
+        seen.add(v)
+        out.append(v)
+    return out
+
+
+class _KeywordMatcher:
+    """Fast-ish matcher for Keyword rules against text."""
+
+    def __init__(self, keywords: list[Keyword]):
+        self.names_by_id: dict[str, str] = {}
+        self.plain_terms_by_id: dict[str, list[str]] = {}
+        self.regex_terms_by_id: dict[str, list[re.Pattern[str]]] = {}
+
+        for k in keywords:
+            kw_id = str(getattr(k, "id", "") or "")
+            name = (getattr(k, "keyword_name", "") or "").strip()
+            if not kw_id or not name:
+                continue
+
+            self.names_by_id[kw_id] = name
+            raw_terms = [name] + _split_keyword_variations(
+                getattr(k, "variations", None)
+            )
+
+            is_regex = bool(getattr(k, "is_regex", False))
+            if is_regex:
+                patterns: list[re.Pattern[str]] = []
+                for term in raw_terms:
+                    t = (term or "").strip()
+                    if not t:
+                        continue
+                    try:
+                        patterns.append(re.compile(t, flags=re.IGNORECASE))
+                    except re.error:
+                        # Skip invalid user regex; don't fail the whole scan.
+                        continue
+                if patterns:
+                    self.regex_terms_by_id[kw_id] = patterns
+            else:
+                terms: list[str] = []
+                seen: set[str] = set()
+                for term in raw_terms:
+                    t = (term or "").strip().lower()
+                    if len(t) < 3:
+                        continue
+                    if t in seen:
+                        continue
+                    seen.add(t)
+                    terms.append(t)
+                if terms:
+                    self.plain_terms_by_id[kw_id] = terms
+
+    def match_keyword_ids(self, subject: str | None, body: str | None) -> list[str]:
+        subj = (subject or "").strip()
+        text = (body or "").strip()
+        if not subj and not text:
+            return []
+
+        haystack = f"{subj}\n{text}"
+        haystack_lower = haystack.lower()
+        matched: list[str] = []
+
+        for kw_id, terms in self.plain_terms_by_id.items():
+            for term in terms:
+                if term in haystack_lower:
+                    matched.append(kw_id)
+                    break
+
+        for kw_id, patterns in self.regex_terms_by_id.items():
+            for pat in patterns:
+                try:
+                    if pat.search(haystack):
+                        matched.append(kw_id)
+                        break
+                except re.error:
+                    continue
+
+        return matched
+
+
+class KeywordRescanRequest(BaseModel):
+    include_emails: bool = True
+    include_evidence: bool = True
+    max_emails: int | None = Field(default=5000, ge=1, le=200000)
+    max_evidence: int | None = Field(default=5000, ge=1, le=200000)
+    mode: str = Field(
+        default="merge",
+        description="merge (default) unions new matches with existing; overwrite replaces.",
+    )
+
+
 class ProjectStateResponse(BaseModel):
     id: str
     project_name: str
@@ -932,6 +1055,164 @@ def update_project(
         )
 
 
+@router.post("/projects/{project_id}/keywords/rescan")
+def rescan_project_keywords(
+    project_id: str,
+    payload: KeywordRescanRequest,
+    db: DbDep,
+    current_user: User | None = Depends(get_optional_current_user),
+) -> dict[str, Any]:
+    """Rescan correspondence + evidence and allocate keyword matches.
+
+    Uses Keyword rules stored for the Project (keywords table).
+    """
+
+    try:
+        project_uuid = uuid.UUID(str(project_id))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail="Invalid project ID format"
+        ) from exc
+
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    mode = (payload.mode or "merge").strip().lower()
+    if mode not in ("merge", "overwrite"):
+        raise HTTPException(status_code=400, detail="Invalid mode (merge|overwrite)")
+
+    keywords = (
+        db.query(Keyword)
+        .filter(Keyword.project_id == project_uuid, Keyword.case_id.is_(None))
+        .order_by(Keyword.keyword_name.asc())
+        .all()
+    )
+    matcher = _KeywordMatcher(keywords)
+    if not matcher.names_by_id:
+        return {
+            "status": "success",
+            "project_id": str(project_uuid),
+            "keywords": 0,
+            "emails_scanned": 0,
+            "emails_updated": 0,
+            "evidence_scanned": 0,
+            "evidence_updated": 0,
+            "message": "No keywords configured for this project.",
+        }
+
+    emails_scanned = 0
+    emails_updated = 0
+    evidence_scanned = 0
+    evidence_updated = 0
+
+    # Correspondence
+    if payload.include_emails:
+        q = db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid)
+        max_emails = int(payload.max_emails or 0)
+        if max_emails > 0:
+            q = q.order_by(EmailMessage.created_at.desc()).limit(max_emails)
+        emails = q.all()
+
+        for e in emails:
+            emails_scanned += 1
+            body = (
+                e.body_text_clean
+                or e.body_text
+                or e.body_preview
+                or (re.sub(r"<[^>]+>", " ", e.body_html or "") if e.body_html else "")
+            )
+            new_ids = matcher.match_keyword_ids(e.subject, body)
+            if not new_ids:
+                continue
+            existing = (
+                e.matched_keywords if isinstance(e.matched_keywords, list) else []
+            )
+            if mode == "overwrite":
+                merged = _unique_strings(new_ids)
+            else:
+                merged = _unique_strings([*existing, *new_ids])
+            if merged != existing:
+                e.matched_keywords = merged
+                emails_updated += 1
+
+    # Evidence
+    if payload.include_evidence:
+        q = db.query(EvidenceItem).filter(EvidenceItem.project_id == project_uuid)
+        max_evidence = int(payload.max_evidence or 0)
+        if max_evidence > 0:
+            q = q.order_by(EvidenceItem.created_at.desc()).limit(max_evidence)
+        items = q.all()
+
+        for it in items:
+            evidence_scanned += 1
+            # Keep evidence matching bounded to avoid huge allocations.
+            extracted = it.extracted_text or ""
+            if len(extracted) > 200000:
+                extracted = extracted[:200000]
+            blob = "\n".join(
+                [
+                    str(it.filename or ""),
+                    str(it.title or ""),
+                    str(it.description or ""),
+                    extracted,
+                ]
+            )
+            new_ids = matcher.match_keyword_ids(it.filename, blob)
+            if not new_ids:
+                continue
+
+            existing_ids = (
+                it.keywords_matched if isinstance(it.keywords_matched, list) else []
+            )
+            if mode == "overwrite":
+                merged_ids = _unique_strings(new_ids)
+            else:
+                merged_ids = _unique_strings([*existing_ids, *new_ids])
+            changed = merged_ids != existing_ids
+            if changed:
+                it.keywords_matched = merged_ids
+
+            # Also expose keyword *names* via auto_tags so existing tag filtering works.
+            auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+            name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
+            name_tags = [t for t in name_tags if t]
+            merged_auto = _unique_strings([*auto, *name_tags])
+            if merged_auto != auto:
+                it.auto_tags = merged_auto
+                changed = True
+
+            if changed:
+                evidence_updated += 1
+
+    # Persist updates
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    actor_id = str(current_user.id) if current_user else None
+    logger.info(
+        "Keyword rescan complete (project_id=%s actor_id=%s): emails_updated=%s evidence_updated=%s",
+        project_uuid,
+        actor_id,
+        emails_updated,
+        evidence_updated,
+    )
+
+    return {
+        "status": "success",
+        "project_id": str(project_uuid),
+        "keywords": len(matcher.names_by_id),
+        "emails_scanned": emails_scanned,
+        "emails_updated": emails_updated,
+        "evidence_scanned": evidence_scanned,
+        "evidence_updated": evidence_updated,
+        "mode": mode,
+    }
+
+
 @router.delete("/projects/{project_id}")
 def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
     """Delete a project and all associated data"""
@@ -1481,3 +1762,189 @@ def delete_case(
         db.rollback()
         logger.exception(f"Error deleting case: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete case: {str(e)}")
+
+
+@router.post("/cases/{case_id}/keywords/rescan")
+def rescan_case_keywords(
+    case_id: str,
+    payload: KeywordRescanRequest,
+    db: DbDep,
+    current_user: User | None = Depends(get_optional_current_user),
+) -> dict[str, Any]:
+    """Rescan correspondence + evidence and allocate keyword matches.
+
+    Uses Keyword rules stored for the Case, plus linked Project-level defaults
+    (where Keyword.case_id is NULL) when the case belongs to a project.
+    """
+
+    try:
+        case_uuid = uuid.UUID(str(case_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid case ID format") from exc
+
+    case = db.query(Case).filter(Case.id == case_uuid).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    linked_project_uuid = getattr(case, "project_id", None)
+
+    mode = (payload.mode or "merge").strip().lower()
+    if mode not in ("merge", "overwrite"):
+        raise HTTPException(status_code=400, detail="Invalid mode (merge|overwrite)")
+
+    kw_query = db.query(Keyword)
+    if linked_project_uuid is not None:
+        kw_query = kw_query.filter(
+            or_(
+                Keyword.case_id == case_uuid,
+                (Keyword.project_id == linked_project_uuid)
+                & (Keyword.case_id.is_(None)),
+            )
+        )
+    else:
+        kw_query = kw_query.filter(Keyword.case_id == case_uuid)
+
+    keywords = kw_query.order_by(Keyword.keyword_name.asc()).all()
+    matcher = _KeywordMatcher(keywords)
+    if not matcher.names_by_id:
+        return {
+            "status": "success",
+            "case_id": str(case_uuid),
+            "project_id": str(linked_project_uuid) if linked_project_uuid else None,
+            "keywords": 0,
+            "emails_scanned": 0,
+            "emails_updated": 0,
+            "evidence_scanned": 0,
+            "evidence_updated": 0,
+            "message": "No keywords configured for this case (or linked project).",
+        }
+
+    emails_scanned = 0
+    emails_updated = 0
+    evidence_scanned = 0
+    evidence_updated = 0
+
+    # Correspondence
+    if payload.include_emails:
+        q = db.query(EmailMessage)
+        if linked_project_uuid is not None:
+            q = q.filter(
+                or_(
+                    EmailMessage.case_id == case_uuid,
+                    EmailMessage.project_id == linked_project_uuid,
+                )
+            )
+        else:
+            q = q.filter(EmailMessage.case_id == case_uuid)
+
+        max_emails = int(payload.max_emails or 0)
+        if max_emails > 0:
+            q = q.order_by(EmailMessage.created_at.desc()).limit(max_emails)
+        emails = q.all()
+
+        for e in emails:
+            emails_scanned += 1
+            body = (
+                e.body_text_clean
+                or e.body_text
+                or e.body_preview
+                or (re.sub(r"<[^>]+>", " ", e.body_html or "") if e.body_html else "")
+            )
+            new_ids = matcher.match_keyword_ids(e.subject, body)
+            if not new_ids:
+                continue
+            existing = (
+                e.matched_keywords if isinstance(e.matched_keywords, list) else []
+            )
+            if mode == "overwrite":
+                merged = _unique_strings(new_ids)
+            else:
+                merged = _unique_strings([*existing, *new_ids])
+            if merged != existing:
+                e.matched_keywords = merged
+                emails_updated += 1
+
+    # Evidence
+    if payload.include_evidence:
+        q = db.query(EvidenceItem)
+        if linked_project_uuid is not None:
+            q = q.filter(
+                or_(
+                    EvidenceItem.case_id == case_uuid,
+                    EvidenceItem.project_id == linked_project_uuid,
+                )
+            )
+        else:
+            q = q.filter(EvidenceItem.case_id == case_uuid)
+
+        max_evidence = int(payload.max_evidence or 0)
+        if max_evidence > 0:
+            q = q.order_by(EvidenceItem.created_at.desc()).limit(max_evidence)
+        items = q.all()
+
+        for it in items:
+            evidence_scanned += 1
+            extracted = it.extracted_text or ""
+            if len(extracted) > 200000:
+                extracted = extracted[:200000]
+            blob = "\n".join(
+                [
+                    str(it.filename or ""),
+                    str(it.title or ""),
+                    str(it.description or ""),
+                    extracted,
+                ]
+            )
+            new_ids = matcher.match_keyword_ids(it.filename, blob)
+            if not new_ids:
+                continue
+
+            existing_ids = (
+                it.keywords_matched if isinstance(it.keywords_matched, list) else []
+            )
+            if mode == "overwrite":
+                merged_ids = _unique_strings(new_ids)
+            else:
+                merged_ids = _unique_strings([*existing_ids, *new_ids])
+            changed = merged_ids != existing_ids
+            if changed:
+                it.keywords_matched = merged_ids
+
+            auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+            name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
+            name_tags = [t for t in name_tags if t]
+            merged_auto = _unique_strings([*auto, *name_tags])
+            if merged_auto != auto:
+                it.auto_tags = merged_auto
+                changed = True
+
+            if changed:
+                evidence_updated += 1
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    actor_id = str(current_user.id) if current_user else None
+    logger.info(
+        "Keyword rescan complete (case_id=%s project_id=%s actor_id=%s): emails_updated=%s evidence_updated=%s",
+        case_uuid,
+        linked_project_uuid,
+        actor_id,
+        emails_updated,
+        evidence_updated,
+    )
+
+    return {
+        "status": "success",
+        "case_id": str(case_uuid),
+        "project_id": str(linked_project_uuid) if linked_project_uuid else None,
+        "keywords": len(matcher.names_by_id),
+        "emails_scanned": emails_scanned,
+        "emails_updated": emails_updated,
+        "evidence_scanned": evidence_scanned,
+        "evidence_updated": evidence_updated,
+        "mode": mode,
+    }

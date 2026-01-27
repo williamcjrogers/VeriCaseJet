@@ -53,6 +53,7 @@ from .models import (
     Stakeholder,
     EvidenceItem,
     Folder,
+    Keyword,
 )
 from .security import current_user
 
@@ -153,6 +154,120 @@ class KeywordCreate(BaseModel):
     definition: str | None = None
     variations: str | None = None
     is_regex: bool | None = False
+
+
+class KeywordRescanRequest(BaseModel):
+    include_emails: bool = True
+    include_evidence: bool = True
+    max_emails: int | None = Field(default=50000, ge=1, le=500000)
+    max_evidence: int | None = Field(default=50000, ge=1, le=500000)
+    mode: str = Field(
+        default="merge",
+        description="merge (default) unions new matches with existing; overwrite replaces.",
+    )
+
+
+def _split_keyword_variations(value: str | None) -> list[str]:
+    if not value:
+        return []
+    parts = re.split(r"[,;\n]+", str(value))
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for raw in parts:
+        term = str(raw or "").strip()
+        if not term:
+            continue
+        key = term.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(term)
+    return cleaned
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in values:
+        v = str(raw or "").strip()
+        if not v:
+            continue
+        if v in seen:
+            continue
+        seen.add(v)
+        out.append(v)
+    return out
+
+
+class _KeywordMatcher:
+    def __init__(self, keywords: list[Keyword]):
+        self.names_by_id: dict[str, str] = {}
+        self.plain_terms_by_id: dict[str, list[str]] = {}
+        self.regex_terms_by_id: dict[str, list[re.Pattern[str]]] = {}
+
+        for k in keywords:
+            kw_id = str(getattr(k, "id", "") or "")
+            name = (getattr(k, "keyword_name", "") or "").strip()
+            if not kw_id or not name:
+                continue
+
+            self.names_by_id[kw_id] = name
+            raw_terms = [name] + _split_keyword_variations(
+                getattr(k, "variations", None)
+            )
+            is_regex = bool(getattr(k, "is_regex", False))
+            if is_regex:
+                patterns: list[re.Pattern[str]] = []
+                for term in raw_terms:
+                    t = (term or "").strip()
+                    if not t:
+                        continue
+                    try:
+                        patterns.append(re.compile(t, flags=re.IGNORECASE))
+                    except re.error:
+                        continue
+                if patterns:
+                    self.regex_terms_by_id[kw_id] = patterns
+            else:
+                terms: list[str] = []
+                seen: set[str] = set()
+                for term in raw_terms:
+                    t = (term or "").strip().lower()
+                    if len(t) < 3:
+                        continue
+                    if t in seen:
+                        continue
+                    seen.add(t)
+                    terms.append(t)
+                if terms:
+                    self.plain_terms_by_id[kw_id] = terms
+
+    def match_keyword_ids(self, subject: str | None, body: str | None) -> list[str]:
+        subj = (subject or "").strip()
+        text = (body or "").strip()
+        if not subj and not text:
+            return []
+
+        haystack = f"{subj}\n{text}"
+        haystack_lower = haystack.lower()
+        matched: list[str] = []
+
+        for kw_id, terms in self.plain_terms_by_id.items():
+            for term in terms:
+                if term in haystack_lower:
+                    matched.append(kw_id)
+                    break
+
+        for kw_id, patterns in self.regex_terms_by_id.items():
+            for pat in patterns:
+                try:
+                    if pat.search(haystack):
+                        matched.append(kw_id)
+                        break
+                except re.error:
+                    continue
+
+        return matched
 
 
 class TeamMemberCreate(BaseModel):
@@ -1789,8 +1904,265 @@ def update_workspace_keywords(
             }
         )
 
+    # Keep project/case keyword tables in sync so correspondence/evidence can
+    # use a consistent keyword source.
+    projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+    cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+    project_ids = [p.id for p in projects]
+
+    # For cases linked to a project, project-level defaults (case_id NULL) are sufficient.
+    # For cases not linked to a project, we write case-level keywords.
+    orphan_case_ids = [c.id for c in cases if getattr(c, "project_id", None) is None]
+
+    def _kw_key(name: str) -> str:
+        return (name or "").strip().lower()
+
+    workspace_kws = [
+        (
+            (kw.keyword_name or "").strip(),
+            kw.definition,
+            kw.variations,
+            bool(kw.is_regex),
+        )
+        for kw in keywords
+        if (kw.keyword_name or "").strip()
+    ]
+
+    if project_ids:
+        existing_project_keywords = (
+            db.query(Keyword)
+            .filter(Keyword.project_id.in_(project_ids), Keyword.case_id.is_(None))
+            .all()
+        )
+        existing_by_project: dict[tuple[uuid.UUID, str], Keyword] = {}
+        for k in existing_project_keywords:
+            existing_by_project[(k.project_id, _kw_key(k.keyword_name))] = k  # type: ignore[arg-type]
+
+        for pid in project_ids:
+            for name, definition, variations, is_regex in workspace_kws:
+                key = (pid, _kw_key(name))
+                if key in existing_by_project:
+                    continue
+                db.add(
+                    Keyword(
+                        project_id=pid,
+                        case_id=None,
+                        keyword_name=name,
+                        definition=definition,
+                        variations=variations,
+                        is_regex=is_regex,
+                    )
+                )
+
+    if orphan_case_ids:
+        existing_case_keywords = (
+            db.query(Keyword).filter(Keyword.case_id.in_(orphan_case_ids)).all()
+        )
+        existing_by_case: dict[tuple[uuid.UUID, str], Keyword] = {}
+        for k in existing_case_keywords:
+            existing_by_case[(k.case_id, _kw_key(k.keyword_name))] = k  # type: ignore[arg-type]
+
+        for cid in orphan_case_ids:
+            for name, definition, variations, is_regex in workspace_kws:
+                key = (cid, _kw_key(name))
+                if key in existing_by_case:
+                    continue
+                db.add(
+                    Keyword(
+                        project_id=None,
+                        case_id=cid,
+                        keyword_name=name,
+                        definition=definition,
+                        variations=variations,
+                        is_regex=is_regex,
+                    )
+                )
+
     db.commit()
     return result
+
+
+@router.post("/{workspace_id}/keywords/rescan")
+def rescan_workspace_keywords(
+    workspace_id: str,
+    payload: KeywordRescanRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """Rescan a workspace's correspondence + evidence and allocate keyword matches.
+
+    This keeps the workspace “intelligence layer” coherent: keywords → tagging → filters → summaries.
+    """
+
+    workspace = _require_workspace(db, workspace_id, user)
+
+    mode = (payload.mode or "merge").strip().lower()
+    if mode not in ("merge", "overwrite"):
+        raise HTTPException(status_code=400, detail="Invalid mode (merge|overwrite)")
+
+    projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+    cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+    project_ids = [p.id for p in projects]
+    case_ids = [c.id for c in cases]
+
+    # Build keyword caches for item-scoped matching.
+    # - For project-only items: project defaults (case_id NULL)
+    # - For case-linked items: case keywords + (if project_id) project defaults
+    # - For orphan cases: case keywords
+    keyword_cache: dict[tuple[str | None, str | None], _KeywordMatcher] = {}
+
+    def _matcher_for(
+        case_id: uuid.UUID | None, project_id: uuid.UUID | None
+    ) -> _KeywordMatcher:
+        key = (
+            str(case_id) if case_id else None,
+            str(project_id) if project_id else None,
+        )
+        if key in keyword_cache:
+            return keyword_cache[key]
+
+        q = db.query(Keyword)
+        if case_id and project_id:
+            q = q.filter(
+                or_(
+                    Keyword.case_id == case_id,
+                    (Keyword.project_id == project_id) & (Keyword.case_id.is_(None)),
+                )
+            )
+        elif case_id:
+            q = q.filter(Keyword.case_id == case_id)
+        elif project_id:
+            q = q.filter(Keyword.project_id == project_id, Keyword.case_id.is_(None))
+        else:
+            q = q.filter(Keyword.id == uuid.UUID(int=0))  # empty result
+
+        matcher = _KeywordMatcher(q.order_by(Keyword.keyword_name.asc()).all())
+        keyword_cache[key] = matcher
+        return matcher
+
+    emails_scanned = 0
+    emails_updated = 0
+    evidence_scanned = 0
+    evidence_updated = 0
+
+    if payload.include_emails:
+        from .models import EmailMessage
+
+        email_conds = []
+        if project_ids:
+            email_conds.append(EmailMessage.project_id.in_(project_ids))
+        if case_ids:
+            email_conds.append(EmailMessage.case_id.in_(case_ids))
+
+        if email_conds:
+            q = db.query(EmailMessage).filter(or_(*email_conds))
+            q = q.order_by(desc(EmailMessage.created_at))
+            q = q.limit(int(payload.max_emails or 0))
+            for e in q.all():
+                emails_scanned += 1
+                matcher = _matcher_for(
+                    getattr(e, "case_id", None), getattr(e, "project_id", None)
+                )
+                if not matcher.names_by_id:
+                    continue
+                body = (
+                    e.body_text_clean
+                    or e.body_text
+                    or e.body_preview
+                    or (
+                        re.sub(r"<[^>]+>", " ", e.body_html or "")
+                        if e.body_html
+                        else ""
+                    )
+                )
+                new_ids = matcher.match_keyword_ids(e.subject, body)
+                if not new_ids:
+                    continue
+                existing = (
+                    e.matched_keywords if isinstance(e.matched_keywords, list) else []
+                )
+                merged = (
+                    _unique_strings(new_ids)
+                    if mode == "overwrite"
+                    else _unique_strings([*existing, *new_ids])
+                )
+                if merged != existing:
+                    e.matched_keywords = merged
+                    emails_updated += 1
+
+    if payload.include_evidence:
+        evidence_conds = [
+            EvidenceItem.meta.op("->>")("workspace_id") == str(workspace.id)
+        ]
+        if project_ids:
+            evidence_conds.append(EvidenceItem.project_id.in_(project_ids))
+        if case_ids:
+            evidence_conds.append(EvidenceItem.case_id.in_(case_ids))
+
+        q = db.query(EvidenceItem).filter(or_(*evidence_conds))
+        q = q.order_by(desc(EvidenceItem.created_at)).limit(
+            int(payload.max_evidence or 0)
+        )
+        for it in q.all():
+            evidence_scanned += 1
+            matcher = _matcher_for(
+                getattr(it, "case_id", None), getattr(it, "project_id", None)
+            )
+            if not matcher.names_by_id:
+                continue
+            extracted = it.extracted_text or ""
+            if len(extracted) > 200000:
+                extracted = extracted[:200000]
+            blob = "\n".join(
+                [
+                    str(it.filename or ""),
+                    str(it.title or ""),
+                    str(it.description or ""),
+                    extracted,
+                ]
+            )
+            new_ids = matcher.match_keyword_ids(it.filename, blob)
+            if not new_ids:
+                continue
+
+            existing_ids = (
+                it.keywords_matched if isinstance(it.keywords_matched, list) else []
+            )
+            merged_ids = (
+                _unique_strings(new_ids)
+                if mode == "overwrite"
+                else _unique_strings([*existing_ids, *new_ids])
+            )
+            changed = merged_ids != existing_ids
+            if changed:
+                it.keywords_matched = merged_ids
+
+            auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+            name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
+            name_tags = [t for t in name_tags if t]
+            merged_auto = _unique_strings([*auto, *name_tags])
+            if merged_auto != auto:
+                it.auto_tags = merged_auto
+                changed = True
+
+            if changed:
+                evidence_updated += 1
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "status": "success",
+        "workspace_id": str(workspace.id),
+        "emails_scanned": emails_scanned,
+        "emails_updated": emails_updated,
+        "evidence_scanned": evidence_scanned,
+        "evidence_updated": evidence_updated,
+        "mode": mode,
+    }
 
 
 # Team members endpoints

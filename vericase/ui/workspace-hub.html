@@ -2513,6 +2513,9 @@
               <button class="btn btn-sm btn-outline" onclick="refreshWorkspacePurpose(true)" title="Refresh (deep purpose analysis by default)">
                 <i class="fas fa-sync-alt"></i> Refresh
               </button>
+              <button class="btn btn-sm btn-outline" onclick="rescanWorkspaceKeywords()" title="Rescan correspondence + evidence for keywords (keeps workspace outputs aligned)">
+                <i class="fas fa-tags"></i> Rescan keywords
+              </button>
             </div>
           </div>
 
@@ -4762,6 +4765,44 @@
         const msg = typeof e?.message === "string" ? e.message : "Failed to refresh Purpose";
         console.debug("Purpose refresh failed:", e);
         VericaseUI.Toast.error(msg);
+      }
+    }
+
+    async function rescanWorkspaceKeywords() {
+      if (!workspaceId) return;
+      const toast = VericaseUI.Toast.info(
+        "Rescanning workspace keywords across correspondence + evidence…",
+        { duration: 0 },
+      );
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/keywords/rescan`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            include_emails: true,
+            include_evidence: true,
+            max_emails: 50000,
+            max_evidence: 50000,
+            mode: "merge",
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = typeof data?.detail === "string" ? data.detail : "Keyword rescan failed";
+          throw new Error(msg);
+        }
+        VericaseUI.Toast.dismiss(toast);
+        VericaseUI.Toast.success(
+          `Workspace rescan complete: ${Number(data.emails_updated || 0)} emails updated, ${Number(data.evidence_updated || 0)} evidence items updated.`,
+        );
+
+        // Best-effort: refresh the smart summaries so they can reflect new tagging.
+        refreshWorkspaceAbout(true).catch(() => {});
+        refreshWorkspacePurpose(true).catch(() => {});
+      } catch (e) {
+        console.debug("Workspace keyword rescan failed:", e);
+        VericaseUI.Toast.dismiss(toast);
+        VericaseUI.Toast.error("Workspace keyword rescan failed.");
       }
     }
 

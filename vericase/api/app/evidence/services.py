@@ -353,6 +353,15 @@ async def complete_evidence_upload_service(request, db):
         except Exception:
             resolved_project_id = None
 
+    collection_uuid: uuid.UUID | None = None
+    if request.collection_id:
+        try:
+            collection_uuid = uuid.UUID(str(request.collection_id))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail="Invalid collection_id format"
+            ) from exc
+
     evidence_item = EvidenceItem(
         filename=request.filename,
         file_type=get_file_type(request.filename),
@@ -370,9 +379,7 @@ async def complete_evidence_upload_service(request, db):
         source_type="direct_upload",
         case_id=uuid.UUID(request.case_id) if request.case_id else None,
         project_id=uuid.UUID(resolved_project_id) if resolved_project_id else None,
-        collection_id=(
-            uuid.UUID(request.collection_id) if request.collection_id else None
-        ),
+        collection_id=collection_uuid,
         is_duplicate=is_duplicate,
         duplicate_of_id=duplicate_of_id,
         uploaded_by=user.id,
@@ -387,6 +394,24 @@ async def complete_evidence_upload_service(request, db):
         evidence_item_id=evidence_item.id,
         details={"filename": request.filename, "size": request.file_size},
     )
+
+    # Ensure collection membership is tracked via the junction table (used by filters/counts).
+    if collection_uuid is not None:
+        collection = (
+            db.query(EvidenceCollection)
+            .filter(EvidenceCollection.id == collection_uuid)
+            .first()
+        )
+        if not collection:
+            raise HTTPException(status_code=404, detail="Collection not found")
+        db.add(
+            EvidenceCollectionItem(
+                collection_id=collection_uuid,
+                evidence_item_id=evidence_item.id,
+                added_method="upload",
+                added_by=user.id,
+            )
+        )
     db.commit()
     try:
         metadata = await extract_evidence_metadata(
@@ -450,7 +475,14 @@ async def complete_evidence_upload_service(request, db):
 
 
 async def direct_upload_evidence_service(
-    file, db, case_id, project_id, collection_id, evidence_type, tags
+    file,
+    db,
+    case_id,
+    project_id,
+    collection_id,
+    evidence_type,
+    tags,
+    original_path=None,
 ):
     from ..evidence_metadata import extract_evidence_metadata
 
@@ -488,6 +520,15 @@ async def direct_upload_evidence_service(
     if tags:
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
 
+    collection_uuid: uuid.UUID | None = None
+    if collection_id:
+        try:
+            collection_uuid = uuid.UUID(str(collection_id))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail="Invalid collection_id format"
+            ) from exc
+
     # Mirror linked project_id when operating in case context (see note in complete service).
     resolved_project_id = project_id
     if case_id and not resolved_project_id:
@@ -501,6 +542,7 @@ async def direct_upload_evidence_service(
     evidence_item = EvidenceItem(
         id=uuid.UUID(evidence_id),
         filename=file.filename,
+        original_path=original_path,
         file_type=get_file_type(file.filename),
         mime_type=file.content_type,
         file_size=file_size,
@@ -514,12 +556,30 @@ async def direct_upload_evidence_service(
         source_type="direct_upload",
         case_id=uuid.UUID(case_id) if case_id else None,
         project_id=uuid.UUID(resolved_project_id) if resolved_project_id else None,
-        collection_id=uuid.UUID(collection_id) if collection_id else None,
+        collection_id=collection_uuid,
         is_duplicate=is_duplicate,
         duplicate_of_id=duplicate_of_id,
         uploaded_by=user.id,
     )
     db.add(evidence_item)
+
+    # Ensure collection membership is tracked via the junction table (used by filters/counts).
+    if collection_uuid is not None:
+        collection = (
+            db.query(EvidenceCollection)
+            .filter(EvidenceCollection.id == collection_uuid)
+            .first()
+        )
+        if not collection:
+            raise HTTPException(status_code=404, detail="Collection not found")
+        db.add(
+            EvidenceCollectionItem(
+                collection_id=collection_uuid,
+                evidence_item_id=evidence_item.id,
+                added_method="upload",
+                added_by=user.id,
+            )
+        )
     log_activity(
         db,
         "upload",
@@ -1096,6 +1156,7 @@ async def get_evidence_server_side_service(
                 "document_category": item.document_category,
                 "document_date": document_date,
                 "processing_status": item.processing_status or "pending",
+                "ocr_completed": bool(getattr(item, "ocr_completed", False)),
                 "is_starred": item.is_starred or False,
                 "is_reviewed": item.is_reviewed or False,
                 "has_correspondence": corr_count > 0,
@@ -1362,6 +1423,9 @@ async def get_evidence_full_service(evidence_id, db):
         "document_category": item.document_category,
         "document_date": document_date,
         "processing_status": item.processing_status or "pending",
+        "ocr_completed": bool(getattr(item, "ocr_completed", False)),
+        "processing_error": item.processing_error,
+        "processed_at": item.processed_at,
         "page_count": item.page_count,
         "auto_tags": item.auto_tags or [],
         "manual_tags": item.manual_tags or [],

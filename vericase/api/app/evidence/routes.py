@@ -93,9 +93,17 @@ async def direct_upload_evidence(
     collection_id: Annotated[str | None, Form()] = None,
     evidence_type: Annotated[str | None, Form()] = None,
     tags: Annotated[str | None, Form()] = None,
+    original_path: Annotated[str | None, Form()] = None,
 ) -> dict[str, Any]:
     return await direct_upload_evidence_service(
-        file, db, case_id, project_id, collection_id, evidence_type, tags
+        file,
+        db,
+        case_id,
+        project_id,
+        collection_id,
+        evidence_type,
+        tags,
+        original_path,
     )
 
 

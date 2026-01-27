@@ -466,6 +466,10 @@
             <button type="button" class="btn-add-row" onclick="addKeywordRow()">
               <i class="fas fa-plus"></i> Add Keyword
             </button>
+            <button type="button" class="btn-add-row" id="rescanKeywordsBtn" onclick="rescanKeywordsForCase()" title="Rescan existing correspondence and evidence for the keywords above">
+              <i class="fas fa-sync-alt"></i> Rescan existing items
+            </button>
+            <div class="helper-text" id="rescanKeywordsHint" style="margin-top: 8px;"></div>
           </section>
 
           <!-- Section 3.4: Case Deadlines -->
@@ -1122,6 +1126,57 @@
         }
       }
 
+      async function rescanKeywordsForCase() {
+        if (!currentCaseId) {
+          VericaseUI.Toast.info("Save the case first, then rescan keywords.");
+          return;
+        }
+
+        const btn = document.getElementById("rescanKeywordsBtn");
+        const hint = document.getElementById("rescanKeywordsHint");
+        const original = btn ? btn.innerHTML : "";
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rescanning...';
+        }
+        if (hint) hint.textContent = "";
+
+        const toast = VericaseUI.Toast.info("Rescanning keywords across correspondence + evidence…", { duration: 0 });
+        try {
+          const resp = await fetch(`/api/cases/${encodeURIComponent(currentCaseId)}/keywords/rescan`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              include_emails: true,
+              include_evidence: true,
+              max_emails: 20000,
+              max_evidence: 20000,
+              mode: "merge",
+            }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data.detail || "Keyword rescan failed");
+
+          VericaseUI.Toast.dismiss(toast);
+          VericaseUI.Toast.success(
+            `Rescan complete: ${Number(data.emails_updated || 0)} emails updated, ${Number(data.evidence_updated || 0)} evidence items updated.`,
+          );
+          if (hint) {
+            hint.textContent = `Updated ${Number(data.emails_updated || 0)} emails and ${Number(data.evidence_updated || 0)} evidence items.`;
+          }
+        } catch (e) {
+          console.error("Keyword rescan failed:", e);
+          VericaseUI.Toast.dismiss(toast);
+          VericaseUI.Toast.error("Keyword rescan failed. Please try again.");
+          if (hint) hint.textContent = "Rescan failed.";
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = original;
+          }
+        }
+      }
+
       // ========================================
       // Initialization
       // ========================================
@@ -1189,6 +1244,13 @@
           addClaimRow();
           addKeywordRow();
           addDeadlineRow();
+        }
+
+        const rescanBtn = document.getElementById("rescanKeywordsBtn");
+        if (rescanBtn) {
+          // Only makes sense once the case exists.
+          rescanBtn.disabled = !isEditMode;
+          if (!isEditMode) rescanBtn.style.display = "none";
         }
 
         // Shell

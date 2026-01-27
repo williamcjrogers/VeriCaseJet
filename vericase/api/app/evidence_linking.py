@@ -819,7 +819,11 @@ def process_evidence_batch(
                 item.duplicate_of_id = duplicates[0].id
                 results["duplicates_found"] += 1
 
-            item.processing_status = "ready"
+            # IMPORTANT:
+            # Evidence linking/classification is NOT the same as OCR/text extraction.
+            # Do not mark items as "ready" here; that status is reserved for completed
+            # text extraction/OCR pipelines (e.g., Textract/Tika/local extract) which
+            # set `ocr_completed` and persist `extracted_text`.
             results["processed"] += 1
 
         except Exception as e:

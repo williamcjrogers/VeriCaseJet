@@ -1769,6 +1769,8 @@ Only include references that appear to be OTHER projects (is_other_project: true
         detected_people: list[DetectedItem],
         detected_duplicates: list[DetectedItem],
         total_emails: int,
+        *,
+        duplicate_emails_total: int | None = None,
     ) -> list[RefinementQuestion]:
         """
         Generate intelligent questions in a LOGICAL order:
@@ -1905,7 +1907,11 @@ Only include references that appear to be OTHER projects (is_other_project: true
 
         # STEP 5: Remove duplicates
         if detected_duplicates:
-            total_dup_count = sum(item.email_count - 1 for item in detected_duplicates)
+            total_dup_count = (
+                duplicate_emails_total
+                if isinstance(duplicate_emails_total, int)
+                else sum(item.email_count - 1 for item in detected_duplicates)
+            )
             questions.append(
                 RefinementQuestion(
                     id=f"q_{uuid.uuid4().hex[:8]}",
@@ -2146,6 +2152,11 @@ async def _run_bulk_analysis_background(
 
         # Convert duplicate results
         detected_duplicates: list[DetectedItem] = []
+        # Internal: track all duplicate email IDs (excluding originals) so the
+        # "remove all duplicates" action can remove everything even when we cap
+        # UI groups for performance.
+        all_duplicate_ids: set[str] = set()
+        total_dup_count_all = 0
         for signature, email_list in sorted(
             all_duplicates.items(), key=lambda x: len(x[1]), reverse=True
         ):
@@ -2155,6 +2166,11 @@ async def _run_bulk_analysis_background(
                 )
                 original = sorted_emails[0]
                 duplicates = sorted_emails[1:]
+                total_dup_count_all += len(duplicates)
+                for dup in duplicates:
+                    dup_id = dup.get("id")
+                    if dup_id:
+                        all_duplicate_ids.add(str(dup_id))
                 # Sanitize sample emails for JSON serialization (convert datetime to string)
                 sanitized_samples = [
                     {
@@ -2272,6 +2288,7 @@ async def _run_bulk_analysis_background(
             detected_people,
             detected_duplicates,
             processed_count,
+            duplicate_emails_total=total_dup_count_all,
         )
 
         # Update session with final results
@@ -2285,6 +2302,9 @@ async def _run_bulk_analysis_background(
             "detected_domains": [d.model_dump() for d in detected_domains],
             "detected_people": [],
             "detected_duplicates": [d.model_dump() for d in detected_duplicates],
+            # Internal-only: do not expose in public session status responses.
+            "_internal_duplicate_ids": sorted(all_duplicate_ids),
+            "_internal_duplicate_emails_total": total_dup_count_all,
         }
         session.questions_asked = questions
         session.status = "awaiting_answers"
@@ -2435,16 +2455,37 @@ async def submit_answer(
             and "duplicate" in question.question_text.lower()
         ):
             if answer_val == "remove_all":
-                # Collect all duplicate IDs (not originals)
+                # Prefer internal full-dataset duplicate IDs (not originals) if present.
+                internal = session.analysis_results.get("_internal_duplicate_ids")
+                if isinstance(internal, list) and internal:
+                    session.exclusion_rules["remove_duplicate_ids"] = [
+                        str(v) for v in cast(list[object], internal) if v
+                    ]
+                else:
+                    # Fallback: collect duplicate IDs from the (UI-capped) groups.
+                    duplicate_ids: list[str] = []
+                    for item in question.detected_items:
+                        dup_ids_raw: object = item.metadata.get("duplicate_ids", [])
+                        if isinstance(dup_ids_raw, list):
+                            dup_list = cast(list[object], dup_ids_raw)
+                            duplicate_ids.extend([str(d_item) for d_item in dup_list])
+                    session.exclusion_rules["remove_duplicate_ids"] = duplicate_ids
+            elif answer_val == "select_individual":
+                # UI selects duplicate *groups* (DetectedItem.id). Convert selected groups
+                # into the underlying duplicate email IDs (not originals).
                 duplicate_ids: list[str] = []
+                selected = set(answer.selected_items or [])
                 for item in question.detected_items:
+                    if item.id not in selected:
+                        continue
                     dup_ids_raw: object = item.metadata.get("duplicate_ids", [])
                     if isinstance(dup_ids_raw, list):
                         dup_list = cast(list[object], dup_ids_raw)
                         duplicate_ids.extend([str(d_item) for d_item in dup_list])
-                session.exclusion_rules["remove_duplicate_ids"] = duplicate_ids
-            elif answer_val == "select_individual":
-                session.exclusion_rules["remove_duplicate_ids"] = answer.selected_items
+                # Backwards compatibility: if the UI ever sends raw email IDs, honor them.
+                session.exclusion_rules["remove_duplicate_ids"] = (
+                    duplicate_ids if duplicate_ids else answer.selected_items
+                )
 
         elif question.stage == RefinementStage.PROJECT_CROSS_REF:
             if answer_val == "exclude_all":
@@ -2672,11 +2713,19 @@ async def apply_refinement(
             meta["ai_excluded"] = True
             meta["ai_exclude_reason"] = exclude_reason
             meta["ai_exclude_session"] = session_id
-            if exclude_reason and exclude_reason.startswith("other_project:"):
-                # Align with visibility rules so processing/queries hide these emails.
+            # Align with visibility rules so correspondence/AI queries hide these emails.
+            meta["is_hidden"] = True
+            meta["excluded"] = True
+            if exclude_reason == "duplicate":
+                meta["status"] = "duplicate"
+            elif exclude_reason and exclude_reason.startswith("spam:"):
+                meta["status"] = "spam"
+            elif exclude_reason and exclude_reason.startswith("other_project:"):
                 meta["status"] = "other_project"
-                meta["is_hidden"] = True
-                meta["excluded"] = True
+            elif exclude_reason and exclude_reason.startswith("excluded_domain:"):
+                meta["status"] = "excluded_domain"
+            elif exclude_reason and exclude_reason.startswith("excluded_person:"):
+                meta["status"] = "excluded_person"
             email.meta = meta
             excluded_count += 1
 
@@ -2790,7 +2839,15 @@ async def get_session_status(
     # Add questions when ready
     if session.status == "awaiting_answers" and session.questions_asked:
         response["next_questions"] = [q.model_dump() for q in session.questions_asked]
-        response["analysis_results"] = session.analysis_results
+        # Avoid returning large internal payloads (e.g., full duplicate ID lists).
+        if isinstance(session.analysis_results, dict):
+            response["analysis_results"] = {
+                k: v
+                for k, v in session.analysis_results.items()
+                if not str(k).startswith("_internal_")
+            }
+        else:
+            response["analysis_results"] = {}
 
     return response
 

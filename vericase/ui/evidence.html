@@ -136,6 +136,7 @@
       font-size: 0.8125rem;
       cursor: pointer;
       transition: all var(--duration-fast);
+      -webkit-user-select: none;
       user-select: none;
       background: white;
     }
@@ -316,6 +317,7 @@
       cursor: pointer;
       font-size: 0.75rem;
       color: var(--text-secondary);
+      -webkit-user-select: none;
       user-select: none;
     }
 
@@ -1528,7 +1530,7 @@
     </div>
 
     <div class="filter-group">
-      <select class="filter-select" id="fileTypeFilter">
+      <select class="filter-select" id="fileTypeFilter" title="File type filter" aria-label="File type filter">
         <option value="">All File Types</option>
         <option value="pdf">PDF Documents</option>
         <option value="word">Word Documents</option>
@@ -1539,9 +1541,10 @@
         <option value="other">Other</option>
       </select>
 
-      <select class="filter-select" id="statusFilter">
+      <select class="filter-select" id="statusFilter" title="Status filter" aria-label="Status filter">
         <option value="">All Status</option>
-        <option value="processed">Processed</option>
+        <option value="ready">Complete (text extracted)</option>
+        <option value="processed">Processed (metadata only)</option>
         <option value="processing">Processing</option>
         <option value="pending">Pending</option>
         <option value="error">Error</option>
@@ -1592,9 +1595,19 @@
     </div>
 
     <input type="file" id="fileInput" multiple style="display: none" />
+    <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none" />
     <button class="btn btn-vericase" id="uploadBtn">
       <i class="fas fa-upload"></i>
       <span class="btn-text">Upload Evidence</span>
+    </button>
+    <button class="btn btn-ghost" id="uploadFolderBtn" title="Upload a folder">
+      <i class="fas fa-folder-open"></i>
+      <span class="btn-text-sm">Folder</span>
+    </button>
+
+    <button class="btn btn-ghost" id="rescanKeywordsBtn" title="Rescan correspondence + evidence for configured keywords">
+      <i class="fas fa-tags"></i>
+      <span class="btn-text-sm">Rescan</span>
     </button>
 
     <button class="btn btn-ghost" id="refreshBtn" title="Refresh">
@@ -1713,7 +1726,7 @@
             </div>
             <div class="collab-input">
               <textarea id="evidenceCommentInput" placeholder="Add a note for this evidence item..."></textarea>
-              <button class="btn btn-vericase btn-sm" id="evidenceCommentSend" onclick="postEvidenceNote()">
+              <button class="btn btn-vericase btn-sm" id="evidenceCommentSend" onclick="postEvidenceNote()" title="Send note" aria-label="Send note">
                 <i class="fas fa-paper-plane"></i>
               </button>
             </div>
@@ -3053,20 +3066,43 @@
             headerName: "Status",
             width: 120,
             cellRenderer: (params) => {
-              let status = params.value || "pending";
-              // Normalize status - treat 'completed' and items with page_count/author as 'ready'
-              if (status === "completed" || status === "processed") {
+              const rawStatus = String(params.value || "pending").toLowerCase();
+              const row = params.data || {};
+              const ocrCompleted = !!row.ocr_completed;
+              const hasMetadata =
+                !!row.page_count ||
+                !!row.author ||
+                (Array.isArray(row.extracted_parties) && row.extracted_parties.length > 0) ||
+                (Array.isArray(row.auto_tags) && row.auto_tags.length > 0);
+
+              // Derive a truthful UI status:
+              // - "ready" means OCR/text extraction completed (ocr_completed=true)
+              // - "processed" means metadata extracted only
+              // - "pending" means not processed yet
+              let status = rawStatus;
+
+              // Email pseudo-rows can be "completed" - treat as ready.
+              if (status === "completed") status = "ready";
+
+              // If OCR is complete, always show ready.
+              if (ocrCompleted) {
                 status = "ready";
-              } else if (status === "pending" && params.data) {
-                // If pending but has extracted content, show as ready
-                const hasContent = params.data.page_count || params.data.author || 
-                  (params.data.extracted_parties && params.data.extracted_parties.length > 0) ||
-                  (params.data.auto_tags && params.data.auto_tags.length > 0);
-                if (hasContent) {
-                  status = "ready";
-                }
+              } else if (status === "ready") {
+                // Guard against incorrect backend status: ready without OCR completion.
+                status = "processed";
+              } else if (status === "pending" && hasMetadata) {
+                // Some legacy rows may still show pending even after metadata extraction.
+                status = "processed";
               }
-              const displayLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
+              let displayLabel = status;
+              if (status === "ready") displayLabel = "Complete";
+              else if (status === "processed") displayLabel = "Processed";
+              else if (status === "processing") displayLabel = "Processing";
+              else if (status === "pending") displayLabel = "Pending";
+              else if (status === "error") displayLabel = "Error";
+              else displayLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
               return `<span class="status-badge status-${status}">${displayLabel}</span>`;
             },
           },
@@ -4218,17 +4254,38 @@
 
       let html = "";
 
-      const rawStatus = (detail.processing_status || "pending").toLowerCase();
+      const rawStatus = String(detail.processing_status || "pending").toLowerCase();
+      const ocrCompleted = !!detail.ocr_completed;
+      const hasMetadata =
+        !!detail.page_count ||
+        !!detail.author ||
+        (Array.isArray(detail.extracted_parties) && detail.extracted_parties.length > 0) ||
+        (Array.isArray(detail.auto_tags) && detail.auto_tags.length > 0);
+
+      // Prefer truth signals: OCR completion beats status strings.
+      let effectiveStatus = rawStatus;
+      if (effectiveStatus === "completed") effectiveStatus = "ready";
+      if (ocrCompleted) {
+        effectiveStatus = "ready";
+      } else if (effectiveStatus === "ready") {
+        // Guard against incorrect backend status: ready without OCR completion.
+        effectiveStatus = "processed";
+      } else if (effectiveStatus === "pending" && hasMetadata) {
+        effectiveStatus = "processed";
+      }
+
       const statusLabel =
-        rawStatus === "processed" || rawStatus === "completed" || rawStatus === "ready"
-          ? "Ready"
-          : rawStatus === "processing"
-            ? "Processing..."
-          : rawStatus === "pending"
-            ? "Pending (not processed yet)"
-            : rawStatus === "error"
-              ? "Error (processing failed)"
-              : rawStatus;
+        effectiveStatus === "ready"
+          ? "Complete (text extracted)"
+          : effectiveStatus === "processed"
+            ? "Processed (metadata only)"
+            : effectiveStatus === "processing"
+              ? "Processing..."
+              : effectiveStatus === "pending"
+                ? "Pending (not processed yet)"
+                : effectiveStatus === "error"
+                  ? "Error (processing failed)"
+                  : effectiveStatus;
 
       // Basic Info
       html += `
@@ -4262,7 +4319,7 @@
                         <div class="detail-item">
                             <div class="detail-label">Status</div>
                             <div class="detail-value">
-                                <span class="status-badge status-${rawStatus}">${statusLabel}</span>
+                                <span class="status-badge status-${effectiveStatus}">${statusLabel}</span>
                             </div>
                         </div>
                         ${detail.document_date
@@ -5008,6 +5065,150 @@
       }
     }
 
+    function getActiveCollectionId() {
+      const active = document.querySelector(".collection-item.active");
+      const id = (active?.dataset?.id || "").trim();
+      return id ? id : null;
+    }
+
+    function setActiveCollectionById(collectionId) {
+      if (!collectionId) return false;
+      const list = document.getElementById("collectionList");
+      if (!list) return false;
+      const target = list.querySelector(`.collection-item[data-id="${collectionId}"]`);
+      if (!target) return false;
+      list.querySelectorAll(".collection-item").forEach((i) => i.classList.remove("active"));
+      target.classList.add("active");
+      return true;
+    }
+
+    function getRootFolderNameFromFiles(fileList) {
+      if (!fileList || fileList.length === 0) return null;
+      for (const f of fileList) {
+        const rel = f.webkitRelativePath || "";
+        if (rel) return rel.split("/")[0] || null;
+      }
+      return null;
+    }
+
+    function findExistingCollectionByName(name, parentId) {
+      const wanted = (name || "").trim().toLowerCase();
+      const pid = parentId || null;
+      if (!wanted) return null;
+      return (collectionsCache || []).find((c) => {
+        const cname = (c?.name || "").trim().toLowerCase();
+        const cpid = c?.parent_id || null;
+        return cname === wanted && cpid === pid;
+      }) || null;
+    }
+
+    async function ensureFolderCollection(folderName, parentId) {
+      const trimmed = (folderName || "").trim();
+      if (!trimmed) return null;
+
+      const existing = findExistingCollectionByName(trimmed, parentId);
+      if (existing?.id) return existing.id;
+
+      try {
+        const response = await fetch(`${apiUrl}/api/evidence/collections`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: trimmed,
+            description: `Uploaded folder: ${trimmed}`,
+            parent_id: parentId || null,
+            project_id: projectId || null,
+            case_id: caseId || null,
+          }),
+        });
+
+        if (response.ok) {
+          const created = await response.json();
+          return created?.id || null;
+        }
+      } catch (e) {
+        console.warn("Failed to create folder collection:", e);
+      }
+
+      // Fallback: reload collections and try to find it again (in case it already exists).
+      try {
+        await loadCollections();
+        const existing2 = findExistingCollectionByName(trimmed, parentId);
+        return existing2?.id || null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function handleFolderUpload(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+
+      const uploadBtn = document.getElementById("uploadBtn");
+      const uploadFolderBtn = document.getElementById("uploadFolderBtn");
+      uploadBtn.disabled = true;
+      uploadBtn.classList.add("loading");
+      if (uploadFolderBtn) {
+        uploadFolderBtn.disabled = true;
+        uploadFolderBtn.classList.add("loading");
+      }
+
+      const rootFolder = getRootFolderNameFromFiles(files) || "Uploaded Folder";
+      const parentId = getActiveCollectionId(); // If a real collection is selected, create as subfolder.
+
+      const toast = VericaseUI.Toast.info(
+        `Uploading folder "${rootFolder}" (${files.length} file(s))...`,
+        { duration: 0 },
+      );
+
+      try {
+        const collectionId = await ensureFolderCollection(rootFolder, parentId);
+        if (!collectionId) {
+          throw new Error("Could not create or find a collection for this folder");
+        }
+
+        let successCount = 0;
+        for (const file of files) {
+          const formData = new FormData();
+          formData.append("file", file);
+          if (projectId) formData.append("project_id", projectId);
+          if (caseId) formData.append("case_id", caseId);
+          formData.append("collection_id", collectionId);
+          const rel = file.webkitRelativePath || "";
+          if (rel) formData.append("original_path", rel);
+
+          const response = await fetch(`${apiUrl}/api/evidence/upload/direct`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (response.ok) successCount++;
+        }
+
+        VericaseUI.Toast.dismiss(toast);
+        VericaseUI.Toast.success(
+          `Uploaded ${successCount}/${files.length} file(s) to "${rootFolder}"`,
+        );
+
+        await loadCollections();
+        setActiveCollectionById(collectionId);
+        refreshGridData();
+        loadStats();
+      } catch (error) {
+        console.error("Folder upload error:", error);
+        VericaseUI.Toast.dismiss(toast);
+        VericaseUI.Toast.error("Folder upload failed. Please try again.");
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.classList.remove("loading");
+        if (uploadFolderBtn) {
+          uploadFolderBtn.disabled = false;
+          uploadFolderBtn.classList.remove("loading");
+        }
+        document.getElementById("folderInput").value = "";
+      }
+    }
+
     async function handleFileUpload(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
@@ -5022,12 +5223,16 @@
       );
 
       try {
+        const activeCollectionId = getActiveCollectionId();
         let successCount = 0;
         for (const file of files) {
           const formData = new FormData();
           formData.append("file", file);
           if (projectId) formData.append("project_id", projectId);
           if (caseId) formData.append("case_id", caseId);
+          if (activeCollectionId) formData.append("collection_id", activeCollectionId);
+          const rel = file.webkitRelativePath || "";
+          if (rel) formData.append("original_path", rel);
 
           const response = await fetch(
             `${apiUrl}/api/evidence/upload/direct`,
@@ -5045,6 +5250,10 @@
           `Successfully uploaded ${successCount} file(s)`,
         );
 
+        if (activeCollectionId) {
+          await loadCollections();
+          setActiveCollectionById(activeCollectionId);
+        }
         refreshGridData();
         loadStats();
       } catch (error) {
@@ -5055,6 +5264,70 @@
         uploadBtn.disabled = false;
         uploadBtn.classList.remove("loading");
         document.getElementById("fileInput").value = "";
+      }
+    }
+
+    async function rescanKeywords() {
+      const btn = document.getElementById("rescanKeywordsBtn");
+      if (!btn) return;
+
+      const endpoint =
+        projectId
+          ? `${apiUrl}/api/projects/${encodeURIComponent(projectId)}/keywords/rescan`
+          : caseId
+            ? `${apiUrl}/api/cases/${encodeURIComponent(caseId)}/keywords/rescan`
+            : null;
+
+      if (!endpoint) {
+        VericaseUI.Toast.error("No project/case context to rescan keywords.");
+        return;
+      }
+
+      const originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span class="btn-text-sm">Rescanning</span>';
+
+      const toast = VericaseUI.Toast.info("Rescanning keywords across correspondence + evidence…", {
+        duration: 0,
+      });
+
+      try {
+        const resp = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            include_emails: true,
+            include_evidence: true,
+            max_emails: 20000,
+            max_evidence: 20000,
+            mode: "merge",
+          }),
+        });
+
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          const msg = data?.detail || `Keyword rescan failed (HTTP ${resp.status})`;
+          throw new Error(msg);
+        }
+
+        const emailsUpdated = Number(data.emails_updated || 0);
+        const evidenceUpdated = Number(data.evidence_updated || 0);
+        const keywordsCount = Number(data.keywords || 0);
+        VericaseUI.Toast.dismiss(toast);
+        VericaseUI.Toast.success(
+          `Keyword rescan complete (${keywordsCount} keywords): ${emailsUpdated} emails updated, ${evidenceUpdated} evidence items updated.`,
+        );
+
+        // Evidence grid doesn't show keyword columns yet, but refresh keeps things consistent.
+        refreshGridData();
+        loadStats();
+      } catch (e) {
+        console.error("Keyword rescan failed:", e);
+        VericaseUI.Toast.dismiss(toast);
+        VericaseUI.Toast.error("Keyword rescan failed. Please try again.");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
       }
     }
 
@@ -5206,6 +5479,15 @@
       document
         .getElementById("fileInput")
         .addEventListener("change", handleFileUpload);
+      document.getElementById("uploadFolderBtn").addEventListener("click", () => {
+        document.getElementById("folderInput").click();
+      });
+      document
+        .getElementById("folderInput")
+        .addEventListener("change", handleFolderUpload);
+      document.getElementById("rescanKeywordsBtn").addEventListener("click", () => {
+        void rescanKeywords();
+      });
 
       // Refresh
       document.getElementById("refreshBtn").addEventListener("click", () => {
