@@ -435,6 +435,7 @@ def _adapt_evidence_items(
 def _adapt_chronology_items(
     items: list[ChronologyItem],
     case_id: str | None,
+    project_id: str | None,
 ) -> list[TimelineEvent]:
     """Convert ChronologyItem records to timeline events"""
     events: list[TimelineEvent] = []
@@ -459,7 +460,7 @@ def _adapt_chronology_items(
             TimelineEvent(
                 id=f"chrono-{item.id}",
                 case_id=str(item.case_id) if item.case_id else case_id,
-                project_id=None,
+                project_id=str(item.project_id) if item.project_id else project_id,
                 event_type=TimelineEventType.CHRONOLOGY,
                 source_table=TimelineEventSource.CHRONOLOGY_ITEM,
                 source_id=str(item.id),
@@ -616,6 +617,10 @@ def _aggregate_timeline_events(
             chrono_query = chrono_query.filter(
                 ChronologyItem.case_id == uuid.UUID(case_id)
             )
+        elif project_id:
+            chrono_query = chrono_query.filter(
+                ChronologyItem.project_id == uuid.UUID(project_id)
+            )
 
         if filters.start_date:
             chrono_query = chrono_query.filter(
@@ -627,7 +632,7 @@ def _aggregate_timeline_events(
             )
 
         chrono_items = chrono_query.all()
-        all_events.extend(_adapt_chronology_items(chrono_items, case_id))
+        all_events.extend(_adapt_chronology_items(chrono_items, case_id, project_id))
 
     # Apply post-aggregation filters
     if filters.types:

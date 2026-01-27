@@ -414,6 +414,17 @@
         color: var(--vc-teal);
       }
 
+      .status-badge.deliberating {
+        background: linear-gradient(135deg, rgba(var(--vericase-teal-rgb), 0.15), rgba(139, 115, 85, 0.15));
+        color: var(--vc-teal);
+        animation: deliberate-pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes deliberate-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+
       .status-badge.awaiting_approval {
         background: rgba(217, 119, 6, 0.1);
         color: var(--accent-warning);
@@ -724,6 +735,227 @@
         color: var(--text-muted);
         font-family: "JetBrains Mono", monospace;
         font-weight: 500;
+      }
+
+      /* ═══════════════════════════════════════════════════════════════════════
+         Chain-of-Thought Deliberation Panel
+         Shows visible AI reasoning during the planning phase
+         ═══════════════════════════════════════════════════════════════════════ */
+      .deliberation-panel {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-card);
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .deliberation-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .deliberation-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--vc-teal), var(--vc-gold));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1rem;
+        animation: think-pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes think-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+
+      .deliberation-title {
+        flex: 1;
+      }
+
+      .deliberation-title h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+      }
+
+      .deliberation-title span {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .deliberation-progress {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .delib-phase {
+        flex: 1;
+        height: 4px;
+        background: var(--bg-tertiary);
+        border-radius: 2px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .delib-phase.active {
+        background: rgba(var(--vericase-teal-rgb), 0.2);
+      }
+
+      .delib-phase.active::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 60%;
+        background: var(--vc-teal);
+        border-radius: 2px;
+        animation: progress-slide 1.5s ease-in-out infinite;
+      }
+
+      .delib-phase.complete {
+        background: var(--vc-teal);
+      }
+
+      @keyframes progress-slide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+      }
+
+      .delib-phase-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+      }
+
+      .delib-phase-labels span.active {
+        color: var(--vc-teal);
+        font-weight: 600;
+      }
+
+      .delib-phase-labels span.complete {
+        color: var(--accent-success);
+      }
+
+      .deliberation-stream {
+        max-height: 300px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+      }
+
+      .delib-event {
+        display: flex;
+        gap: 0.75rem;
+        padding: 0.65rem 0;
+        border-bottom: 1px solid var(--border-subtle);
+        animation: fade-in 0.3s ease;
+      }
+
+      .delib-event:last-child {
+        border-bottom: none;
+      }
+
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(-5px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .delib-event-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.75rem;
+      }
+
+      .delib-event-icon.scan { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+      .delib-event-icon.entity { background: rgba(236, 72, 153, 0.1); color: #ec4899; }
+      .delib-event-icon.issue { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+      .delib-event-icon.angle { background: rgba(var(--vericase-teal-rgb), 0.1); color: var(--vc-teal); }
+      .delib-event-icon.reasoning { background: rgba(139, 115, 85, 0.1); color: var(--vc-gold); }
+      .delib-event-icon.finding { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+
+      .delib-event-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .delib-event-action {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+      }
+
+      .delib-event-finding {
+        font-size: 0.75rem;
+        color: var(--text-primary);
+        font-weight: 500;
+        padding: 0.5rem;
+        background: var(--bg-primary);
+        border-radius: 6px;
+        border-left: 3px solid var(--vc-teal);
+      }
+
+      .delib-event-reasoning {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-style: italic;
+        padding-left: 0.75rem;
+        border-left: 2px solid var(--vc-gold);
+      }
+
+      .delib-stats {
+        display: flex;
+        gap: 1.5rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .delib-stat {
+        text-align: center;
+      }
+
+      .delib-stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .delib-stat-label {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+      }
+
+      .delib-timer {
+        font-size: 0.875rem;
+        font-family: "JetBrains Mono", monospace;
+        color: var(--vc-teal);
+        font-weight: 600;
       }
 
       /* Angle tags with icons */
@@ -1413,6 +1645,67 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
               </div>
             </div>
 
+            <!-- Chain-of-Thought Deliberation Panel -->
+            <div id="deliberationPanel" class="deliberation-panel" style="display: none">
+              <div class="deliberation-header">
+                <div class="deliberation-icon">
+                  <i class="fas fa-brain"></i>
+                </div>
+                <div class="deliberation-title">
+                  <h3>Deliberative Analysis in Progress</h3>
+                  <span id="delibPhaseText">Scanning evidence corpus...</span>
+                </div>
+                <div class="delib-timer" id="delibTimer">00:00</div>
+              </div>
+
+              <div class="deliberation-progress">
+                <div class="delib-phase" id="delibPhaseScan" data-phase="corpus_scan"></div>
+                <div class="delib-phase" id="delibPhaseEntity" data-phase="entity_mapping"></div>
+                <div class="delib-phase" id="delibPhaseIssue" data-phase="issue_identification"></div>
+                <div class="delib-phase" id="delibPhaseDelib" data-phase="deliberation"></div>
+                <div class="delib-phase" id="delibPhaseSynth" data-phase="synthesis"></div>
+              </div>
+
+              <div class="delib-phase-labels">
+                <span id="labelScan">Scan</span>
+                <span id="labelEntity">Entities</span>
+                <span id="labelIssue">Issues</span>
+                <span id="labelDelib">Deliberate</span>
+                <span id="labelSynth">Synthesize</span>
+              </div>
+
+              <div class="deliberation-stream" id="deliberationStream">
+                <!-- Events will be added here dynamically -->
+                <div class="delib-event">
+                  <div class="delib-event-icon scan">
+                    <i class="fas fa-search"></i>
+                  </div>
+                  <div class="delib-event-content">
+                    <div class="delib-event-action">Initializing deliberative analysis...</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="delib-stats">
+                <div class="delib-stat">
+                  <div class="delib-stat-value" id="delibDocsCount">0</div>
+                  <div class="delib-stat-label">Documents</div>
+                </div>
+                <div class="delib-stat">
+                  <div class="delib-stat-value" id="delibEntitiesCount">0</div>
+                  <div class="delib-stat-label">Entities</div>
+                </div>
+                <div class="delib-stat">
+                  <div class="delib-stat-value" id="delibIssuesCount">0</div>
+                  <div class="delib-stat-label">Issues</div>
+                </div>
+                <div class="delib-stat">
+                  <div class="delib-stat-value" id="delibAnglesCount">0</div>
+                  <div class="delib-stat-label">Angles</div>
+                </div>
+              </div>
+            </div>
+
             <!-- Plan Review -->
             <div id="planReview" class="plan-review" style="display: none">
               <div class="plan-header">
@@ -1880,9 +2173,17 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             progressFill.style.width = "15%";
             break;
 
+          case "deliberating":
+            statusMessage.textContent =
+              "Deep analysis in progress — visible reasoning enabled...";
+            progressFill.style.width = "15%";
+            showDeliberationPanel(data.deliberation_events || []);
+            break;
+
           case "awaiting_approval":
             statusMessage.textContent = "Research plan ready for your review.";
             progressFill.style.width = "25%";
+            hideDeliberationPanel();
             showPlanReview(data.plan);
             break;
 
@@ -1960,6 +2261,147 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         
         // Default icon
         return { icon: "fa-search", color: "var(--vc-teal)" };
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // Deliberation Panel Functions
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      let deliberationStartTime = null;
+      let deliberationTimerInterval = null;
+      
+      function showDeliberationPanel(events) {
+        const panel = document.getElementById('deliberationPanel');
+        if (!panel) return;
+        
+        panel.style.display = 'block';
+        document.getElementById('planReview').style.display = 'none';
+        
+        // Start timer if not already running
+        if (!deliberationStartTime) {
+          deliberationStartTime = Date.now();
+          updateDeliberationTimer();
+          deliberationTimerInterval = setInterval(updateDeliberationTimer, 1000);
+        }
+        
+        // Render events
+        renderDeliberationEvents(events);
+      }
+      
+      function hideDeliberationPanel() {
+        const panel = document.getElementById('deliberationPanel');
+        if (panel) panel.style.display = 'none';
+        
+        // Stop timer
+        if (deliberationTimerInterval) {
+          clearInterval(deliberationTimerInterval);
+          deliberationTimerInterval = null;
+        }
+        deliberationStartTime = null;
+      }
+      
+      function updateDeliberationTimer() {
+        if (!deliberationStartTime) return;
+        const elapsed = Math.floor((Date.now() - deliberationStartTime) / 1000);
+        const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const secs = (elapsed % 60).toString().padStart(2, '0');
+        const timer = document.getElementById('delibTimer');
+        if (timer) timer.textContent = `${mins}:${secs}`;
+      }
+      
+      function renderDeliberationEvents(events) {
+        const stream = document.getElementById('deliberationStream');
+        if (!stream || !events.length) return;
+        
+        // Track stats
+        let docsCount = 0, entitiesCount = 0, issuesCount = 0, anglesCount = 0;
+        let currentPhase = 'corpus_scan';
+        
+        // Map phases
+        const phaseMap = {
+          'corpus_scan': { icon: 'fa-search', class: 'scan', label: 'Scanning corpus' },
+          'entity_mapping': { icon: 'fa-project-diagram', class: 'entity', label: 'Mapping entities' },
+          'issue_identification': { icon: 'fa-lightbulb', class: 'issue', label: 'Identifying issues' },
+          'chronology': { icon: 'fa-clock', class: 'angle', label: 'Chronology analysis' },
+          'causation': { icon: 'fa-link', class: 'angle', label: 'Causation analysis' },
+          'liability': { icon: 'fa-gavel', class: 'angle', label: 'Liability analysis' },
+          'quantum': { icon: 'fa-calculator', class: 'angle', label: 'Quantum analysis' },
+          'procedural': { icon: 'fa-file-contract', class: 'angle', label: 'Procedural analysis' },
+          'synthesis': { icon: 'fa-brain', class: 'finding', label: 'Synthesizing plan' },
+          'complete': { icon: 'fa-check-circle', class: 'finding', label: 'Complete' }
+        };
+        
+        // Build HTML
+        let html = '';
+        events.slice(-15).forEach(event => {  // Show last 15 events
+          const phase = event.phase || 'corpus_scan';
+          const info = phaseMap[phase] || phaseMap['corpus_scan'];
+          currentPhase = phase;
+          
+          // Update stats from events
+          if (event.documents_scanned) docsCount = Math.max(docsCount, event.documents_scanned);
+          if (event.entity_count) entitiesCount = Math.max(entitiesCount, event.entity_count);
+          if (event.issue_count) issuesCount = Math.max(issuesCount, event.issue_count);
+          if (phase.includes('chronology') || phase.includes('causation') || phase.includes('liability') || 
+              phase.includes('quantum') || phase.includes('procedural')) {
+            anglesCount = Math.max(anglesCount, 1);
+            if (phase === 'causation') anglesCount = Math.max(anglesCount, 2);
+            if (phase === 'liability') anglesCount = Math.max(anglesCount, 3);
+            if (phase === 'quantum') anglesCount = Math.max(anglesCount, 4);
+            if (phase === 'procedural') anglesCount = Math.max(anglesCount, 5);
+          }
+          
+          html += `
+            <div class="delib-event">
+              <div class="delib-event-icon ${info.class}">
+                <i class="fas ${info.icon}"></i>
+              </div>
+              <div class="delib-event-content">
+                <div class="delib-event-action">${event.action || info.label}</div>
+                ${event.finding ? `<div class="delib-event-finding">${event.finding}</div>` : ''}
+                ${event.reasoning ? `<div class="delib-event-reasoning">${event.reasoning}</div>` : ''}
+              </div>
+            </div>
+          `;
+        });
+        
+        stream.innerHTML = html;
+        stream.scrollTop = stream.scrollHeight;  // Auto-scroll to bottom
+        
+        // Update stats display
+        document.getElementById('delibDocsCount').textContent = docsCount;
+        document.getElementById('delibEntitiesCount').textContent = entitiesCount;
+        document.getElementById('delibIssuesCount').textContent = issuesCount;
+        document.getElementById('delibAnglesCount').textContent = anglesCount;
+        
+        // Update phase text
+        const phaseText = document.getElementById('delibPhaseText');
+        if (phaseText && phaseMap[currentPhase]) {
+          phaseText.textContent = phaseMap[currentPhase].label + '...';
+        }
+        
+        // Update phase progress indicators
+        const phases = ['corpus_scan', 'entity_mapping', 'issue_identification', 'deliberation', 'synthesis'];
+        const phaseOrder = phases.indexOf(
+          currentPhase.includes('chronology') || currentPhase.includes('causation') ||
+          currentPhase.includes('liability') || currentPhase.includes('quantum') ||
+          currentPhase.includes('procedural') ? 'deliberation' : currentPhase
+        );
+        
+        phases.forEach((p, i) => {
+          const el = document.querySelector(`.delib-phase[data-phase="${p}"]`);
+          const label = document.getElementById(`label${p.charAt(0).toUpperCase() + p.slice(1).split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('')}`);
+          if (el) {
+            el.classList.remove('active', 'complete');
+            if (i < phaseOrder) el.classList.add('complete');
+            else if (i === phaseOrder) el.classList.add('active');
+          }
+          if (label) {
+            label.classList.remove('active', 'complete');
+            if (i < phaseOrder) label.classList.add('complete');
+            else if (i === phaseOrder) label.classList.add('active');
+          }
+        });
       }
 
       function showPlanReview(plan) {

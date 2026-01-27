@@ -810,6 +810,9 @@
           <div class="results-header">
             <h2 class="results-title">Chronology Results</h2>
             <div class="export-buttons">
+              <button class="btn-export" onclick="publishChronology()">
+                <i class="fas fa-cloud-upload-alt"></i> Publish Accepted
+              </button>
               <button class="btn-export" onclick="exportResults('csv')">
                 <i class="fas fa-file-csv"></i> Export CSV
               </button>
@@ -1271,6 +1274,38 @@
 
         renderChronology(data.chronology_events || []);
         renderProgramme(data.programme_activities || []);
+      }
+
+      async function publishChronology() {
+        if (!currentSessionId) {
+          alert("No active chronology session.");
+          return;
+        }
+
+        if (!confirm("Publish accepted chronology events to the timeline?")) {
+          return;
+        }
+
+        try {
+          const response = await secureApiFetch("/api/chronology-builder/publish", {
+            method: "POST",
+            body: JSON.stringify({
+              session_id: currentSessionId,
+              only_accepted: true,
+            }),
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.detail || "Failed to publish chronology");
+          }
+
+          const count = data.published_count || 0;
+          alert(`Published ${count} chronology event${count === 1 ? "" : "s"} to the timeline.`);
+        } catch (error) {
+          console.error("Publish error:", error);
+          alert("Failed to publish chronology: " + error.message);
+        }
       }
 
       // Render chronology

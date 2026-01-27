@@ -27,7 +27,7 @@ try:
 except ImportError:
     Redis = None
 
-from .models import User, EmailMessage, Project, EvidenceItem, Case
+from .models import User, EmailMessage, Project, EvidenceItem, Case, ChronologyItem
 from .db import get_db
 from .security import current_user
 from .ai_settings import (
@@ -246,6 +246,13 @@ class UpdateEventRequest(BaseModel):
     date_end: datetime | None = None
     event_type: str | None = None
     parties: list[str] | None = None
+
+
+class PublishBuilderRequest(BaseModel):
+    """Request to publish accepted chronology events to durable storage."""
+
+    session_id: str
+    only_accepted: bool = True
 
 
 # =============================================================================
@@ -1017,6 +1024,97 @@ async def update_builder_event(
     save_builder_session(session)
 
     return {"status": "updated", "event_id": request.event_id}
+
+
+@router.post("/publish")
+def publish_builder_events(
+    request: PublishBuilderRequest,
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict[str, Any]:
+    """Publish accepted chronology events to ChronologyItem records."""
+    session = load_builder_session(request.session_id)
+    if not session:
+        raise HTTPException(404, "Builder session not found")
+
+    if session.user_id != str(user.id):
+        raise HTTPException(403, "Not authorized")
+
+    if session.status != BuilderStatus.COMPLETED:
+        raise HTTPException(
+            400, f"Session not completed. Status: {session.status.value}"
+        )
+
+    if not session.project_id and not session.case_id:
+        raise HTTPException(400, "Session has no project or case context")
+
+    case_uuid = None
+    project_uuid = None
+    if session.case_id:
+        try:
+            case_uuid = uuid.UUID(str(session.case_id))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid case_id format")
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+        if case.project_id:
+            project_uuid = case.project_id
+
+    if session.project_id:
+        try:
+            project_uuid = uuid.UUID(str(session.project_id))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid project_id format")
+        project = db.query(Project).filter(Project.id == project_uuid).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+    events = session.chronology_events or []
+    if request.only_accepted:
+        events = [e for e in events if e.is_accepted]
+
+    if not events:
+        return {"status": "no_events", "published_count": 0, "event_ids": []}
+
+    published_ids: list[str] = []
+    for ev in events:
+        if not ev.date_start:
+            continue
+
+        evidence_ids: list[str] = []
+        if isinstance(ev.sources, dict):
+            evidence_ids.extend(
+                [str(x) for x in (ev.sources.get("evidence_ids") or []) if x]
+            )
+            evidence_ids.extend(
+                [str(x) for x in (ev.sources.get("email_ids") or []) if x]
+            )
+
+        item = ChronologyItem(
+            id=uuid.uuid4(),
+            case_id=case_uuid,
+            project_id=project_uuid,
+            event_date=ev.date_start,
+            event_type=ev.event_type,
+            title=ev.title or "Untitled Event",
+            description=ev.narrative,
+            evidence_ids=evidence_ids,
+            parties_involved=ev.parties or [],
+        )
+        db.add(item)
+        published_ids.append(str(item.id))
+
+    if not published_ids:
+        return {"status": "no_events", "published_count": 0, "event_ids": []}
+
+    db.commit()
+
+    return {
+        "status": "published",
+        "published_count": len(published_ids),
+        "event_ids": published_ids,
+    }
 
 
 @router.get("/sessions", response_model=list[dict[str, Any]])

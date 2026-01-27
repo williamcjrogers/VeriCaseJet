@@ -509,6 +509,49 @@
       margin-bottom: 0;
     }
 
+    .intel-summary {
+      white-space: pre-wrap;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .intel-status {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .intel-questions {
+      margin-top: 0.75rem;
+    }
+
+    .intel-questions ul {
+      margin: 0;
+      padding-left: 1.25rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .intel-actions {
+      margin-top: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .intel-answer {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-muted);
+      background: var(--gray-50);
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      display: none;
+      white-space: pre-wrap;
+    }
+
     .stat-label {
       font-size: 0.8125rem;
       color: var(--text-secondary);
@@ -1170,6 +1213,43 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Project Intel Pack Widget -->
+      <div class="widget" id="projectIntelWidget">
+        <h3>
+          <i class="fas fa-brain"></i> Project Intel Pack
+          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px"
+            onclick="event.stopPropagation(); refreshProjectIntelPack(false)">
+            <i class="fas fa-sync"></i> Refresh
+          </button>
+          <button class="btn btn-secondary" style="margin-left: 10px; padding: 6px 12px; font-size: 12px"
+            onclick="event.stopPropagation(); refreshProjectIntelPack(true)">
+            <i class="fas fa-bolt"></i> Deep
+          </button>
+        </h3>
+        <div id="projectIntelSummary" class="intel-summary">Loading intel pack…</div>
+        <div id="projectIntelStatus" class="intel-status"></div>
+        <div id="projectIntelQuestions" class="intel-questions"></div>
+        <div id="projectIntelClaims" class="intel-questions"></div>
+        <div id="projectIntelAnswer" class="intel-answer"></div>
+        <div class="intel-actions">
+          <button class="btn btn-secondary" onclick="event.stopPropagation(); setProjectIntelPurpose()">
+            <i class="fas fa-bullseye"></i> Set Purpose
+          </button>
+          <button class="btn btn-secondary" onclick="event.stopPropagation(); askProjectIntelPack()">
+            <i class="fas fa-comment-dots"></i> Ask
+          </button>
+          <button class="btn btn-secondary" onclick="event.stopPropagation(); addClaimNode()">
+            <i class="fas fa-sitemap"></i> Add Claim
+          </button>
+          <button class="btn btn-secondary" onclick="event.stopPropagation(); pinClaimItem()">
+            <i class="fas fa-thumbtack"></i> Pin Item
+          </button>
+          <button class="btn btn-secondary" onclick="event.stopPropagation(); exportProjectIntelPack()">
+            <i class="fas fa-file-export"></i> Export
+          </button>
         </div>
       </div>
 
@@ -1933,6 +2013,7 @@
     let evidenceStatsCache = null;
     let emailCountCache = null;
     let stakeholderCountCache = null;
+    let projectIntelCache = null;
 
     function updateEvidenceStatusWidget() {
       const docsEl = document.getElementById("documentsUploadedCount");
@@ -2304,6 +2385,7 @@
         updateWidgetLinks();
         loadProfileData();
         loadEvidenceWidget();
+        loadProjectIntelPack();
         if (isFirstTime) {
           showFirstTimeOnboarding();
         }
@@ -2328,6 +2410,7 @@
         }
         // Still load evidence widget to show the repository link
         loadEvidenceWidget();
+        loadProjectIntelPack();
       }
 
       // Check if user is admin and show approval button
@@ -2825,6 +2908,347 @@
           overallStatus.style.background = "var(--warning-light)";
           overallStatus.style.borderColor = "var(--warning)";
         }
+      }
+    }
+
+    function escapeHtml(value) {
+      if (value === null || value === undefined) return "";
+      const div = document.createElement("div");
+      div.textContent = String(value);
+      return div.innerHTML;
+    }
+
+    function renderProjectIntelPack(pack) {
+      const summaryEl = document.getElementById("projectIntelSummary");
+      const statusEl = document.getElementById("projectIntelStatus");
+      const questionsEl = document.getElementById("projectIntelQuestions");
+      const claimsEl = document.getElementById("projectIntelClaims");
+      const answerEl = document.getElementById("projectIntelAnswer");
+
+      if (!summaryEl || !questionsEl || !claimsEl || !statusEl || !answerEl) return;
+
+      const status = (pack?.status || "empty").toString().toLowerCase();
+      const summary = pack?.summary || pack?.summary_md || "";
+      const questions = Array.isArray(pack?.data?.open_questions)
+        ? pack.data.open_questions
+        : [];
+
+      summaryEl.textContent = summary
+        ? summary.trim()
+        : status === "building"
+          ? "Building project intel pack…"
+          : "No intel pack yet. Set a purpose statement and refresh to generate.";
+
+      statusEl.textContent =
+        status === "building"
+          ? "Status: building (refreshing sources)"
+          : status === "ready"
+            ? "Status: ready"
+            : status === "error"
+              ? `Status: error${pack?.last_error ? ` — ${pack.last_error}` : ""}`
+              : "Status: empty";
+
+      if (questions.length) {
+        questionsEl.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.35rem;">Open questions</div>
+          <ul>${questions.slice(0, 6).map((q) => `<li>${escapeHtml(q)}</li>`).join("")}</ul>`;
+      } else {
+        questionsEl.innerHTML = "";
+      }
+
+      const claimNodes = Array.isArray(pack?.data?.claim_nodes)
+        ? pack.data.claim_nodes
+        : [];
+      const claimLinks = Array.isArray(pack?.data?.claim_links)
+        ? pack.data.claim_links
+        : [];
+
+      if (claimNodes.length) {
+        const rows = claimNodes.slice(0, 6).map((node) => {
+          const count = claimLinks.filter((l) => l.node_id === node.id).length;
+          return `<li>${escapeHtml(node.title || "Untitled")} <span style="color: var(--text-muted);">(${count} link${count === 1 ? "" : "s"})</span></li>`;
+        });
+        claimsEl.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.35rem;">Pinned claims</div>
+          <ul>${rows.join("")}</ul>`;
+      } else {
+        claimsEl.innerHTML = "";
+      }
+
+      if (!answerEl.dataset.locked) {
+        answerEl.style.display = "none";
+        answerEl.textContent = "";
+      }
+    }
+
+    async function loadProjectIntelPack() {
+      const widget = document.getElementById("projectIntelWidget");
+      if (!widget) return;
+
+      if (!profileId || profileType !== "project") {
+        widget.style.display = "none";
+        return;
+      }
+
+      widget.style.display = "block";
+
+      try {
+        const response = await fetch(`${apiUrl}/api/projects/${profileId}/intel`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        const pack = await response.json();
+        projectIntelCache = pack;
+        renderProjectIntelPack(pack);
+      } catch (error) {
+        console.error("Failed to load project intel pack:", error);
+        renderProjectIntelPack({
+          status: "error",
+          summary: "",
+          last_error: "Unable to load intel pack",
+          data: {},
+        });
+      }
+    }
+
+    async function refreshProjectIntelPack(deep = false) {
+      if (!profileId || profileType !== "project") return;
+      const answerEl = document.getElementById("projectIntelAnswer");
+      if (answerEl) {
+        answerEl.dataset.locked = "";
+        answerEl.style.display = "none";
+        answerEl.textContent = "";
+      }
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/projects/${profileId}/intel/build`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              rescan_keywords: true,
+              link_evidence: true,
+              refresh_intel: true,
+              deep: !!deep,
+            }),
+          },
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        await response.json();
+        renderProjectIntelPack({ status: "building" });
+        let attempts = 0;
+        const poll = setInterval(async () => {
+          attempts += 1;
+          if (attempts > 10) {
+            clearInterval(poll);
+            return;
+          }
+          await loadProjectIntelPack();
+          if (projectIntelCache && projectIntelCache.status === "ready") {
+            clearInterval(poll);
+          }
+        }, 3000);
+      } catch (error) {
+        console.error("Failed to refresh intel pack:", error);
+        alert("Failed to refresh the project intel pack.");
+      }
+    }
+
+    async function setProjectIntelPurpose() {
+      if (!profileId || profileType !== "project") return;
+      const current = projectIntelCache?.purpose_text || "";
+      const purposeText = prompt(
+        "Set the project purpose statement (used to guide the intel pack):",
+        current,
+      );
+      if (purposeText === null) return;
+
+      const instructionId = prompt(
+        "Optional: enter an instruction evidence ID (leave blank if none):",
+        projectIntelCache?.instructions_evidence_id || "",
+      );
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/projects/${profileId}/intel/config`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              purpose_text: purposeText.trim() || null,
+              instructions_evidence_id: instructionId ? instructionId.trim() : null,
+            }),
+          },
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        await loadProjectIntelPack();
+      } catch (error) {
+        console.error("Failed to update intel config:", error);
+        alert("Failed to update the project intel configuration.");
+      }
+    }
+
+    async function askProjectIntelPack() {
+      if (!profileId || profileType !== "project") return;
+      const question = prompt(
+        "Ask the Project Intel Pack (e.g., What are the key issues and missing documents?)",
+      );
+      if (!question || !question.trim()) return;
+
+      const answerEl = document.getElementById("projectIntelAnswer");
+      if (answerEl) {
+        answerEl.dataset.locked = "true";
+        answerEl.style.display = "block";
+        answerEl.textContent = "Thinking…";
+      }
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/projects/${profileId}/intel/ask`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ question: question.trim() }),
+          },
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        const data = await response.json();
+        if (answerEl) {
+          answerEl.textContent = data?.answer || "No response returned.";
+          answerEl.style.display = "block";
+        }
+      } catch (error) {
+        console.error("Failed to ask intel pack:", error);
+        if (answerEl) {
+          answerEl.textContent = "Unable to answer right now. Please try again.";
+        }
+      }
+    }
+
+    async function addClaimNode() {
+      if (!profileId || profileType !== "project") return;
+      const title = prompt("Claim node title (e.g., Delay caused by late drawings):");
+      if (!title || !title.trim()) return;
+      const description = prompt("Optional description for this claim node:", "");
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/projects/${profileId}/intel/claims/nodes`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              title: title.trim(),
+              description: description ? description.trim() : null,
+            }),
+          },
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        await loadProjectIntelPack();
+      } catch (error) {
+        console.error("Failed to create claim node:", error);
+        alert("Failed to create claim node.");
+      }
+    }
+
+    async function pinClaimItem() {
+      if (!profileId || profileType !== "project") return;
+      const nodes = Array.isArray(projectIntelCache?.data?.claim_nodes)
+        ? projectIntelCache.data.claim_nodes
+        : [];
+      const nodeList = nodes
+        .map((n) => `${n.id} — ${n.title || "Untitled"}`)
+        .join("\n");
+
+      const nodeId = prompt(
+        `Enter claim node ID to pin to:\n${nodeList || "(no nodes yet)"}`,
+      );
+      if (!nodeId || !nodeId.trim()) return;
+
+      const itemType = prompt("Item type to pin (evidence | email | timeline):", "evidence");
+      if (!itemType || !itemType.trim()) return;
+
+      const itemId = prompt("Enter the item ID to pin:", "");
+      if (!itemId || !itemId.trim()) return;
+
+      const linkType = prompt("Link type (supports | contradicts | neutral):", "supports");
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/projects/${profileId}/intel/claims/links`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              node_id: nodeId.trim(),
+              item_type: itemType.trim(),
+              item_id: itemId.trim(),
+              link_type: linkType ? linkType.trim() : "supports",
+            }),
+          },
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        await loadProjectIntelPack();
+      } catch (error) {
+        console.error("Failed to pin item:", error);
+        alert("Failed to pin item.");
+      }
+    }
+
+    async function exportProjectIntelPack() {
+      if (!profileId || profileType !== "project") return;
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/projects/${profileId}/intel/export`,
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          },
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        const data = await response.json();
+        const filename = `project-intel-pack-${data.run_id || "latest"}.json`;
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Failed to export intel pack:", error);
+        alert("Failed to export the project intel pack.");
       }
     }
 

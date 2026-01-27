@@ -129,6 +129,32 @@ class AISettings:
             },
         },
         # ------------------------------------------------------------------
+        # PROJECT INTEL PACK - Project-scoped purpose + tracking snapshot
+        # ------------------------------------------------------------------
+        "project_intel_pack": {
+            "enabled": True,
+            "display_name": "Project Intel Pack",
+            "description": "Builds a project-scoped purpose baseline and tracking pack from instructions + evidence",
+            "category": "project",
+            "provider": "bedrock",
+            "model": "amazon.nova-pro-v1:0",
+            "max_tokens": 3200,
+            "temperature": 0.2,
+            "max_duration_seconds": 180,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-lite-v1:0"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-5.2-instant"),
+                ("gemini", "gemini-2.5-flash"),
+            ],
+            "features": {
+                "citations": True,
+                "rag": True,
+                "textract_queries": True,
+                "guardrails_no_hallucination": True,
+            },
+        },
+        # ------------------------------------------------------------------
         # VERICASE ANALYSIS - Flagship multi-agent legal research platform
         # ------------------------------------------------------------------
         "vericase_analysis": {

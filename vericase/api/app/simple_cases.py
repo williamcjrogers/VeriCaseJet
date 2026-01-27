@@ -9,15 +9,15 @@ import uuid
 import re
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from pydantic import BaseModel, Field, model_validator
 
-from .db import get_db
+from .db import SessionLocal, get_db
 from .models import (
     Case,
     Company,
@@ -42,8 +42,20 @@ from .models import (
     ItemClaimLink,
     ContentiousMatter,
     HeadOfClaim,
+    ProjectIntelPack,
+    ProjectIntelPackSnapshot,
+    DelayEvent,
     RefinementSessionDB,
     MessageOccurrence,
+)
+from .workspaces import (
+    _complete_with_tool_fallback,
+    _extract_json_object,
+    _hint_tokens,
+    _is_missing_table_error,
+    _raise_missing_migration,
+    _safe_excerpt,
+    _select_best_excerpt,
 )
 
 logger = logging.getLogger(__name__)
@@ -179,6 +191,15 @@ def get_optional_current_user(creds: OptionalBearerCreds, db: DbDep) -> User | N
         return None
     except Exception:
         return None
+
+
+def _parse_uuid(value: str | None, field: str) -> uuid.UUID:
+    if value in (None, ""):
+        raise HTTPException(status_code=400, detail=f"Missing {field}")
+    try:
+        return uuid.UUID(str(value))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid {field}") from exc
 
 
 def _split_keyword_variations(value: str | None) -> list[str]:
@@ -936,6 +957,50 @@ class ProjectUpdate(BaseModel):
     keywords: list[KeywordCreate] | None = None
 
 
+class ProjectIntelConfigRequest(BaseModel):
+    purpose_text: str | None = Field(default=None, max_length=12000)
+    instructions_evidence_id: str | None = Field(default=None)
+
+
+class ProjectIntelRefreshRequest(BaseModel):
+    force: bool = False
+    deep: bool = False
+
+
+class ProjectIntelAskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+
+
+class ProjectIntelBuildRequest(BaseModel):
+    rescan_keywords: bool = True
+    link_evidence: bool = True
+    refresh_intel: bool = True
+    deep: bool = False
+    max_evidence: int = Field(default=300, ge=10, le=2000)
+
+
+class ClaimNodeCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=500)
+    description: str | None = Field(default=None, max_length=4000)
+    node_type: str | None = Field(default=None, max_length=100)
+    tags: list[str] | None = None
+
+
+class ClaimNodeUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=500)
+    description: str | None = Field(default=None, max_length=4000)
+    node_type: str | None = Field(default=None, max_length=100)
+    tags: list[str] | None = None
+
+
+class ClaimLinkCreate(BaseModel):
+    node_id: str = Field(..., min_length=1)
+    item_type: str = Field(..., min_length=1, max_length=50)
+    item_id: str = Field(..., min_length=1)
+    link_type: str = Field(default="supports", max_length=50)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
 class CaseFromProjectRequest(BaseModel):
     case_name: str | None = None
     case_number: str | None = None
@@ -1399,6 +1464,1452 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
         raise HTTPException(
             status_code=500, detail=f"Failed to delete project: {str(e)}"
         )
+
+
+# =============================================================================
+# Project Intel Pack (project-scoped purpose + tracking pack)
+# =============================================================================
+
+
+def _get_project_scoped_evidence(
+    db: Session,
+    *,
+    project: Project,
+    evidence_id: str | None,
+    case_ids: list[uuid.UUID] | None = None,
+) -> EvidenceItem | None:
+    if not evidence_id:
+        return None
+    ev_uuid = _parse_uuid(evidence_id, "instructions_evidence_id")
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == ev_uuid).first()
+    if not item:
+        return None
+    if item.project_id == project.id:
+        return item
+    if case_ids and item.case_id in case_ids:
+        return item
+    if project.workspace_id and (item.meta or {}).get("workspace_id") == str(
+        project.workspace_id
+    ):
+        return item
+    return None
+
+
+async def _build_project_intel_pack_snapshot(
+    *,
+    db: Session,
+    project: Project,
+    force: bool = False,
+    deep: bool = False,
+) -> ProjectIntelPack:
+    try:
+        pack = (
+            db.query(ProjectIntelPack)
+            .filter(ProjectIntelPack.project_id == project.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_packs"):
+            _raise_missing_migration("project_intel_packs")
+        raise
+    if not pack:
+        pack = ProjectIntelPack(project_id=project.id, status="empty")
+        db.add(pack)
+        db.commit()
+        db.refresh(pack)
+
+    cases = db.query(Case).filter(Case.project_id == project.id).all()
+    case_ids = [c.id for c in cases]
+
+    delay_events: list[DelayEvent] = []
+    if case_ids:
+        delay_events = (
+            db.query(DelayEvent)
+            .filter(DelayEvent.case_id.in_(case_ids))
+            .order_by(desc(DelayEvent.created_at))
+            .limit(30)
+            .all()
+        )
+
+    evidence_conds = [EvidenceItem.project_id == project.id]
+    if case_ids:
+        evidence_conds.append(EvidenceItem.case_id.in_(case_ids))
+    if project.workspace_id:
+        evidence_conds.append(
+            EvidenceItem.meta.op("->>")("workspace_id") == str(project.workspace_id)
+        )
+
+    latest_doc = (
+        db.query(EvidenceItem)
+        .filter(or_(*evidence_conds))
+        .order_by(desc(EvidenceItem.created_at))
+        .first()
+    )
+    latest_doc_at = getattr(latest_doc, "created_at", None)
+    if (
+        not force
+        and (pack.status or "").lower() == "ready"
+        and pack.updated_at
+        and latest_doc_at
+        and pack.updated_at >= latest_doc_at
+    ):
+        return pack
+
+    pack.status = "building"
+    pack.last_error = None
+    db.commit()
+    run_id = uuid.uuid4()
+    run_started_at = datetime.now(timezone.utc)
+
+    purpose_text = (pack.purpose_text or "").strip()
+    instruction_item = _get_project_scoped_evidence(
+        db,
+        project=project,
+        evidence_id=(
+            str(pack.instructions_evidence_id) if pack.instructions_evidence_id else None
+        ),
+        case_ids=case_ids,
+    )
+
+    evidence_pool = (
+        db.query(EvidenceItem)
+        .filter(or_(*evidence_conds))
+        .order_by(desc(EvidenceItem.created_at))
+        .limit(240 if deep else 160)
+        .all()
+    )
+    if instruction_item and all(it.id != instruction_item.id for it in evidence_pool):
+        evidence_pool.insert(0, instruction_item)
+
+    email_pool = []
+    email_conds = [EmailMessage.project_id == project.id]
+    if case_ids:
+        email_conds.append(EmailMessage.case_id.in_(case_ids))
+    if email_conds:
+        email_pool = (
+            db.query(EmailMessage)
+            .filter(or_(*email_conds))
+            .filter(EmailMessage.is_duplicate.is_(False))
+            .filter(EmailMessage.is_inclusive.is_(True))
+            .order_by(
+                desc(EmailMessage.date_sent).nullslast(),
+                desc(EmailMessage.created_at),
+            )
+            .limit(260 if deep else 180)
+            .all()
+        )
+
+    purpose_hints = [
+        "instruction",
+        "instructions",
+        "instruction narrative",
+        "deliverable",
+        "chronology",
+        "contradiction",
+        "responsibility",
+        "inspection",
+        "design",
+        "causation",
+        "delay",
+        "keyword",
+        "issue grouping",
+    ]
+    purpose_hints.extend(_hint_tokens(purpose_text))
+    purpose_hints = list(dict.fromkeys([h for h in purpose_hints if h]))
+
+    def score_evidence(it: EvidenceItem) -> int:
+        score = 0
+        fn = (it.filename or "").lower()
+        et = (it.evidence_type or "").lower()
+        if et in ("contract", "expert_report", "pleading"):
+            score += 90
+        if any(k in fn for k in ("instruction", "narrative", "scope", "terms")):
+            score += 70
+        for k, w in (
+            ("expert", 40),
+            ("report", 30),
+            ("notice", 30),
+            ("chronology", 35),
+            ("inspection", 35),
+            ("drawing", 25),
+            ("specification", 30),
+            ("email", 15),
+        ):
+            if k in fn:
+                score += w
+        if (it.extracted_text or "").strip():
+            score += 10
+        return score
+
+    ranked_evidence = sorted(evidence_pool, key=score_evidence, reverse=True)
+    target_evidence = 16 if deep else 10
+    evidence_candidate_limit = 80 if deep else 45
+    top_evidence = ranked_evidence[:target_evidence]
+
+    def score_email_for_purpose(em: EmailMessage) -> int:
+        subj = (em.subject or "").lower()
+        score = 0
+        if em.has_attachments:
+            score += 30
+        for k in (
+            "instruction",
+            "scope",
+            "notice",
+            "inspection",
+            "defect",
+            "water ingress",
+            "design",
+            "responsibility",
+            "delay",
+        ):
+            if k in subj:
+                score += 20
+        return score
+
+    ranked_emails = sorted(email_pool, key=score_email_for_purpose, reverse=True)
+    target_emails = 8 if deep else 5
+    email_candidate_limit = 50 if deep else 25
+    top_emails = ranked_emails[:target_emails]
+
+    # Deep mode: rerank evidence/email candidates (best-effort).
+    if deep:
+        try:
+            from .config import settings
+            from .aws_services import get_aws_services
+
+            if getattr(settings, "BEDROCK_RERANK_ENABLED", False):
+                aws = get_aws_services()
+                rerank_query = (
+                    "Select the most relevant sources for building a purpose baseline from an instruction narrative. "
+                    "Prioritize instruction/scope, deliverables, chronology, responsibility/causation, inspections/defects, "
+                    "key notices, and any contradictions between parties' positions."
+                )
+
+                cand_evidence = ranked_evidence[:evidence_candidate_limit]
+                if len(cand_evidence) > 3:
+                    ev_snippets: list[str] = []
+                    for it in cand_evidence:
+                        excerpt = _select_best_excerpt(
+                            it.extracted_text, 900, hints=purpose_hints
+                        ) or ((it.extracted_text or "")[:900])
+                        meta = []
+                        if it.document_date:
+                            meta.append(f"date={it.document_date.isoformat()}")
+                        if (it.evidence_type or "").strip():
+                            meta.append(f"type={(it.evidence_type or '').strip()}")
+                        header = f"{it.filename or 'Untitled'}" + (
+                            f" ({', '.join(meta)})" if meta else ""
+                        )
+                        ev_snippets.append(f"{header}\n{excerpt}")
+                    reranked = await aws.rerank_texts(
+                        rerank_query,
+                        ev_snippets,
+                        top_n=min(target_evidence, len(ev_snippets)),
+                    )
+                    ev_order = [
+                        int(r.get("index", -1)) for r in reranked if isinstance(r, dict)
+                    ]
+                    picked: list[EvidenceItem] = []
+                    seen: set[str] = set()
+                    for idx in ev_order:
+                        if 0 <= idx < len(cand_evidence):
+                            it = cand_evidence[idx]
+                            sid = str(it.id)
+                            if sid not in seen:
+                                picked.append(it)
+                                seen.add(sid)
+                    if picked:
+                        top_evidence = picked[:target_evidence]
+
+                cand_emails = ranked_emails[:email_candidate_limit]
+                if len(cand_emails) > 3:
+                    em_snippets: list[str] = []
+                    for em in cand_emails:
+                        subject = (em.subject or "(no subject)").strip()
+                        dt = em.date_sent.isoformat() if em.date_sent else None
+                        frm = (em.sender_email or em.sender_name or "Unknown").strip()
+                        body = em.body_text_clean or em.body_preview or em.body_text or ""
+                        excerpt = _select_best_excerpt(body, 800, hints=purpose_hints) or (
+                            body[:800]
+                        )
+                        header = f"Email: {subject}" + (f" (date={dt})" if dt else "")
+                        em_snippets.append(f"{header}\nFrom: {frm}\n{excerpt}")
+                    reranked = await aws.rerank_texts(
+                        rerank_query,
+                        em_snippets,
+                        top_n=min(target_emails, len(em_snippets)),
+                    )
+                    em_order = [
+                        int(r.get("index", -1)) for r in reranked if isinstance(r, dict)
+                    ]
+                    picked_em: list[Any] = []
+                    seen_em: set[str] = set()
+                    for idx in em_order:
+                        if 0 <= idx < len(cand_emails):
+                            em = cand_emails[idx]
+                            sid = str(getattr(em, "id", "")) or f"idx:{idx}"
+                            if sid not in seen_em:
+                                picked_em.append(em)
+                                seen_em.add(sid)
+                    if picked_em:
+                        top_emails = picked_em[:target_emails]
+        except Exception:
+            pass
+
+    sources: list[dict[str, Any]] = []
+    blocks: list[str] = []
+    label_idx = 1
+    if instruction_item:
+        excerpt = _select_best_excerpt(
+            instruction_item.extracted_text,
+            1600,
+            hints=purpose_hints,
+        ) or _select_best_excerpt(
+            (
+                (instruction_item.extracted_metadata or {}).get("text_preview")
+                if isinstance(instruction_item.extracted_metadata, dict)
+                else ""
+            ),
+            1600,
+            hints=purpose_hints,
+        )
+        sources.append(
+            {
+                "label": f"S{label_idx}",
+                "evidence_id": str(instruction_item.id),
+                "filename": instruction_item.filename,
+                "document_date": (
+                    instruction_item.document_date.isoformat()
+                    if instruction_item.document_date
+                    else None
+                ),
+                "evidence_type": "instructions",
+            }
+        )
+        if excerpt:
+            blocks.append(
+                f"[S{label_idx}] {instruction_item.filename} (id={instruction_item.id})\n{excerpt}"
+            )
+        label_idx += 1
+
+    for it in top_evidence:
+        label = f"S{label_idx}"
+        excerpt = _select_best_excerpt(it.extracted_text, 1400, hints=purpose_hints)
+        sources.append(
+            {
+                "label": label,
+                "evidence_id": str(it.id),
+                "filename": it.filename,
+                "document_date": it.document_date.isoformat() if it.document_date else None,
+                "evidence_type": getattr(it, "evidence_type", None),
+            }
+        )
+        if excerpt:
+            blocks.append(f"[{label}] {it.filename} (id={it.id})\n{excerpt}")
+        label_idx += 1
+
+    for em in top_emails:
+        label = f"S{label_idx}"
+        subject = (em.subject or "(no subject)").strip()
+        dt = em.date_sent.isoformat() if em.date_sent else None
+        frm = (em.sender_email or em.sender_name or "Unknown").strip()
+        to = ", ".join((em.recipients_to or [])[:6]) if em.recipients_to else ""
+        body = em.body_text_clean or em.body_preview or em.body_text or ""
+        excerpt = _select_best_excerpt(body, 1200, hints=purpose_hints)
+        sources.append(
+            {
+                "label": label,
+                "evidence_id": str(em.id),
+                "filename": f"Email: {subject}",
+                "document_date": dt,
+                "evidence_type": "email",
+            }
+        )
+        if excerpt:
+            header = (
+                f"[{label}] Email: {subject} (id={em.id}, date={dt or 'unknown'})"
+                f"\nFrom: {frm}\nTo: {to or 'Unknown'}"
+            )
+            if em.has_attachments:
+                header += "\nHas attachments: yes"
+            blocks.append(f"{header}\n{excerpt}")
+        label_idx += 1
+
+    evidence_blocks_text = "\n\n".join(blocks) if blocks else "None"
+    instruction_label = (
+        f"{instruction_item.filename} (id={instruction_item.id})"
+        if instruction_item
+        else "None"
+    )
+    delay_event_lines: list[str] = []
+    for ev in delay_events:
+        planned = ev.planned_finish or ev.planned_start
+        actual = ev.actual_finish or ev.actual_start
+        delay_event_lines.append(
+            "- "
+            + " | ".join(
+                [
+                    (ev.activity_name or ev.description or "Delay event").strip(),
+                    f"delay_days={ev.delay_days}" if ev.delay_days is not None else "",
+                    f"cause={ev.delay_cause}" if ev.delay_cause else "",
+                    f"planned={planned.isoformat()}" if planned else "",
+                    f"actual={actual.isoformat()}" if actual else "",
+                ]
+            ).strip(" |")
+        )
+    delay_events_text = "\n".join(delay_event_lines) if delay_event_lines else "None"
+
+    system_prompt = (
+        "You are a senior construction disputes barrister's assistant. "
+        "Use ONLY the facts provided. Do NOT invent. "
+        "If information is missing, say 'Unknown' and add an open question."
+    )
+    prompt = f"""
+Build a baseline “Purpose” plan and tracking pack for this project.
+
+Return ONE JSON object with keys:
+- summary_md: string (plain text; use headings + bullets; reference the purpose baseline)
+- baseline: object with fields {{goal_statement, deliverables, issue_groupings, keywords, sources}}
+- tracking: array of objects {{deliverable, status, evidence, gaps, sources}}
+- chronology: array {{date, party, issue_tags, quote, source}}
+- contradictions: array {{statement_a, statement_b, explanation, sources}}
+- causation: array of objects {{cause, effect, explanation, confidence, sources}}
+- evidence_organisation: object {{issue_groupings, keyword_map}}
+- open_questions: array of strings
+- sources: array of objects {{label, evidence_id, filename, document_date, evidence_type}}
+
+Project:
+- name: {project.project_name}
+- code: {project.project_code}
+- contract_type: {project.contract_type or "Unknown"}
+- analysis_type: {project.analysis_type or "project"}
+- contract_form: {project.contract_form or project.contract_form_custom or "Unknown"}
+
+Purpose statement (authoritative if present):
+{purpose_text or "None"}
+
+Instruction baseline document:
+{instruction_label}
+
+Evidence + correspondence excerpts (cite sources like [S1], [S2]):
+{evidence_blocks_text}
+
+Delay events (structured, if available):
+{delay_events_text}
+""".strip()
+
+    tool_name = "project_intel_pack"
+    ai_text = await _complete_with_tool_fallback(
+        tool_name=tool_name,
+        prompt=prompt,
+        system_prompt=system_prompt,
+        db=db,
+        max_tokens=7000 if deep else 3200,
+        temperature=0.2,
+        task_type="project_intel_pack",
+    )
+
+    payload = _extract_json_object(ai_text) if ai_text else None
+    if not payload:
+        summary_lines = [
+            f"Project: {project.project_name} ({project.project_code})",
+            f"Purpose: {purpose_text or 'None'}",
+            f"Instructions: {instruction_label}",
+        ]
+        if top_evidence:
+            summary_lines.append(
+                "Key evidence: "
+                + ", ".join([e.filename for e in top_evidence if e.filename][:8])
+            )
+        payload = {
+            "summary_md": "\n".join(summary_lines),
+            "baseline": {"goal_statement": purpose_text or "", "deliverables": []},
+            "tracking": [],
+            "chronology": [],
+            "contradictions": [],
+            "causation": [],
+            "evidence_organisation": {},
+            "open_questions": [],
+            "sources": sources,
+        }
+    elif isinstance(payload, dict) and "causation" not in payload:
+        payload["causation"] = []
+
+    # Missing document detection (best-effort)
+    missing_documents: list[dict[str, Any]] = []
+    try:
+        from .evidence_linking import REFERENCE_PATTERNS
+
+        def extract_refs(text: str | None) -> list[tuple[str, str]]:
+            if not text:
+                return []
+            refs: list[tuple[str, str]] = []
+            for pattern, ref_type in REFERENCE_PATTERNS:
+                matches = re.findall(pattern, text, re.IGNORECASE)
+                for match in matches:
+                    if isinstance(match, tuple):
+                        ref = f"{match[0]}-{match[1]}".upper()
+                    else:
+                        ref = str(match).upper()
+                    refs.append((ref, ref_type))
+            return refs
+
+        mentioned: dict[str, str] = {}
+        for it in evidence_pool:
+            for ref, rtype in extract_refs(it.extracted_text or ""):
+                mentioned.setdefault(ref, rtype)
+        for em in email_pool:
+            body = em.body_text_clean or em.body_preview or em.body_text or ""
+            for ref, rtype in extract_refs(f"{em.subject or ''}\n{body}"):
+                mentioned.setdefault(ref, rtype)
+
+        present_refs: set[str] = set()
+        for it in evidence_pool:
+            present_refs.update({ref for ref, _ in extract_refs(it.filename or "")})
+
+        for ref, rtype in list(mentioned.items())[:40]:
+            if ref in present_refs:
+                continue
+            candidates = (
+                db.query(EvidenceItem)
+                .filter(EvidenceItem.filename.ilike(f"%{ref}%"))
+                .limit(3)
+                .all()
+            )
+            missing_documents.append(
+                {
+                    "reference": ref,
+                    "type": rtype,
+                    "candidates": [
+                        {"id": str(c.id), "filename": c.filename} for c in candidates
+                    ],
+                }
+            )
+    except Exception:
+        missing_documents = []
+
+    if isinstance(payload, dict):
+        payload["missing_documents"] = missing_documents
+        payload["run_id"] = str(run_id)
+        payload["run_started_at"] = run_started_at.isoformat()
+        payload["run_completed_at"] = datetime.now(timezone.utc).isoformat()
+
+    pack.summary_md = str(payload.get("summary_md") or payload.get("summary") or "")
+    pack.data = payload
+    pack.status = "ready"
+    pack.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pack)
+    try:
+        snapshot = ProjectIntelPackSnapshot(
+            id=uuid.uuid4(),
+            project_id=project.id,
+            run_id=run_id,
+            status="ready",
+            summary_md=pack.summary_md,
+            data=payload,
+        )
+        db.add(snapshot)
+        db.commit()
+    except (ProgrammingError, OperationalError) as exc:
+        db.rollback()
+        if _is_missing_table_error(exc, "project_intel_pack_snapshots"):
+            logger.warning("Project intel snapshot table missing; skipping snapshot.")
+        else:
+            raise
+    return pack
+
+
+async def _project_intel_refresh_job(
+    project_id: str, force: bool, deep: bool
+) -> None:
+    db = SessionLocal()
+    try:
+        project_uuid = _parse_uuid(project_id, "project_id")
+        project = db.query(Project).filter(Project.id == project_uuid).first()
+        if not project:
+            return
+        await _build_project_intel_pack_snapshot(
+            db=db, project=project, force=force, deep=deep
+        )
+    finally:
+        db.close()
+
+
+def _project_intel_orchestrate_job(
+    project_id: str, payload: ProjectIntelBuildRequest
+) -> None:
+    import asyncio
+
+    async def run() -> None:
+        task_db = SessionLocal()
+        try:
+            project_uuid = _parse_uuid(project_id, "project_id")
+            project = (
+                task_db.query(Project).filter(Project.id == project_uuid).first()
+            )
+            if not project:
+                return
+
+            case_ids = [
+                c.id
+                for c in task_db.query(Case)
+                .filter(Case.project_id == project.id)
+                .all()
+            ]
+
+            if payload.rescan_keywords:
+                try:
+                    rescan_payload = KeywordRescanRequest(
+                        mode="merge",
+                        include_emails=True,
+                        include_evidence=True,
+                        max_emails=None,
+                        max_evidence=None,
+                    )
+                    rescan_project_keywords(
+                        project_id=str(project.id),
+                        payload=rescan_payload,
+                        db=task_db,
+                        current_user=None,
+                    )
+                except Exception as exc:
+                    logger.warning("Project intel rescan failed: %s", exc)
+
+            if payload.link_evidence:
+                try:
+                    from .evidence_linking import process_evidence_batch
+
+                    evidence_conds = [EvidenceItem.project_id == project.id]
+                    if case_ids:
+                        evidence_conds.append(EvidenceItem.case_id.in_(case_ids))
+
+                    evidence_ids = [
+                        e.id
+                        for e in task_db.query(EvidenceItem)
+                        .filter(or_(*evidence_conds))
+                        .order_by(desc(EvidenceItem.created_at))
+                        .limit(payload.max_evidence)
+                        .all()
+                    ]
+                    if evidence_ids:
+                        user_id = (
+                            project.owner_user_id
+                            if getattr(project, "owner_user_id", None)
+                            else _get_default_owner_user_id(task_db)
+                        )
+                        process_evidence_batch(
+                            task_db, evidence_ids, user_id=user_id, auto_link=True
+                        )
+                except Exception as exc:
+                    logger.warning("Project intel linking failed: %s", exc)
+
+            if payload.refresh_intel:
+                await _build_project_intel_pack_snapshot(
+                    db=task_db,
+                    project=project,
+                    force=True,
+                    deep=payload.deep,
+                )
+        finally:
+            task_db.close()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(run())
+    finally:
+        loop.close()
+
+
+@router.get("/projects/{project_id}/intel")
+def get_project_intel_pack(
+    project_id: str,
+    db: DbDep,
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        pack = (
+            db.query(ProjectIntelPack)
+            .filter(ProjectIntelPack.project_id == project.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_packs"):
+            _raise_missing_migration("project_intel_packs")
+        raise
+
+    if not pack:
+        return {
+            "project_id": str(project.id),
+            "status": "empty",
+            "purpose_text": "",
+            "instructions_evidence_id": None,
+            "instructions_filename": None,
+            "summary": "",
+            "data": {},
+            "sources": [],
+            "updated_at": None,
+        }
+
+    instructions_filename = None
+    if pack.instructions_evidence_id:
+        item = (
+            db.query(EvidenceItem)
+            .filter(EvidenceItem.id == pack.instructions_evidence_id)
+            .first()
+        )
+        if item:
+            instructions_filename = item.filename
+
+    data = pack.data or {}
+    sources = data.get("sources", []) if isinstance(data, dict) else []
+
+    return {
+        "project_id": str(project.id),
+        "status": pack.status,
+        "purpose_text": pack.purpose_text or "",
+        "instructions_evidence_id": (
+            str(pack.instructions_evidence_id) if pack.instructions_evidence_id else None
+        ),
+        "instructions_filename": instructions_filename,
+        "summary": pack.summary_md or "",
+        "data": data,
+        "sources": sources if isinstance(sources, list) else [],
+        "updated_at": pack.updated_at.isoformat() if pack.updated_at else None,
+        "last_error": pack.last_error,
+    }
+
+
+@router.post("/projects/{project_id}/intel/config")
+def save_project_intel_config(
+    project_id: str,
+    payload: ProjectIntelConfigRequest,
+    db: DbDep,
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        pack = (
+            db.query(ProjectIntelPack)
+            .filter(ProjectIntelPack.project_id == project.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_packs"):
+            _raise_missing_migration("project_intel_packs")
+        raise
+
+    if not pack:
+        pack = ProjectIntelPack(project_id=project.id, status="empty")
+        db.add(pack)
+        db.commit()
+        db.refresh(pack)
+
+    cases = db.query(Case).filter(Case.project_id == project.id).all()
+    case_ids = [c.id for c in cases]
+
+    instruction_item = _get_project_scoped_evidence(
+        db,
+        project=project,
+        evidence_id=payload.instructions_evidence_id,
+        case_ids=case_ids,
+    )
+    if payload.instructions_evidence_id and not instruction_item:
+        raise HTTPException(status_code=404, detail="Instruction document not found")
+
+    pack.purpose_text = (payload.purpose_text or "").strip() or None
+    pack.instructions_evidence_id = instruction_item.id if instruction_item else None
+    pack.status = "empty"
+    pack.last_error = None
+    pack.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pack)
+
+    return {
+        "project_id": str(project.id),
+        "status": pack.status,
+        "purpose_text": pack.purpose_text or "",
+        "instructions_evidence_id": (
+            str(pack.instructions_evidence_id) if pack.instructions_evidence_id else None
+        ),
+        "updated_at": pack.updated_at.isoformat() if pack.updated_at else None,
+    }
+
+
+@router.post("/projects/{project_id}/intel/refresh")
+def refresh_project_intel_pack(
+    project_id: str,
+    payload: ProjectIntelRefreshRequest,
+    background_tasks: BackgroundTasks,
+    db: DbDep,
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        pack = (
+            db.query(ProjectIntelPack)
+            .filter(ProjectIntelPack.project_id == project.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_packs"):
+            _raise_missing_migration("project_intel_packs")
+        raise
+
+    if not pack:
+        pack = ProjectIntelPack(project_id=project.id, status="empty")
+        db.add(pack)
+        db.commit()
+        db.refresh(pack)
+
+    pack.status = "building"
+    pack.last_error = None
+    pack.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pack)
+
+    background_tasks.add_task(
+        _project_intel_refresh_job,
+        str(project.id),
+        bool(payload.force),
+        bool(payload.deep),
+    )
+
+    return {
+        "project_id": str(project.id),
+        "status": pack.status,
+        "summary": pack.summary_md or "",
+        "purpose_text": pack.purpose_text or "",
+        "updated_at": pack.updated_at.isoformat() if pack.updated_at else None,
+    }
+
+
+@router.post("/projects/{project_id}/intel/ask")
+async def ask_project_intel_pack(
+    project_id: str,
+    payload: ProjectIntelAskRequest,
+    db: DbDep,
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required")
+
+    try:
+        pack = (
+            db.query(ProjectIntelPack)
+            .filter(ProjectIntelPack.project_id == project.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_packs"):
+            _raise_missing_migration("project_intel_packs")
+        raise
+
+    purpose_text = (pack.purpose_text if pack else None) or ""
+    purpose_summary = (pack.summary_md if pack else None) or ""
+
+    cases = db.query(Case).filter(Case.project_id == project.id).all()
+    case_ids = [c.id for c in cases]
+
+    instruction_item = _get_project_scoped_evidence(
+        db,
+        project=project,
+        evidence_id=(
+            str(pack.instructions_evidence_id)
+            if pack and pack.instructions_evidence_id
+            else None
+        ),
+        case_ids=case_ids,
+    )
+
+    pool_conds = [EvidenceItem.project_id == project.id]
+    if case_ids:
+        pool_conds.append(EvidenceItem.case_id.in_(case_ids))
+    if project.workspace_id:
+        pool_conds.append(
+            EvidenceItem.meta.op("->>")("workspace_id") == str(project.workspace_id)
+        )
+
+    pool = (
+        db.query(EvidenceItem)
+        .filter(or_(*pool_conds))
+        .order_by(desc(EvidenceItem.created_at))
+        .limit(200)
+        .all()
+    )
+    if instruction_item and all(it.id != instruction_item.id for it in pool):
+        pool.insert(0, instruction_item)
+
+    email_pool = []
+    email_conds = [EmailMessage.project_id == project.id]
+    if case_ids:
+        email_conds.append(EmailMessage.case_id.in_(case_ids))
+    if email_conds:
+        email_pool = (
+            db.query(EmailMessage)
+            .filter(or_(*email_conds))
+            .filter(EmailMessage.is_duplicate.is_(False))
+            .filter(EmailMessage.is_inclusive.is_(True))
+            .order_by(
+                desc(EmailMessage.date_sent).nullslast(),
+                desc(EmailMessage.created_at),
+            )
+            .limit(220)
+            .all()
+        )
+
+    tokens = re.findall(r"[a-zA-Z0-9]{3,}", question.lower())[:14]
+    purpose_hints = [
+        "instruction",
+        "instructions",
+        "scope",
+        "deliverable",
+        "chronology",
+        "contradiction",
+        "responsibility",
+        "inspection",
+        "design",
+        "causation",
+        "delay",
+    ]
+    purpose_hints.extend(_hint_tokens(purpose_text))
+    purpose_hints = list(dict.fromkeys([h for h in purpose_hints if h]))
+    excerpt_hints = list(dict.fromkeys(tokens + purpose_hints))
+
+    def score_item(it: EvidenceItem) -> int:
+        hay = f"{it.filename} {it.title or ''} {(_safe_excerpt(it.extracted_text, 6000))}".lower()
+        score = 0
+        for t in tokens:
+            if t in hay:
+                score += 2
+                score += min(hay.count(t), 4)
+        return score
+
+    ranked = sorted(pool, key=score_item, reverse=True)
+    top = [it for it in ranked if score_item(it) > 0][:6]
+    if not top:
+        top = ranked[:4]
+
+    def score_email(em: EmailMessage) -> int:
+        subj = em.subject or ""
+        body = em.body_text_clean or em.body_preview or em.body_text or ""
+        hay = (
+            f"{subj} {em.sender_email or ''} {em.sender_name or ''} {_safe_excerpt(body, 6000)}"
+        ).lower()
+        score = 0
+        for t in tokens:
+            if t in hay:
+                score += 2
+                score += min(hay.count(t), 3)
+        return score
+
+    ranked_emails = sorted(email_pool, key=score_email, reverse=True)
+    top_emails = [em for em in ranked_emails if score_email(em) > 0][:3]
+    if not top_emails and email_pool:
+        top_emails = email_pool[:2]
+
+    sources: list[dict[str, Any]] = []
+    blocks: list[str] = []
+    label_idx = 1
+    if instruction_item:
+        excerpt = _select_best_excerpt(
+            instruction_item.extracted_text,
+            1400,
+            hints=excerpt_hints,
+        ) or _select_best_excerpt(
+            (
+                (instruction_item.extracted_metadata or {}).get("text_preview")
+                if isinstance(instruction_item.extracted_metadata, dict)
+                else ""
+            ),
+            1400,
+            hints=excerpt_hints,
+        )
+        sources.append(
+            {
+                "label": f"S{label_idx}",
+                "id": str(instruction_item.id),
+                "filename": instruction_item.filename,
+            }
+        )
+        if excerpt:
+            blocks.append(
+                f"[S{label_idx}] {instruction_item.filename} (id={instruction_item.id})\n{excerpt}"
+            )
+        label_idx += 1
+
+    for it in top:
+        label = f"S{label_idx}"
+        excerpt = _select_best_excerpt(it.extracted_text, 1000, hints=excerpt_hints)
+        sources.append(
+            {
+                "label": label,
+                "id": str(it.id),
+                "filename": it.filename,
+            }
+        )
+        if excerpt:
+            blocks.append(f"[{label}] {it.filename} (id={it.id})\n{excerpt}")
+        label_idx += 1
+
+    for em in top_emails:
+        label = f"S{label_idx}"
+        subject = (em.subject or "(no subject)").strip()
+        dt = em.date_sent.isoformat() if em.date_sent else None
+        frm = (em.sender_email or em.sender_name or "Unknown").strip()
+        to = ", ".join((em.recipients_to or [])[:6]) if em.recipients_to else ""
+        body = em.body_text_clean or em.body_preview or em.body_text or ""
+        excerpt = _select_best_excerpt(body, 900, hints=excerpt_hints)
+        sources.append(
+            {
+                "label": label,
+                "id": str(em.id),
+                "filename": f"Email: {subject}",
+            }
+        )
+        if excerpt:
+            header = (
+                f"[{label}] Email: {subject} (id={em.id}, date={dt or 'unknown'})"
+                f"\nFrom: {frm}\nTo: {to or 'Unknown'}"
+            )
+            if em.has_attachments:
+                header += "\nHas attachments: yes"
+            blocks.append(f"{header}\n{excerpt}")
+        label_idx += 1
+
+    evidence_blocks_text = "\n\n".join(blocks) if blocks else "None"
+
+    system_prompt = (
+        "You are a senior construction disputes barrister's assistant. "
+        "Use ONLY the facts provided. Do NOT invent. "
+        "If information is missing, say 'Unknown' and add an open question."
+    )
+    prompt = f"""
+Answer the question about this project.
+
+Project:
+- name: {project.project_name}
+- code: {project.project_code}
+- contract_type: {project.contract_type or "Unknown"}
+
+Purpose statement (authoritative if present):
+{purpose_text or "None"}
+
+Cached project intel summary:
+{purpose_summary or "None"}
+
+Evidence + correspondence excerpts (cite sources like [S1], [S2]):
+{evidence_blocks_text}
+
+Question:
+{question}
+""".strip()
+
+    ai_text = await _complete_with_tool_fallback(
+        tool_name="project_intel_pack",
+        prompt=prompt,
+        system_prompt=system_prompt,
+        db=db,
+        max_tokens=1600,
+        temperature=0.2,
+        task_type="project_intel_pack",
+    )
+
+    answer = (ai_text or "").strip()
+    if not answer:
+        answer = (
+            "AI provider unavailable. I can’t answer reliably yet; please upload key "
+            "documents (contract, key correspondence, notices, schedules, valuations)."
+        )
+
+    return {"answer": answer, "sources": sources}
+
+
+@router.post("/projects/{project_id}/intel/build")
+def build_project_intel_pack(
+    project_id: str,
+    payload: ProjectIntelBuildRequest,
+    background_tasks: BackgroundTasks,
+    db: DbDep,
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Mark pack as building if we're refreshing
+    if payload.refresh_intel:
+        pack = _ensure_project_intel_pack(db, project)
+        pack.status = "building"
+        pack.last_error = None
+        pack.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+    background_tasks.add_task(
+        _project_intel_orchestrate_job,
+        str(project.id),
+        payload,
+    )
+
+    return {
+        "status": "queued",
+        "project_id": str(project.id),
+        "rescan_keywords": payload.rescan_keywords,
+        "link_evidence": payload.link_evidence,
+        "refresh_intel": payload.refresh_intel,
+        "deep": payload.deep,
+    }
+
+
+@router.get("/projects/{project_id}/intel/snapshots")
+def list_project_intel_snapshots(project_id: str, db: DbDep) -> list[dict[str, Any]]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        snapshots = (
+            db.query(ProjectIntelPackSnapshot)
+            .filter(ProjectIntelPackSnapshot.project_id == project.id)
+            .order_by(desc(ProjectIntelPackSnapshot.created_at))
+            .limit(50)
+            .all()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_pack_snapshots"):
+            _raise_missing_migration("project_intel_pack_snapshots")
+        raise
+    return [
+        {
+            "id": str(s.id),
+            "run_id": str(s.run_id),
+            "status": s.status,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in snapshots
+    ]
+
+
+@router.get("/projects/{project_id}/intel/snapshots/{snapshot_id}")
+def get_project_intel_snapshot(
+    project_id: str, snapshot_id: str, db: DbDep
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    snap_uuid = _parse_uuid(snapshot_id, "snapshot_id")
+    try:
+        snapshot = (
+            db.query(ProjectIntelPackSnapshot)
+            .filter(
+                ProjectIntelPackSnapshot.id == snap_uuid,
+                ProjectIntelPackSnapshot.project_id == project.id,
+            )
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_pack_snapshots"):
+            _raise_missing_migration("project_intel_pack_snapshots")
+        raise
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+
+    return {
+        "project_id": str(project.id),
+        "snapshot_id": str(snapshot.id),
+        "run_id": str(snapshot.run_id),
+        "status": snapshot.status,
+        "summary": snapshot.summary_md or "",
+        "data": snapshot.data or {},
+        "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
+    }
+
+
+@router.get("/projects/{project_id}/intel/export")
+def export_project_intel(
+    project_id: str, snapshot_id: str | None = None, db: DbDep
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    snapshot = None
+    try:
+        if snapshot_id:
+            snap_uuid = _parse_uuid(snapshot_id, "snapshot_id")
+            snapshot = (
+                db.query(ProjectIntelPackSnapshot)
+                .filter(
+                    ProjectIntelPackSnapshot.id == snap_uuid,
+                    ProjectIntelPackSnapshot.project_id == project.id,
+                )
+                .first()
+            )
+        else:
+            snapshot = (
+                db.query(ProjectIntelPackSnapshot)
+                .filter(ProjectIntelPackSnapshot.project_id == project.id)
+                .order_by(desc(ProjectIntelPackSnapshot.created_at))
+                .first()
+            )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_pack_snapshots"):
+            _raise_missing_migration("project_intel_pack_snapshots")
+        raise
+
+    if snapshot:
+        return {
+            "project_id": str(project.id),
+            "run_id": str(snapshot.run_id),
+            "snapshot_id": str(snapshot.id),
+            "summary": snapshot.summary_md or "",
+            "data": snapshot.data or {},
+            "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
+        }
+
+    pack = (
+        db.query(ProjectIntelPack)
+        .filter(ProjectIntelPack.project_id == project.id)
+        .first()
+    )
+    if not pack:
+        raise HTTPException(status_code=404, detail="No intel pack found to export")
+
+    data = pack.data or {}
+    return {
+        "project_id": str(project.id),
+        "run_id": data.get("run_id"),
+        "snapshot_id": None,
+        "summary": pack.summary_md or "",
+        "data": data,
+        "created_at": pack.updated_at.isoformat() if pack.updated_at else None,
+    }
+
+
+def _ensure_project_intel_pack(db: Session, project: Project) -> ProjectIntelPack:
+    try:
+        pack = (
+            db.query(ProjectIntelPack)
+            .filter(ProjectIntelPack.project_id == project.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "project_intel_packs"):
+            _raise_missing_migration("project_intel_packs")
+        raise
+    if not pack:
+        pack = ProjectIntelPack(project_id=project.id, status="empty")
+        db.add(pack)
+        db.commit()
+        db.refresh(pack)
+    if not isinstance(pack.data, dict):
+        pack.data = {}
+    return pack
+
+
+@router.get("/projects/{project_id}/intel/claims")
+def list_claim_nodes_links(project_id: str, db: DbDep) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pack = _ensure_project_intel_pack(db, project)
+    data = pack.data or {}
+    nodes = data.get("claim_nodes", [])
+    links = data.get("claim_links", [])
+    return {"nodes": nodes if isinstance(nodes, list) else [], "links": links if isinstance(links, list) else []}
+
+
+@router.post("/projects/{project_id}/intel/claims/nodes")
+def create_claim_node(
+    project_id: str, payload: ClaimNodeCreate, db: DbDep
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pack = _ensure_project_intel_pack(db, project)
+    data = pack.data or {}
+    nodes = data.get("claim_nodes", [])
+    if not isinstance(nodes, list):
+        nodes = []
+
+    node = {
+        "id": str(uuid.uuid4()),
+        "title": payload.title.strip(),
+        "description": (payload.description or "").strip() or None,
+        "node_type": (payload.node_type or "").strip() or None,
+        "tags": payload.tags or [],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    nodes.append(node)
+    data["claim_nodes"] = nodes
+    if "claim_links" not in data:
+        data["claim_links"] = []
+    pack.data = data
+    pack.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return node
+
+
+@router.put("/projects/{project_id}/intel/claims/nodes/{node_id}")
+def update_claim_node(
+    project_id: str, node_id: str, payload: ClaimNodeUpdate, db: DbDep
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pack = _ensure_project_intel_pack(db, project)
+    data = pack.data or {}
+    nodes = data.get("claim_nodes", [])
+    if not isinstance(nodes, list):
+        nodes = []
+
+    target = None
+    for node in nodes:
+        if node.get("id") == node_id:
+            target = node
+            break
+    if not target:
+        raise HTTPException(status_code=404, detail="Claim node not found")
+
+    if payload.title is not None:
+        target["title"] = payload.title.strip()
+    if payload.description is not None:
+        target["description"] = payload.description.strip() or None
+    if payload.node_type is not None:
+        target["node_type"] = payload.node_type.strip() or None
+    if payload.tags is not None:
+        target["tags"] = payload.tags
+    target["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    data["claim_nodes"] = nodes
+    pack.data = data
+    pack.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return target
+
+
+@router.delete("/projects/{project_id}/intel/claims/nodes/{node_id}")
+def delete_claim_node(project_id: str, node_id: str, db: DbDep) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pack = _ensure_project_intel_pack(db, project)
+    data = pack.data or {}
+    nodes = data.get("claim_nodes", [])
+    links = data.get("claim_links", [])
+    if not isinstance(nodes, list):
+        nodes = []
+    if not isinstance(links, list):
+        links = []
+
+    new_nodes = [n for n in nodes if n.get("id") != node_id]
+    if len(new_nodes) == len(nodes):
+        raise HTTPException(status_code=404, detail="Claim node not found")
+    new_links = [l for l in links if l.get("node_id") != node_id]
+
+    data["claim_nodes"] = new_nodes
+    data["claim_links"] = new_links
+    pack.data = data
+    pack.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"status": "deleted", "node_id": node_id}
+
+
+@router.post("/projects/{project_id}/intel/claims/links")
+def create_claim_link(
+    project_id: str, payload: ClaimLinkCreate, db: DbDep
+) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pack = _ensure_project_intel_pack(db, project)
+    data = pack.data or {}
+    nodes = data.get("claim_nodes", [])
+    links = data.get("claim_links", [])
+    if not isinstance(nodes, list):
+        nodes = []
+    if not isinstance(links, list):
+        links = []
+
+    if not any(n.get("id") == payload.node_id for n in nodes):
+        raise HTTPException(status_code=404, detail="Claim node not found")
+
+    link = {
+        "id": str(uuid.uuid4()),
+        "node_id": payload.node_id,
+        "item_type": payload.item_type.strip().lower(),
+        "item_id": payload.item_id.strip(),
+        "link_type": (payload.link_type or "supports").strip().lower(),
+        "notes": (payload.notes or "").strip() or None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    links.append(link)
+    data["claim_links"] = links
+    data["claim_nodes"] = nodes
+    pack.data = data
+    pack.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return link
+
+
+@router.delete("/projects/{project_id}/intel/claims/links/{link_id}")
+def delete_claim_link(project_id: str, link_id: str, db: DbDep) -> dict[str, Any]:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pack = _ensure_project_intel_pack(db, project)
+    data = pack.data or {}
+    links = data.get("claim_links", [])
+    if not isinstance(links, list):
+        links = []
+
+    new_links = [l for l in links if l.get("id") != link_id]
+    if len(new_links) == len(links):
+        raise HTTPException(status_code=404, detail="Claim link not found")
+
+    data["claim_links"] = new_links
+    pack.data = data
+    pack.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"status": "deleted", "link_id": link_id}
 
 
 @router.post("/projects/{project_id}/cases")

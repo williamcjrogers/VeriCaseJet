@@ -68,6 +68,19 @@ from .settings import settings
 from .ai_providers import BedrockProvider, bedrock_available
 from .ai_runtime import complete_chat
 
+# Deliberative planning imports (Phase 2 upgrade)
+try:
+    from .deliberative_planner import (
+        DeliberativePlanner,
+        DeliberationEvent,
+        estimate_deliberation_time,
+    )
+    DELIBERATIVE_PLANNER_AVAILABLE = True
+except ImportError:
+    DELIBERATIVE_PLANNER_AVAILABLE = False
+    DeliberativePlanner = None  # type: ignore
+    DeliberationEvent = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 # Flagship VeriCase Analysis API
@@ -83,6 +96,7 @@ class AnalysisStatus(str, Enum):
 
     PENDING = "pending"
     PLANNING = "planning"
+    DELIBERATING = "deliberating"  # New: Multi-phase deliberative planning
     AWAITING_APPROVAL = "awaiting_approval"
     RESEARCHING = "researching"
     RUNNING_TIMELINE = "running_timeline"
@@ -129,6 +143,10 @@ class ResearchPlan(BaseModel):
     questions: list[ResearchQuestion]
     estimated_time_minutes: int = 5
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # Deliberative planning metadata (populated when using DeliberativePlanner)
+    deliberation_metadata: dict[str, Any] | None = None
+    deliberation_summary: str | None = None
 
 
 class AnalysisSession(BaseModel):
@@ -177,6 +195,10 @@ class AnalysisSession(BaseModel):
 
     # Model tracking for transparency
     models_used: dict[str, str] = Field(default_factory=dict)
+
+    # Deliberative planning options
+    use_deliberative_planning: bool = True  # Default: use the new thorough planning
+    deliberation_events: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # Session store (uses Redis if available, otherwise in-memory)
@@ -261,6 +283,14 @@ class StartAnalysisRequest(BaseModel):
     )
     include_timeline: bool = True
     include_delay: bool = True
+    use_deliberative_planning: bool = Field(
+        default=True,
+        description=(
+            "Use multi-phase deliberative planning (5-25 min) instead of quick planning (~5 sec). "
+            "Deliberative mode provides visible chain-of-thought reasoning, comprehensive entity "
+            "extraction via AWS Comprehend, and multi-angle legal analysis."
+        ),
+    )
 
 
 class StartAnalysisResponse(BaseModel):
@@ -293,6 +323,9 @@ class AnalysisStatusResponse(BaseModel):
     report_available: bool = False
     error_message: str | None = None
     models_used: list[str] = Field(default_factory=list)
+
+    # Deliberative planning events for chain-of-thought UI
+    deliberation_events: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class AnalysisReportResponse(BaseModel):
@@ -1826,7 +1859,31 @@ class VeriCaseOrchestrator:
     async def run_planning_phase(
         self, evidence_context: EvidenceContext, focus_areas: list[str] | None = None
     ) -> ResearchPlan:
-        """Phase 1: Create research plan"""
+        """
+        Phase 1: Create research plan.
+
+        Two modes:
+        1. DELIBERATIVE (default): Multi-phase analysis with AWS Comprehend,
+           entity mapping, issue identification, and visible reasoning.
+           Takes 5-25 minutes depending on evidence volume.
+        2. QUICK (legacy): Single LLM call with 3K context sample.
+           Takes ~5 seconds but may miss important connections.
+        """
+        use_deliberative = (
+            self.session.use_deliberative_planning
+            and DELIBERATIVE_PLANNER_AVAILABLE
+            and DeliberativePlanner is not None
+        )
+
+        if use_deliberative:
+            return await self._run_deliberative_planning(evidence_context, focus_areas)
+        else:
+            return await self._run_quick_planning(evidence_context, focus_areas)
+
+    async def _run_quick_planning(
+        self, evidence_context: EvidenceContext, focus_areas: list[str] | None = None
+    ) -> ResearchPlan:
+        """Legacy quick planning - single LLM call with truncated context."""
         self.session.status = AnalysisStatus.PLANNING
         self.session.updated_at = datetime.now(timezone.utc)
 
@@ -1841,6 +1898,135 @@ class VeriCaseOrchestrator:
         self.session.updated_at = datetime.now(timezone.utc)
 
         return plan
+
+    async def _run_deliberative_planning(
+        self, evidence_context: EvidenceContext, focus_areas: list[str] | None = None
+    ) -> ResearchPlan:
+        """
+        New deliberative planning - multi-phase analysis with visible reasoning.
+
+        Phases:
+        1. Corpus Scan - AWS Comprehend on ALL evidence
+        2. Entity Mapping - Build relationship graphs
+        3. Issue Identification - LLM analysis of patterns
+        4. Angle Deliberation - Multi-pass reasoning (5 angles)
+        5. Plan Synthesis - Evidence-grounded research DAG
+        """
+        import time
+        from .aws_services import get_aws_services
+
+        start_time = time.time()
+
+        self.session.status = AnalysisStatus.DELIBERATING
+        self.session.updated_at = datetime.now(timezone.utc)
+        save_session(self.session)
+
+        try:
+            # Get AWS services for Comprehend
+            aws_services = get_aws_services()
+
+            # Prepare evidence items as list of dicts
+            evidence_items = []
+            for item in evidence_context.items:
+                evidence_items.append({
+                    "id": item.get("id", str(uuid.uuid4())),
+                    "subject": item.get("subject", ""),
+                    "body_text": item.get("body_text", "") or item.get("content", ""),
+                    "date": item.get("date"),
+                    "sender": item.get("sender"),
+                    "recipients": item.get("recipients", []),
+                })
+
+            # Create LLM caller function
+            async def llm_caller(prompt: str, system_prompt: str) -> str:
+                """Call the AI model."""
+                return await complete_chat(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=4096,
+                )
+
+            # Initialize deliberative planner
+            planner = DeliberativePlanner(
+                session_id=self.session.id,
+                topic=self.session.topic,
+                evidence_items=evidence_items,
+                aws_services=aws_services,
+                db=self.db,
+                llm_caller=llm_caller,
+            )
+
+            # Store event callback to capture deliberation events
+            events_captured: list[dict[str, Any]] = []
+
+            async def capture_event(event: "DeliberationEvent") -> None:
+                event_dict = event.model_dump(exclude_none=True)
+                events_captured.append(event_dict)
+                # Update session with latest events
+                self.session.deliberation_events = events_captured[-50:]  # Keep last 50
+                self.session.updated_at = datetime.now(timezone.utc)
+                save_session(self.session)
+
+            # Monkey-patch the event queue to use our callback
+            original_put = planner._event_queue.put
+
+            async def capturing_put(event: "DeliberationEvent") -> None:
+                await capture_event(event)
+                await original_put(event)
+
+            planner._event_queue.put = capturing_put  # type: ignore
+
+            # Run the deliberative planning
+            plan_data = await planner.run()
+
+            # Convert to ResearchPlan
+            questions = [
+                ResearchQuestion(
+                    id=q.get("id", f"q{i+1}"),
+                    question=q.get("question", ""),
+                    rationale=q.get("rationale", ""),
+                    dependencies=q.get("dependencies", []),
+                )
+                for i, q in enumerate(plan_data.get("questions", []))
+            ]
+
+            processing_time = time.time() - start_time
+
+            plan = ResearchPlan(
+                topic=self.session.topic,
+                problem_statement=plan_data.get("problem_statement", f"Investigate: {self.session.topic}"),
+                key_angles=plan_data.get("key_angles", ["Chronology", "Causation", "Liability"]),
+                questions=questions,
+                estimated_time_minutes=plan_data.get("estimated_time_minutes", 15),
+                deliberation_metadata=plan_data.get("deliberation_metadata", {
+                    "documents_analyzed": len(evidence_items),
+                    "processing_time_seconds": processing_time,
+                }),
+                deliberation_summary=plan_data.get("deliberation_summary"),
+            )
+
+            self.session.plan = plan
+            self.session.status = AnalysisStatus.AWAITING_APPROVAL
+            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.deliberation_events = events_captured
+            save_session(self.session)
+
+            logger.info(
+                f"Deliberative planning complete for session {self.session.id} "
+                f"in {processing_time:.1f}s with {len(questions)} questions"
+            )
+
+            return plan
+
+        except Exception as e:
+            logger.exception(f"Deliberative planning failed: {e}")
+            # Fall back to quick planning
+            logger.info("Falling back to quick planning...")
+            self.session.use_deliberative_planning = False
+            return await self._run_quick_planning(evidence_context, focus_areas)
 
     async def run_research_phase(self, evidence_context: EvidenceContext) -> None:
         """
@@ -2482,6 +2668,7 @@ async def start_vericase_analysis(
         scope=request.scope,
         focus_areas=request.focus_areas,
         status=AnalysisStatus.PENDING,
+        use_deliberative_planning=request.use_deliberative_planning,
     )
 
     save_session(session)
@@ -2572,6 +2759,86 @@ async def get_analysis_status(
         report_available=session.final_report is not None,
         error_message=session.error_message,
         models_used=list(session.models_used.values()),
+        # Include deliberation events for chain-of-thought visibility
+        deliberation_events=session.deliberation_events[-20:] if session.deliberation_events else [],
+    )
+
+
+@router.get("/deliberation-stream/{session_id}")
+async def stream_deliberation_events(
+    session_id: str, user: Annotated[User, Depends(current_user)]
+):
+    """
+    Server-Sent Events (SSE) endpoint for real-time deliberation progress.
+
+    Streams DeliberationEvents during the planning phase to show:
+    - Corpus scan progress
+    - Entity discovery
+    - Issue identification
+    - Research angle deliberation with visible reasoning
+    - Plan synthesis
+
+    Connect to this endpoint immediately after starting analysis
+    to receive real-time chain-of-thought updates.
+    """
+    from fastapi.responses import StreamingResponse
+
+    session = load_session(session_id)
+    if not session:
+        raise HTTPException(404, "Analysis session not found")
+
+    if session.user_id != str(user.id):
+        raise HTTPException(403, "Not authorized to view this session")
+
+    async def event_generator():
+        """Generate SSE events from session deliberation state."""
+        import asyncio
+        import json
+
+        last_event_count = 0
+        max_wait_iterations = 600  # 10 minutes max (at 1s intervals)
+        iteration = 0
+
+        while iteration < max_wait_iterations:
+            # Reload session to get latest events
+            current_session = load_session(session_id)
+            if not current_session:
+                yield f"data: {json.dumps({'phase': 'error', 'finding': 'Session not found'})}\n\n"
+                break
+
+            events = current_session.deliberation_events or []
+
+            # Send any new events
+            if len(events) > last_event_count:
+                for event in events[last_event_count:]:
+                    yield f"data: {json.dumps(event)}\n\n"
+                last_event_count = len(events)
+
+            # Check if planning is complete
+            if current_session.status not in (
+                AnalysisStatus.PENDING,
+                AnalysisStatus.PLANNING,
+                AnalysisStatus.DELIBERATING,
+            ):
+                # Send final event
+                yield f"data: {json.dumps({'phase': 'complete', 'finding': 'Planning complete', 'status': current_session.status.value})}\n\n"
+                break
+
+            await asyncio.sleep(1)  # Poll every second
+            iteration += 1
+
+        # Timeout message
+        if iteration >= max_wait_iterations:
+            yield f"data: {json.dumps({'phase': 'timeout', 'finding': 'Stream timeout - check status endpoint'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
     )
 
 

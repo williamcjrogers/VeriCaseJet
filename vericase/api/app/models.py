@@ -801,8 +801,11 @@ class ChronologyItem(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    case_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True, index=True
     )
     claim_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("claims.id"), nullable=True
@@ -820,7 +823,8 @@ class ChronologyItem(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    case: Mapped[Case] = relationship("Case")
+    case: Mapped[Case | None] = relationship("Case")
+    project: Mapped["Project | None"] = relationship("Project")
     claim: Mapped[Claim | None] = relationship("Claim")
 
 
@@ -1123,6 +1127,69 @@ class WorkspacePurpose(Base):
     )
 
     workspace: Mapped["Workspace"] = relationship("Workspace")
+
+
+class ProjectIntelPack(Base):
+    """Project-scoped intelligence pack (purpose baseline + tracking snapshot)."""
+
+    __tablename__ = "project_intel_packs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    # Status: empty | building | ready | error
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="empty")
+    purpose_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    instructions_evidence_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=True
+    )
+    summary_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    project: Mapped["Project"] = relationship("Project")
+
+
+class ProjectIntelPackSnapshot(Base):
+    """Immutable snapshot for project intel packs (audit trail)."""
+
+    __tablename__ = "project_intel_pack_snapshots"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+    summary_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    project: Mapped["Project"] = relationship("Project")
 
 
 class WorkspaceKeyword(Base):
