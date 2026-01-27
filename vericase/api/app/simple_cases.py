@@ -2650,7 +2650,7 @@ def get_project_intel_snapshot(
 
 @router.get("/projects/{project_id}/intel/export")
 def export_project_intel(
-    project_id: str, snapshot_id: str | None = None, db: DbDep
+    project_id: str, db: DbDep, snapshot_id: str | None = None
 ) -> dict[str, Any]:
     project_uuid = _parse_uuid(project_id, "project_id")
     project = db.query(Project).filter(Project.id == project_uuid).first()
