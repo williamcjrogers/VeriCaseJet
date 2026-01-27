@@ -2641,6 +2641,7 @@ async def apply_refinement(
     exclude_domains: list[str] = []  # From domain question
     exclude_people: list[str] = []
     remove_duplicate_ids: set[str] = set()
+    processed_duplicate_ids: set[str] = set()
 
     raw_project_refs: object = rules.get("exclude_project_refs")
     if isinstance(raw_project_refs, list):
@@ -2667,10 +2668,34 @@ async def apply_refinement(
         dup_list = cast(list[object], raw_duplicate_ids)
         remove_duplicate_ids = {str(dup_item) for dup_item in dup_list}
 
+    # Apply duplicate exclusions even if the emails are already marked is_duplicate.
+    # This ensures meta-based visibility rules hide duplicates consistently.
+    if remove_duplicate_ids:
+        duplicate_rows = (
+            db.query(EmailMessage)
+            .filter(_email_scope_filter(scope_type, scope_id))
+            .filter(EmailMessage.id.in_(list(remove_duplicate_ids)))
+            .all()
+        )
+        for email in duplicate_rows:
+            meta = dict(email.meta) if email.meta else {}
+            meta["ai_excluded"] = True
+            meta["ai_exclude_reason"] = "duplicate"
+            meta["ai_exclude_session"] = session_id
+            meta["is_hidden"] = True
+            meta["excluded"] = True
+            meta["status"] = "duplicate"
+            email.meta = meta
+            duplicate_removed_count += 1
+            processed_duplicate_ids.add(str(email.id))
+
     for email in emails:
         should_exclude = False
         exclude_reason: str | None = None
         email_id_str = str(email.id)
+
+        if email_id_str in processed_duplicate_ids:
+            continue
 
         # Check if email is a duplicate to remove
         if email_id_str in remove_duplicate_ids:
@@ -3073,6 +3098,14 @@ async def _run_learning_first_analysis(
 
         # Update session with results
         elapsed = time.time() - start_time
+        # Internal: capture duplicate email IDs so "remove all duplicates" can work
+        # even when the UI only shows capped groups.
+        internal_duplicate_ids: set[str] = set()
+        for group in detection_result.duplicate_groups:
+            for dup_id in group.duplicate_email_ids:
+                if dup_id:
+                    internal_duplicate_ids.add(str(dup_id))
+
         session.analysis_results = {
             "corpus_profile_id": str(saved_profile.id),
             "total_emails": corpus_profile.email_count,
@@ -3083,6 +3116,8 @@ async def _run_learning_first_analysis(
                 "clusters": suggestion_engine.generate_cluster_visualization_data(),
                 "communication_graph": suggestion_engine.generate_communication_graph_data(),
             },
+            "_internal_duplicate_ids": sorted(internal_duplicate_ids),
+            "_internal_duplicate_emails_total": len(internal_duplicate_ids),
         }
 
         # Generate questions from detection results
@@ -3210,7 +3245,14 @@ def _generate_questions_from_detection(
                 confidence=ConfidenceLevel.HIGH,
                 ai_reasoning=f"Level {g.dedupe_level} match (message-id/content hash)",
                 recommended_action="remove_duplicates",
-                metadata={"original_id": g.original_email_id},
+                metadata={
+                    "original_id": g.original_email_id,
+                    "duplicate_ids": list(g.duplicate_email_ids or []),
+                    "all_ids": [
+                        g.original_email_id,
+                        *list(g.duplicate_email_ids or []),
+                    ],
+                },
             )
             for g in detection.duplicate_groups[:20]
         ]

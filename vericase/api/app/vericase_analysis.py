@@ -118,6 +118,26 @@ class AnalysisScope(str, Enum):
     QUICK = "quick"  # Basic analysis only
 
 
+class EvidenceCitation(BaseModel):
+    """
+    A numbered citation linking a statement to its source evidence.
+    
+    Citations appear as superscript numbers in the report text (e.g., "The delay occurred¹")
+    and are listed in the Evidence Appendix with full source details.
+    """
+
+    citation_number: int  # The superscript number shown in the report
+    evidence_id: str  # ID of the evidence item (attachment_id or document_id)
+    evidence_type: str = "document"  # document, email, attachment, image
+    title: str  # Document subject/title for display
+    date: str | None = None  # Date of the evidence if available
+    excerpt: str  # The specific quoted text supporting the statement
+    page_reference: str | None = None  # Page/section reference if applicable
+    relevance: str | None = None  # Why this evidence is relevant
+    download_url: str | None = None  # Pre-signed URL for download (populated on request)
+    preview_url: str | None = None  # URL to preview in UI
+
+
 class ResearchQuestion(BaseModel):
     """A single research question in the DAG"""
 
@@ -184,6 +204,11 @@ class AnalysisSession(BaseModel):
 
     # Evidence tracking - records which evidence/attachments were used in analysis
     evidence_used: list[dict[str, Any]] = Field(default_factory=list)
+
+    # Citation tracking - numbered evidence citations for the report appendix
+    # Each citation maps a superscript number to a specific evidence item
+    cited_evidence: list[EvidenceCitation] = Field(default_factory=list)
+    next_citation_number: int = 1  # Counter for generating sequential citation numbers
 
     # Metadata
     total_sources_analyzed: int = 0
@@ -347,6 +372,16 @@ class AnalysisReportResponse(BaseModel):
         default_factory=list,
         description="Evidence and attachments referenced in the analysis",
     )
+
+    # Evidence Appendix - numbered citations for footnotes
+    cited_evidence: list[EvidenceCitation] = Field(
+        default_factory=list,
+        description=(
+            "Numbered citations linking report statements to source evidence. "
+            "Each citation has a superscript number that appears in the report text."
+        ),
+    )
+
     validation_score: float = 0.0
     validation_passed: bool = True
     models_used: list[str] = Field(default_factory=list)
@@ -1276,27 +1311,36 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
         plan: ResearchPlan,
         question_analyses: dict[str, dict[str, Any]],
         evidence_items: list[dict[str, Any]] | None = None,
-    ) -> tuple[str, list[str], list[dict[str, Any]]]:
+    ) -> tuple[str, list[str], list[dict[str, Any]], list[EvidenceCitation]]:
         """
-        Synthesize all findings into a comprehensive report.
+        Synthesize all findings into a comprehensive report with numbered citations.
 
         Returns:
-            tuple of (report_text, themes, evidence_used)
+            tuple of (report_text, themes, evidence_used, cited_evidence)
+            - report_text: The full markdown report with superscript citations
+            - themes: List of identified themes
+            - evidence_used: List of evidence items referenced
+            - cited_evidence: List of EvidenceCitation objects for the appendix
         """
 
         # First, identify themes
         themes = await self._identify_themes(plan, question_analyses)
 
-        # Generate report sections
-        sections = await self._generate_sections(plan, question_analyses, themes)
-
-        # Collect evidence used from question analyses
+        # Collect evidence used from question analyses (needed for citation index)
         evidence_used = self._collect_evidence_used(question_analyses, evidence_items)
 
-        # Assemble final report with evidence references
-        report = self._assemble_report(plan, sections, themes, evidence_used)
+        # Generate report sections with numbered citations
+        sections = await self._generate_sections(
+            plan, question_analyses, themes, evidence_items
+        )
 
-        return report, themes, evidence_used
+        # Build citation registry from evidence used
+        cited_evidence = self._build_citation_registry(evidence_used, evidence_items)
+
+        # Assemble final report with evidence references
+        report = self._assemble_report(plan, sections, themes, evidence_used, cited_evidence)
+
+        return report, themes, evidence_used, cited_evidence
 
     def _collect_evidence_used(
         self,
@@ -1552,9 +1596,13 @@ Output as JSON:
             )  # Fallback to original angles
 
     async def _generate_sections(
-        self, plan: ResearchPlan, analyses: dict[str, dict[str, Any]], themes: list[str]
+        self,
+        plan: ResearchPlan,
+        analyses: dict[str, dict[str, Any]],
+        themes: list[str],
+        evidence_items: list[dict[str, Any]] | None = None,
     ) -> dict[str, str]:
-        """Generate report sections for each theme"""
+        """Generate report sections for each theme with numbered citations"""
 
         all_findings = "\n\n".join(
             [
@@ -1567,6 +1615,19 @@ Output as JSON:
 
         # Generate sections in parallel
         async def generate_section(theme: str) -> tuple[str, str]:
+            # Build evidence citation index for this section
+            evidence_index = ""
+            if evidence_items:
+                evidence_lines = []
+                for idx, item in enumerate(evidence_items[:50], 1):
+                    item_id = item.get("id") or item.get("evidence_id", f"doc_{idx}")
+                    title = item.get("subject") or item.get("title") or item.get("filename", "Document")
+                    date = item.get("date") or item.get("created_at", "")
+                    if date and len(str(date)) >= 10:
+                        date = str(date)[:10]
+                    evidence_lines.append(f"[{idx}] ID:{item_id} | {title} | {date}")
+                evidence_index = "\n".join(evidence_lines)
+
             prompt = f"""Write a detailed report section for the theme: "{theme}"
 
 RESEARCH TOPIC: {plan.topic}
@@ -1574,14 +1635,25 @@ RESEARCH TOPIC: {plan.topic}
 ALL RESEARCH FINDINGS:
 {all_findings}
 
+EVIDENCE INDEX (use these citation numbers):
+{evidence_index if evidence_index else "No structured evidence index available"}
+
+CRITICAL CITATION REQUIREMENTS:
+- Every factual statement MUST include a superscript citation number
+- Use format: "The contractor failed to respond¹" or "Payment was delayed by 45 days²³"
+- Multiple citations can be combined: "The delay caused significant losses¹²⁵"
+- Use these superscript characters: ¹²³⁴⁵⁶⁷⁸⁹¹⁰ (or [1], [2], etc. if superscript unavailable)
+- Match citation numbers to the Evidence Index above
+- Do NOT make statements without citations unless purely analytical
+
 Write a concise section (300-600 words) that:
 1. Introduces the theme and its significance
-2. Presents relevant findings with citations
-3. Analyzes implications
+2. Presents relevant findings with NUMBERED CITATIONS
+3. Analyzes implications (citations optional for pure analysis)
 4. Notes any gaps or uncertainties
 
 Avoid repeating the section title or duplicating headings. Do not repeat the same points.
-Write in professional legal report style."""
+Write in professional legal report style with proper evidence attribution."""
 
             content = await self._call_llm(
                 prompt, self.SYSTEM_PROMPT, use_powerful=True
@@ -1601,12 +1673,72 @@ Write in professional legal report style."""
 
         return sections
 
+    def _build_citation_registry(
+        self,
+        evidence_used: list[dict[str, Any]],
+        evidence_items: list[dict[str, Any]] | None = None,
+    ) -> list[EvidenceCitation]:
+        """
+        Build a numbered citation registry from evidence used.
+        
+        Each evidence item gets a unique citation number that can be referenced
+        in the report text as superscript footnotes.
+        """
+        citations: list[EvidenceCitation] = []
+        
+        # Use evidence_items if available (more complete), otherwise evidence_used
+        source_items = evidence_items[:50] if evidence_items else evidence_used[:50]
+        
+        for idx, item in enumerate(source_items, 1):
+            item_id = str(item.get("id") or item.get("evidence_id") or f"doc_{idx}")
+            item_type = str(item.get("type") or item.get("evidence_type") or "document").lower()
+            
+            # Determine title
+            title = item.get("subject") or item.get("title") or item.get("filename")
+            if not title and item_type == "email":
+                sender = item.get("sender", "Unknown")
+                title = f"Email from {sender}"
+            title = title or f"Evidence Item {idx}"
+            
+            # Get date
+            date = item.get("date") or item.get("created_at")
+            if date:
+                if hasattr(date, "strftime"):
+                    date = date.strftime("%Y-%m-%d")
+                elif isinstance(date, str) and len(date) >= 10:
+                    date = date[:10]
+                else:
+                    date = str(date)
+            
+            # Get excerpt from citations in evidence_used
+            excerpt = ""
+            relevance = item.get("relevance", "")
+            for ev in evidence_used:
+                if str(ev.get("id")) == item_id:
+                    excerpt = ev.get("excerpt", "")
+                    relevance = ev.get("relevance", relevance)
+                    break
+            
+            citation = EvidenceCitation(
+                citation_number=idx,
+                evidence_id=item_id,
+                evidence_type=item_type,
+                title=str(title),
+                date=date,
+                excerpt=excerpt or "See original document",
+                relevance=relevance or "Referenced in analysis",
+            )
+            citations.append(citation)
+        
+        return citations
+
     def _assemble_report(
         self,
         plan: ResearchPlan,
         sections: dict[str, str],
         themes: list[str],
         evidence_used: list[dict[str, Any]] | None = None,
+        cited_evidence: list[EvidenceCitation] | None = None,
     ) -> str:
         """Assemble the final report with evidence references"""
 
@@ -1639,69 +1771,56 @@ Write in professional legal report style."""
         for q in plan.questions:
             report_parts.append(f"- {q.question}\n")
 
-        # Add Evidence & Attachments Referenced section
-        if evidence_used:
-            has_explicit_refs = any(
-                item.get("relevance") in {"cited", "analyzed"} for item in evidence_used
-            )
-            report_parts.append("\n---\n")
-            report_parts.append(
-                "\n## Evidence & Attachments Referenced\n"
-                if has_explicit_refs
-                else "\n## Evidence & Attachments Considered\n"
-            )
-            report_parts.append(
-                (
-                    f"\nThis analysis referenced {len(evidence_used)} evidence items:\n\n"
-                    if has_explicit_refs
-                    else f"\nNo explicit citations were captured. Evidence considered: {len(evidence_used)} items:\n\n"
+        # Add Evidence Appendix with numbered citations
+        report_parts.append("\n---\n")
+        report_parts.append("\n## Evidence Appendix\n")
+        report_parts.append(
+            "\nThe following evidence items are referenced by superscript numbers "
+            "throughout this report. Click the citation number to preview the source.\n\n"
+        )
+
+        if cited_evidence:
+            # Display as numbered list matching superscript citations
+            for citation in cited_evidence:
+                superscript = self._to_superscript(citation.citation_number)
+                date_str = f" ({citation.date})" if citation.date else ""
+                type_badge = f"[{citation.evidence_type.upper()}]"
+                
+                report_parts.append(
+                    f"**{superscript}** {type_badge} **{citation.title}**{date_str}\n"
                 )
-            )
+                if citation.excerpt and citation.excerpt != "See original document":
+                    # Truncate long excerpts
+                    excerpt = citation.excerpt[:200] + "..." if len(citation.excerpt) > 200 else citation.excerpt
+                    report_parts.append(f"   > _{excerpt}_\n")
+                report_parts.append(f"   `ID: {citation.evidence_id}`\n\n")
+        elif evidence_used:
+            # Fallback to old format if no citations built
+            for idx, item in enumerate(evidence_used[:50], 1):
+                title = item.get("title") or item.get("subject") or item.get("filename", "Unknown")
+                date = item.get("date") or ""
+                if date and len(str(date)) >= 10:
+                    date = f" ({str(date)[:10]})"
+                report_parts.append(f"**{self._to_superscript(idx)}** {title}{date}\n")
+        else:
+            report_parts.append("*No evidence items were captured during analysis.*\n")
 
-            # Group by type
-            by_type: dict[str, list[dict[str, Any]]] = {}
-            for item in evidence_used:
-                item_type = item.get("type", "Other")
-                if item_type not in by_type:
-                    by_type[item_type] = []
-                by_type[item_type].append(item)
-
-            for evidence_type, items in sorted(by_type.items()):
-                type_label = evidence_type.replace("_", " ").title()
-                report_parts.append(f"\n### {type_label} ({len(items)})\n\n")
-                for item in items:
-                    item_type = str(item.get("type") or "").upper()
-                    title = item.get("title") or item.get("filename")
-                    if item_type == "EMAIL":
-                        subject = item.get("subject")
-                        sender = item.get("sender")
-                        title = (
-                            subject
-                            or title
-                            or (f"Email from {sender}" if sender else "Email")
-                        )
-                    if not title:
-                        title = item.get("id", "Unknown")
-                    date = item.get("date") or ""
-                    if date:
-                        if hasattr(date, "strftime"):
-                            date = f" ({date.strftime('%Y-%m-%d')})"
-                        elif isinstance(date, str) and len(date) >= 10:
-                            date = f" ({date[:10]})"
-                        else:
-                            date = ""
-                    filename = item.get("filename", "")
-                    if filename:
-                        filename = f" - `{filename}`"
-                    report_parts.append(f"- **{title}**{date}{filename}\n")
-
-            report_parts.append("\n---\n")
-            report_parts.append(
-                "\n*Note: This evidence listing reflects materials analyzed during the research process. "
-                "Original documents should be consulted for verification.*\n"
-            )
+        report_parts.append("\n---\n")
+        report_parts.append(
+            "\n*Download options: Use the Evidence Bundle button to download all cited "
+            "evidence, or click individual citations to preview/download specific items.*\n"
+        )
 
         return "\n".join(report_parts)
+
+    @staticmethod
+    def _to_superscript(num: int) -> str:
+        """Convert a number to superscript characters for citations."""
+        superscript_map = {
+            "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+            "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹"
+        }
+        return "".join(superscript_map.get(c, c) for c in str(num))
 
 
 class ValidatorAgent(BaseAgent):
@@ -2097,7 +2216,9 @@ class VeriCaseOrchestrator:
                 else:
                     logger.error(f"Research failed: {result}")
 
+            # Persist progress after each batch completes
             self.session.updated_at = datetime.now(timezone.utc)
+            save_session(self.session)
 
     async def run_timeline_analysis(self, evidence_context: EvidenceContext) -> None:
         """Run timeline generation analysis (for FULL scope)."""
@@ -2246,13 +2367,14 @@ Analyze delays and causation as JSON:
         # Pass evidence items for tracking in the report
         evidence_items = evidence_context.items if evidence_context else None
 
-        report, themes, evidence_used = await self.synthesizer.synthesize(
+        report, themes, evidence_used, cited_evidence = await self.synthesizer.synthesize(
             self.session.plan, self.session.question_analyses, evidence_items
         )
 
         self.session.final_report = report
         self.session.key_themes = themes
         self.session.evidence_used = evidence_used  # Track which evidence was used
+        self.session.cited_evidence = cited_evidence  # Numbered citations for appendix
         self.session.models_used["synthesizer"] = (
             self.synthesizer.synthesizer_model or "default"
         )
@@ -2731,10 +2853,19 @@ async def get_analysis_status(
     if session.user_id != str(user.id):
         raise HTTPException(403, "Not authorized to view this session")
 
-    # Calculate progress
+    # Calculate progress - count questions with completed status
+    total_questions = len(session.plan.questions) if session.plan else 0
+    completed_questions = sum(
+        1 for q in (session.plan.questions if session.plan else [])
+        if q.status == "completed"
+    )
+    # Fallback to question_analyses count if status tracking not used
+    if completed_questions == 0 and session.question_analyses:
+        completed_questions = len(session.question_analyses)
+    
     progress = {
-        "total_questions": len(session.plan.questions) if session.plan else 0,
-        "completed_questions": len(session.question_analyses),
+        "total_questions": total_questions,
+        "completed_questions": completed_questions,
         "current_phase": session.status.value,
     }
 
@@ -3015,13 +3146,166 @@ async def get_analysis_report(
         recommendations=session.recommendations,
         timeline_summary=session.timeline_result,
         delay_summary=session.delay_result,
-        research_summary={"questions_analyzed": len(session.question_analyses)},
+        research_summary={
+            "questions_analyzed": len(session.question_analyses),
+            "questions_completed": sum(
+                1 for q in (session.plan.questions if session.plan else [])
+                if q.status == "completed"
+            ),
+        },
         evidence_used=session.evidence_used,  # Include evidence/attachments referenced
+        cited_evidence=session.cited_evidence,  # Numbered citations for appendix
         validation_score=session.validation_result.get("overall_score", 0.0),
         validation_passed=session.validation_passed,
         models_used=list(session.models_used.values()),
         total_duration_seconds=session.processing_time_seconds,
     )
+
+
+@router.get("/{session_id}/evidence/{citation_number}")
+async def get_evidence_item(
+    session_id: str,
+    citation_number: int,
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    download: bool = False,
+):
+    """
+    Get a specific evidence item by its citation number.
+    
+    Returns either preview metadata or a download URL for the evidence.
+    Citation numbers correspond to the superscript numbers in the report.
+    """
+    session = load_session(session_id)
+    if not session:
+        raise HTTPException(404, "Analysis session not found")
+
+    if session.user_id != str(user.id):
+        raise HTTPException(403, "Not authorized")
+
+    # Find the citation
+    citation = next(
+        (c for c in session.cited_evidence if c.citation_number == citation_number),
+        None,
+    )
+    if not citation:
+        raise HTTPException(404, f"Citation {citation_number} not found")
+
+    # Try to find the actual evidence/attachment
+    from .models import Attachment, Evidence
+
+    evidence_item = None
+    attachment = None
+
+    # Check if it's an attachment ID
+    if citation.evidence_id:
+        attachment = db.query(Attachment).filter(
+            Attachment.id == citation.evidence_id
+        ).first()
+        if not attachment:
+            # Try as evidence ID
+            evidence_item = db.query(Evidence).filter(
+                Evidence.id == citation.evidence_id
+            ).first()
+
+    response_data = {
+        "citation_number": citation.citation_number,
+        "evidence_id": citation.evidence_id,
+        "evidence_type": citation.evidence_type,
+        "title": citation.title,
+        "date": citation.date,
+        "excerpt": citation.excerpt,
+    }
+
+    if download and (attachment or evidence_item):
+        # Generate presigned download URL
+        from .aws_services import get_aws_services
+        aws = get_aws_services()
+        
+        if attachment and attachment.s3_key:
+            try:
+                url = aws.generate_presigned_url(attachment.s3_key, expiration=3600)
+                response_data["download_url"] = url
+                response_data["filename"] = attachment.filename
+            except Exception as e:
+                logger.warning(f"Could not generate download URL: {e}")
+        elif evidence_item:
+            response_data["content_preview"] = evidence_item.body_text[:2000] if evidence_item.body_text else None
+
+    return response_data
+
+
+@router.get("/{session_id}/evidence-bundle")
+async def download_evidence_bundle(
+    session_id: str,
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    """
+    Get a manifest of all cited evidence with download URLs.
+    
+    Returns a list of all evidence items cited in the report with
+    pre-signed URLs for downloading. Client can use this to create
+    a ZIP bundle of all evidence.
+    """
+    session = load_session(session_id)
+    if not session:
+        raise HTTPException(404, "Analysis session not found")
+
+    if session.user_id != str(user.id):
+        raise HTTPException(403, "Not authorized")
+
+    if not session.cited_evidence:
+        return {
+            "session_id": session_id,
+            "topic": session.topic,
+            "evidence_count": 0,
+            "items": [],
+            "message": "No evidence was cited in this analysis",
+        }
+
+    from .models import Attachment, Evidence
+    from .aws_services import get_aws_services
+    aws = get_aws_services()
+
+    items = []
+    for citation in session.cited_evidence:
+        item_data = {
+            "citation_number": citation.citation_number,
+            "evidence_id": citation.evidence_id,
+            "evidence_type": citation.evidence_type,
+            "title": citation.title,
+            "date": citation.date,
+            "download_url": None,
+            "filename": None,
+            "can_download": False,
+        }
+
+        # Try to find downloadable content
+        if citation.evidence_id:
+            attachment = db.query(Attachment).filter(
+                Attachment.id == citation.evidence_id
+            ).first()
+            if attachment and attachment.s3_key:
+                try:
+                    item_data["download_url"] = aws.generate_presigned_url(
+                        attachment.s3_key, expiration=3600
+                    )
+                    item_data["filename"] = attachment.filename
+                    item_data["can_download"] = True
+                except Exception as e:
+                    logger.warning(f"Could not generate URL for {citation.evidence_id}: {e}")
+
+        items.append(item_data)
+
+    return {
+        "session_id": session_id,
+        "topic": session.topic,
+        "evidence_count": len(items),
+        "downloadable_count": sum(1 for i in items if i["can_download"]),
+        "items": items,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @router.delete("/{session_id}")

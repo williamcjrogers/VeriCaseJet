@@ -256,7 +256,7 @@ class UltimatePSTProcessor:
         self.ingest_run_id: str | None = None
         self._stakeholders: list[Stakeholder] = []
         self._keywords: list[Keyword] = []
-        self._keyword_plain_terms_cache: dict[str, list[str]] = {}
+        self._keyword_plain_terms_cache: dict[str, list[re.Pattern[str]]] = {}
         self._keyword_regex_terms_cache: dict[str, list[str]] = {}
         self._keyword_regex_cache: dict[tuple[str, str], re.Pattern[str]] = {}
         self._invalid_keyword_regex: set[tuple[str, str]] = set()
@@ -1539,18 +1539,38 @@ class UltimatePSTProcessor:
             else:
                 search_terms = self._keyword_plain_terms_cache.get(keyword_id)
                 if search_terms is None:
-                    search_terms = [keyword_name.lower()]
+                    search_terms: list[re.Pattern[str]] = []
+                    raw_name = keyword_name.strip()
+                    if len(raw_name) >= 3:
+                        escaped = re.escape(raw_name)
+                        pattern = rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])"
+                        try:
+                            search_terms.append(
+                                re.compile(pattern, flags=re.IGNORECASE)
+                            )
+                        except re.error:
+                            search_terms = []
                     if keyword.variations:
                         variations = [
                             v.strip().lower()
                             for v in keyword.variations.split(",")
                             if v and v.strip()
                         ]
-                        search_terms.extend(variations)
+                        for variation in variations:
+                            if len(variation) < 3:
+                                continue
+                            escaped_var = re.escape(variation)
+                            pattern = rf"(?<![A-Za-z0-9]){escaped_var}(?![A-Za-z0-9])"
+                            try:
+                                search_terms.append(
+                                    re.compile(pattern, flags=re.IGNORECASE)
+                                )
+                            except re.error:
+                                continue
                     self._keyword_plain_terms_cache[keyword_id] = search_terms
 
                 for term in search_terms:
-                    if term in search_text.lower():
+                    if term.search(search_text):
                         matched.append(keyword)
                         break
 

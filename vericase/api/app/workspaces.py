@@ -202,7 +202,7 @@ def _unique_strings(values: list[str]) -> list[str]:
 class _KeywordMatcher:
     def __init__(self, keywords: list[Keyword]):
         self.names_by_id: dict[str, str] = {}
-        self.plain_terms_by_id: dict[str, list[str]] = {}
+        self.plain_terms_by_id: dict[str, list[re.Pattern[str]]] = {}
         self.regex_terms_by_id: dict[str, list[re.Pattern[str]]] = {}
 
         for k in keywords:
@@ -229,7 +229,7 @@ class _KeywordMatcher:
                 if patterns:
                     self.regex_terms_by_id[kw_id] = patterns
             else:
-                terms: list[str] = []
+                terms: list[re.Pattern[str]] = []
                 seen: set[str] = set()
                 for term in raw_terms:
                     t = (term or "").strip().lower()
@@ -238,7 +238,12 @@ class _KeywordMatcher:
                     if t in seen:
                         continue
                     seen.add(t)
-                    terms.append(t)
+                    escaped = re.escape(t)
+                    pattern = rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])"
+                    try:
+                        terms.append(re.compile(pattern, flags=re.IGNORECASE))
+                    except re.error:
+                        continue
                 if terms:
                     self.plain_terms_by_id[kw_id] = terms
 
@@ -249,12 +254,11 @@ class _KeywordMatcher:
             return []
 
         haystack = f"{subj}\n{text}"
-        haystack_lower = haystack.lower()
         matched: list[str] = []
 
         for kw_id, terms in self.plain_terms_by_id.items():
             for term in terms:
-                if term in haystack_lower:
+                if term.search(haystack):
                     matched.append(kw_id)
                     break
 

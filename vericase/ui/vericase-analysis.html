@@ -1287,6 +1287,153 @@
         color: var(--vc-teal-dark);
       }
 
+      /* Evidence Appendix */
+      .evidence-appendix {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, rgba(var(--vericase-teal-rgb), 0.03), rgba(139, 115, 85, 0.03));
+        border: 1px solid rgba(var(--vericase-teal-rgb), 0.15);
+        border-radius: 12px;
+      }
+
+      .evidence-appendix-header {
+        margin-bottom: 1.25rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .evidence-appendix-header h3 {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+        font-size: 1.125rem;
+        color: var(--vc-teal);
+      }
+
+      .evidence-appendix-subtitle {
+        margin: 0.5rem 0 0;
+        font-size: 0.875rem;
+        color: var(--text-muted);
+      }
+
+      .evidence-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .evidence-item {
+        display: grid;
+        grid-template-columns: 2.5rem 1fr auto;
+        gap: 1rem;
+        align-items: start;
+        padding: 0.875rem 1rem;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        transition: all 0.2s ease;
+      }
+
+      .evidence-item:hover {
+        border-color: var(--vc-teal);
+        box-shadow: 0 2px 8px rgba(var(--vericase-teal-rgb), 0.1);
+      }
+
+      .evidence-number {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background: linear-gradient(135deg, var(--vc-teal), var(--vc-teal-dark));
+        color: white;
+        font-weight: 700;
+        font-size: 0.75rem;
+        border-radius: 50%;
+      }
+
+      .evidence-details {
+        min-width: 0;
+      }
+
+      .evidence-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+        word-break: break-word;
+      }
+
+      .evidence-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+      }
+
+      .evidence-type-badge {
+        display: inline-flex;
+        padding: 0.125rem 0.5rem;
+        background: rgba(var(--vericase-teal-rgb), 0.1);
+        color: var(--vc-teal);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        border-radius: 4px;
+      }
+
+      .evidence-excerpt {
+        margin-top: 0.5rem;
+        padding: 0.625rem;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        font-style: italic;
+        color: var(--text-secondary);
+        border-left: 3px solid var(--vc-gold);
+      }
+
+      .evidence-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .evidence-actions .btn-icon {
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        font-size: 0.75rem;
+      }
+
+      .evidence-appendix-footer {
+        margin-top: 1.25rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color);
+        text-align: center;
+      }
+
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .btn-secondary:hover {
+        background: var(--vc-teal);
+        border-color: var(--vc-teal);
+        color: white;
+      }
+
       /* History sidebar */
       .history-panel {
         background: var(--bg-card);
@@ -1764,9 +1911,18 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                   <button
                     class="btn-icon"
                     onclick="downloadReport()"
-                    title="Download as text"
+                    title="Download report as text"
                   >
-                    <i class="fas fa-download"></i>
+                    <i class="fas fa-file-alt"></i>
+                  </button>
+                  <button
+                    class="btn-icon evidence-bundle-btn"
+                    onclick="downloadEvidenceBundle()"
+                    title="Download all cited evidence"
+                    id="evidenceBundleBtn"
+                    style="display: none;"
+                  >
+                    <i class="fas fa-file-archive"></i>
                   </button>
                   <button
                     class="btn-icon"
@@ -1784,6 +1940,22 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                   id="reportContent"
                   class="report-content markdown-body"
                 ></div>
+                
+                <!-- Evidence Appendix Section -->
+                <div id="evidenceAppendix" class="evidence-appendix" style="display: none;">
+                  <div class="evidence-appendix-header">
+                    <h3><i class="fas fa-bookmark"></i> Evidence Appendix</h3>
+                    <p class="evidence-appendix-subtitle">
+                      Click a citation number to preview or download the source document.
+                    </p>
+                  </div>
+                  <div id="evidenceList" class="evidence-list"></div>
+                  <div class="evidence-appendix-footer">
+                    <button class="btn-secondary" onclick="downloadEvidenceBundle()">
+                      <i class="fas fa-file-archive"></i> Download All Evidence
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -2206,7 +2378,8 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           case "completed":
             statusMessage.textContent = "Research complete!";
             progressFill.style.width = "100%";
-            showReport(data);
+            // Fetch full report data (includes cited_evidence for appendix)
+            await fetchAndShowReport(currentSessionId);
             loadHistory();
             break;
 
@@ -2499,6 +2672,22 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         });
       }
 
+      async function fetchAndShowReport(sessionId) {
+        try {
+          const response = await fetch(`/api/vericase-analysis/report/${sessionId}`, {
+            credentials: 'include'
+          });
+          if (!response.ok) {
+            console.error('Failed to fetch full report');
+            return;
+          }
+          const reportData = await response.json();
+          showReport(reportData);
+        } catch (err) {
+          console.error('Error fetching report:', err);
+        }
+      }
+
       function showReport(data) {
         planReview.style.display = "none";
         reportContainer.style.display = "block";
@@ -2512,8 +2701,13 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           metaItems.push(`<span class="report-meta-item"><i class="fas fa-microchip"></i> ${data.models_used.join(", ")}</span>`);
         }
         const questionsCount = data.plan?.questions?.length || 0;
+        const questionsCompleted = data.research_summary?.questions_completed || questionsCount;
         if (questionsCount > 0) {
-          metaItems.push(`<span class="report-meta-item"><i class="fas fa-search"></i> ${questionsCount} questions analyzed</span>`);
+          metaItems.push(`<span class="report-meta-item"><i class="fas fa-search"></i> ${questionsCompleted}/${questionsCount} questions analyzed</span>`);
+        }
+        const citedCount = (data.cited_evidence || []).length;
+        if (citedCount > 0) {
+          metaItems.push(`<span class="report-meta-item"><i class="fas fa-bookmark"></i> ${citedCount} evidence citations</span>`);
         }
         document.getElementById("reportMeta").innerHTML = metaItems.join("");
 
@@ -2528,6 +2722,146 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         const content = data.final_report || "No report generated.";
         document.getElementById("reportContent").innerHTML =
           renderMarkdown(content);
+        
+        // Evidence Appendix
+        renderEvidenceAppendix(data.cited_evidence || []);
+      }
+
+      function renderEvidenceAppendix(citedEvidence) {
+        const appendix = document.getElementById("evidenceAppendix");
+        const list = document.getElementById("evidenceList");
+        const bundleBtn = document.getElementById("evidenceBundleBtn");
+        
+        if (!citedEvidence || citedEvidence.length === 0) {
+          appendix.style.display = "none";
+          if (bundleBtn) bundleBtn.style.display = "none";
+          return;
+        }
+        
+        appendix.style.display = "block";
+        if (bundleBtn) bundleBtn.style.display = "flex";
+        
+        // Superscript conversion
+        const toSuperscript = (num) => {
+          const map = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+          return String(num).split('').map(c => map[c] || c).join('');
+        };
+        
+        // Type icons
+        const typeIcons = {
+          'email': 'fa-envelope',
+          'document': 'fa-file-alt',
+          'attachment': 'fa-paperclip',
+          'image': 'fa-image',
+          'pdf': 'fa-file-pdf',
+        };
+        
+        list.innerHTML = citedEvidence.map(citation => {
+          const icon = typeIcons[citation.evidence_type?.toLowerCase()] || 'fa-file';
+          const date = citation.date ? `<span><i class="fas fa-calendar-alt"></i> ${citation.date}</span>` : '';
+          const excerpt = citation.excerpt && citation.excerpt !== 'See original document' 
+            ? `<div class="evidence-excerpt">"${escapeHtml(citation.excerpt.substring(0, 200))}${citation.excerpt.length > 200 ? '...' : ''}"</div>` 
+            : '';
+          
+          return `
+            <div class="evidence-item" data-citation="${citation.citation_number}" data-id="${citation.evidence_id}">
+              <div class="evidence-number">${toSuperscript(citation.citation_number)}</div>
+              <div class="evidence-details">
+                <div class="evidence-title">
+                  <span class="evidence-type-badge"><i class="fas ${icon}"></i> ${citation.evidence_type || 'Document'}</span>
+                  ${escapeHtml(citation.title || 'Untitled')}
+                </div>
+                <div class="evidence-meta">
+                  ${date}
+                  <span><i class="fas fa-fingerprint"></i> ${citation.evidence_id}</span>
+                </div>
+                ${excerpt}
+              </div>
+              <div class="evidence-actions">
+                <button class="btn-icon" onclick="previewEvidence(${citation.citation_number})" title="Preview">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn-icon" onclick="downloadEvidence(${citation.citation_number})" title="Download">
+                  <i class="fas fa-download"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      async function previewEvidence(citationNumber) {
+        if (!currentSessionId) return;
+        try {
+          const response = await fetch(`/api/vericase-analysis/${currentSessionId}/evidence/${citationNumber}`, {
+            credentials: 'include'
+          });
+          if (!response.ok) throw new Error('Failed to fetch evidence');
+          const data = await response.json();
+          
+          // Show preview modal or alert
+          alert(`Evidence Preview:\n\nTitle: ${data.title}\nType: ${data.evidence_type}\nDate: ${data.date || 'N/A'}\n\nExcerpt:\n${data.excerpt}`);
+        } catch (err) {
+          console.error('Preview error:', err);
+          alert('Could not preview evidence item');
+        }
+      }
+
+      async function downloadEvidence(citationNumber) {
+        if (!currentSessionId) return;
+        try {
+          const response = await fetch(`/api/vericase-analysis/${currentSessionId}/evidence/${citationNumber}?download=true`, {
+            credentials: 'include'
+          });
+          if (!response.ok) throw new Error('Failed to fetch evidence');
+          const data = await response.json();
+          
+          if (data.download_url) {
+            window.open(data.download_url, '_blank');
+          } else {
+            alert('This evidence item is not available for download. View it in the original case files.');
+          }
+        } catch (err) {
+          console.error('Download error:', err);
+          alert('Could not download evidence item');
+        }
+      }
+
+      async function downloadEvidenceBundle() {
+        if (!currentSessionId) return;
+        try {
+          const response = await fetch(`/api/vericase-analysis/${currentSessionId}/evidence-bundle`, {
+            credentials: 'include'
+          });
+          if (!response.ok) throw new Error('Failed to fetch evidence bundle');
+          const data = await response.json();
+          
+          if (data.downloadable_count === 0) {
+            alert('No downloadable evidence items available.');
+            return;
+          }
+          
+          // Show bundle info and initiate downloads
+          const msg = `Evidence Bundle for: ${data.topic}\n\n` +
+            `Total citations: ${data.evidence_count}\n` +
+            `Downloadable items: ${data.downloadable_count}\n\n` +
+            `Click OK to download all available evidence files.`;
+          
+          if (confirm(msg)) {
+            // Download each item
+            data.items.filter(i => i.download_url).forEach((item, idx) => {
+              setTimeout(() => {
+                const a = document.createElement('a');
+                a.href = item.download_url;
+                a.download = item.filename || `evidence_${item.citation_number}`;
+                a.click();
+              }, idx * 500); // Stagger downloads
+            });
+          }
+        } catch (err) {
+          console.error('Bundle download error:', err);
+          alert('Could not download evidence bundle');
+        }
       }
 
       function escapeHtml(value) {

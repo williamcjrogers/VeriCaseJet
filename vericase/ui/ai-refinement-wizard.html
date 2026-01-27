@@ -1793,6 +1793,15 @@
           }
 
           const result = await response.json();
+          const duplicateRow =
+            Number(result?.duplicate_removed_count || 0) > 0
+              ? `
+                                    <li>
+                                        <span>Duplicates removed</span>
+                                        <span class="summary-value danger">${result.duplicate_removed_count?.toLocaleString()}</span>
+                                    </li>
+                                `
+              : "";
           const cleanupNote =
             result?.cleanup_jobs &&
             (result.cleanup_jobs.dedupe_task_id || result.cleanup_jobs.spam_task_id)
@@ -1833,6 +1842,7 @@
                                         <span>Emails excluded</span>
                                         <span class="summary-value danger">${result.excluded_count?.toLocaleString()}</span>
                                     </li>
+                                    ${duplicateRow}
                                     <li>
                                         <span>Remaining emails</span>
                                         <span class="summary-value">${result.remaining_emails?.toLocaleString()}</span>

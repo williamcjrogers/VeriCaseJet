@@ -26,7 +26,7 @@ from sqlalchemy import or_
 
 from ..csrf import verify_csrf_token
 from ..security import current_user, get_db
-from ..models import User, EmailMessage, Stakeholder, Keyword
+from ..models import User, EmailMessage, Stakeholder, Keyword, Case
 from .services import (
     upload_pst_file_service,
     init_pst_upload_service,
@@ -468,6 +468,10 @@ async def list_stakeholders(
     q = db.query(Stakeholder)
     case_uuid = _safe_uuid(case_id, "case_id")
     project_uuid = _safe_uuid(project_id, "project_id")
+    if case_uuid and not project_uuid:
+        linked_case = db.query(Case).filter(Case.id == case_uuid).first()
+        if linked_case and linked_case.project_id:
+            project_uuid = linked_case.project_id
 
     # Match the PST processor logic: when viewing at case level, include both
     # case-level stakeholders AND project-level defaults (where case_id IS NULL).
@@ -514,6 +518,10 @@ async def list_keywords(
     q = db.query(Keyword)
     case_uuid = _safe_uuid(case_id, "case_id")
     project_uuid = _safe_uuid(project_id, "project_id")
+    if case_uuid and not project_uuid:
+        linked_case = db.query(Case).filter(Case.id == case_uuid).first()
+        if linked_case and linked_case.project_id:
+            project_uuid = linked_case.project_id
 
     # Match the PST processor logic: when viewing at case level, include both
     # case-level keywords AND project-level defaults (where case_id IS NULL).
