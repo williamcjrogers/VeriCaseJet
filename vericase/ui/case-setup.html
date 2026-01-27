@@ -8,11 +8,16 @@
     <link rel="stylesheet" href="brand-styles.css?v=7" />
     <link rel="stylesheet" href="design-system.css?v=7" />
     <script src="vericase-ui.js"></script>
+    <script src="context-manager.js"></script>
     <script src="nav-shell.js"></script>
     <style>
       body {
         background: #f6f4f0;
         color: var(--text-primary);
+      }
+
+      .app-shell .breadcrumb {
+        display: none;
       }
 
       .container {
@@ -876,9 +881,7 @@
           }
 
           const select = document.getElementById("projectSelect");
-          const currentProjectId =
-            localStorage.getItem("vericase_current_project") ||
-            localStorage.getItem("currentProjectId");
+          const currentProjectId = VericaseContext.get("projectId");
 
           data.forEach((project) => {
             const option = document.createElement("option");
@@ -1108,14 +1111,15 @@
           const caseId = data.id || currentCaseId;
           const caseName = data.case_name || data.name || nameValue;
 
-          localStorage.setItem("profileType", "case");
-          localStorage.setItem("currentCaseId", caseId);
-          localStorage.setItem("caseId", caseId);
-          localStorage.setItem("currentCaseName", caseName);
-          localStorage.setItem("vericase_current_case_name", caseName);
+          VericaseContext.set("profileType", "case");
+          VericaseContext.set("caseId", caseId);
+          VericaseContext.set("caseName", caseName);
 
           VericaseUI.Toast.success(isEditMode ? "Case updated" : "Case created");
-          window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(caseId)}`;
+          const workspaceParam = currentWorkspaceId
+            ? `&workspaceId=${encodeURIComponent(currentWorkspaceId)}`
+            : "";
+          window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(caseId)}${workspaceParam}`;
         } catch (error) {
           VericaseUI.Toast.error(error.message || "Failed to save case");
         } finally {
@@ -1182,15 +1186,16 @@
       // ========================================
       document.addEventListener("DOMContentLoaded", () => {
         const params = new URLSearchParams(window.location.search);
-        currentWorkspaceId = params.get("workspaceId") || localStorage.getItem("currentWorkspaceId");
+        currentWorkspaceId = params.get("workspaceId") || VericaseContext.get("workspaceId");
         if (currentWorkspaceId) {
           try {
-            localStorage.setItem("currentWorkspaceId", currentWorkspaceId);
+            VericaseContext.set("workspaceId", currentWorkspaceId);
           } catch { /* ignore */ }
         }
 
         currentCaseId = params.get("caseId");
         pendingProjectId = params.get("projectId") || null;
+        const fromProject = params.get("fromProject") === "true";
         isEditMode = Boolean(currentCaseId);
 
         const pageTitle = document.querySelector(".page-title");
@@ -1201,11 +1206,19 @@
         const workspaceLink = document.getElementById("workspaceLink");
         const breadcrumbCurrent = document.getElementById("breadcrumbCurrent");
 
+        if (workspaceLink && currentWorkspaceId) {
+          workspaceLink.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+          const wsName = VericaseContext.get("workspaceName");
+          if (wsName) workspaceLink.textContent = wsName;
+        }
+
         if (isEditMode) {
-          pageTitle.textContent = "Case Configuration";
-          pageSubtitle.textContent = "Update case identification, heads of claim, keywords, and deadlines.";
+          pageTitle.textContent = fromProject ? "Finalize Case from Project" : "Case Configuration";
+          pageSubtitle.textContent = fromProject
+            ? "Review the inherited configuration and make any adjustments."
+            : "Update case identification, heads of claim, keywords, and deadlines.";
           submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
-          breadcrumbCurrent.textContent = "Edit Case";
+          breadcrumbCurrent.textContent = fromProject ? "Finalize Case" : "Edit Case";
           
           if (caseIdInput) {
             caseIdInput.disabled = true;
@@ -1213,27 +1226,22 @@
           }
           
           backBtn.addEventListener("click", () => {
-            window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(currentCaseId)}`;
+            if (currentWorkspaceId) {
+              window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+            } else {
+              window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(currentCaseId)}`;
+            }
           });
           
           loadCase(currentCaseId).catch((error) => {
             VericaseUI.Toast.error(error.message || "Failed to load case");
           });
-          
-          if (workspaceLink) workspaceLink.style.display = "none";
-          if (workspaceLink?.previousElementSibling) workspaceLink.previousElementSibling.style.display = "none";
         } else {
 	          if (!currentWorkspaceId) {
 	            VericaseUI.Toast.info("Please select a workspace first to create a case.");
 	            window.location.href = "workspace-hub.html";
 	            return;
 	          }
-          
-          if (workspaceLink) {
-            workspaceLink.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
-            const wsName = localStorage.getItem("currentWorkspaceName");
-            if (wsName) workspaceLink.textContent = wsName;
-          }
           
           backBtn.addEventListener("click", () => {
             window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
@@ -1257,7 +1265,15 @@
         if (window.VericaseShell?.inject) {
           VericaseShell.inject({ 
             title: isEditMode ? "Case Configuration" : "Case Setup", 
-            breadcrumbs: null, 
+            breadcrumbs: VericaseShell.buildHierarchicalBreadcrumbs({
+              includeHome: true,
+              workspaceId: currentWorkspaceId,
+              workspaceName: VericaseContext.get("workspaceName") || "Workspace",
+              entityName: isEditMode
+                ? (fromProject ? "Finalize Case" : "Edit Case")
+                : "Case Setup",
+              entityType: "case",
+            }),
             headerActions: "" 
           });
         }

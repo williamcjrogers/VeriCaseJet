@@ -8,6 +8,7 @@
   <meta name="robots" content="noindex" />
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
   <link rel="stylesheet" href="brand-styles.css?v=9" />
+  <script src="context-manager.js"></script>
   <script src="nav-shell.js"></script>
   <style>
     :root {
@@ -102,7 +103,7 @@
     <h1 class="title">
       VeriCase <small>Loading Overview…</small>
     </h1>
-    <p class="msg">Preparing your workspace and syncing your current project context.</p>
+    <p class="msg" id="loader-msg">Preparing your workspace...</p>
     <div class="bar"><div></div></div>
     <div class="error" id="loadError">
       Unable to load the overview UI. You can try opening
@@ -117,12 +118,19 @@
       target.hash = window.location.hash;
 
       // Context guard: this overview should only load with an explicit projectId/caseId
-      // (or a previously selected context in localStorage). This prevents silently
+      // (or a previously selected context in storage). This prevents silently
       // defaulting to a different profile type.
       try {
-        const params = new URLSearchParams(target.search);
-        const urlCaseId = params.get("caseId");
-        const urlProjectId = params.get("projectId");
+      const params = new URLSearchParams(target.search);
+      const urlCaseId = params.get("caseId");
+      const urlProjectId = params.get("projectId");
+
+      const loaderMsg = document.getElementById("loader-msg");
+      if (loaderMsg) {
+        loaderMsg.textContent = urlCaseId
+          ? "Preparing your workspace and syncing your current case context."
+          : "Preparing your workspace and syncing your current project context.";
+      }
 
         let contextType = urlCaseId ? "case" : urlProjectId ? "project" : null;
         let contextId = urlCaseId || urlProjectId;
@@ -133,16 +141,20 @@
           return s;
         };
 
-        if (!contextId) {
-          const storedProfileType = (localStorage.getItem("profileType") || "").trim();
-          const storedProjectId = cleanId(
-            localStorage.getItem("vericase_current_project") ||
-              localStorage.getItem("currentProjectId") ||
-              localStorage.getItem("projectId"),
-          );
-          const storedCaseId = cleanId(
-            localStorage.getItem("currentCaseId") || localStorage.getItem("caseId"),
-          );
+      if (urlCaseId) {
+        VericaseContext.set("profileType", "case");
+        VericaseContext.set("caseId", urlCaseId);
+        VericaseContext.remove("projectId");
+      } else if (urlProjectId) {
+        VericaseContext.set("profileType", "project");
+        VericaseContext.set("projectId", urlProjectId);
+        VericaseContext.remove("caseId");
+      }
+
+      if (!contextId) {
+        const storedProfileType = (VericaseContext.get("profileType") || "").trim();
+        const storedProjectId = cleanId(VericaseContext.get("projectId"));
+        const storedCaseId = cleanId(VericaseContext.get("caseId"));
 
           if (storedProfileType === "case" && storedCaseId) {
             contextType = "case";

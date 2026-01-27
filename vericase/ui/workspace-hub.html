@@ -2367,6 +2367,17 @@
 
             <div class="about-card about-span-2">
               <div class="about-card-title">
+                <i class="fas fa-link" aria-hidden="true"></i>
+                Sources & citations
+              </div>
+              <div class="about-card-body">
+                <div class="about-contract-list" id="aboutSources"></div>
+                <div class="about-hint" id="aboutSourcesHint"></div>
+              </div>
+            </div>
+
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
                 <i class="fas fa-file-signature" aria-hidden="true"></i>
                 Contracts & key terms (from uploaded contract documents)
               </div>
@@ -2879,37 +2890,28 @@
     }
 
     // Initialize page
-	    document.addEventListener("DOMContentLoaded", async () => {
-	      if (window.VericaseShell?.inject) {
-	        let cachedWorkspaceName = "Workspace";
-	        try {
-	          const storedId = (localStorage.getItem("currentWorkspaceId") || "").trim();
-	          const storedName = (localStorage.getItem("currentWorkspaceName") || "").trim();
-	          if (storedId && storedId === String(workspaceId || "").trim() && storedName) {
-	            cachedWorkspaceName = storedName;
-	          }
-	        } catch { /* ignore */ }
-	        VericaseShell.inject(
-	          isDirectoryMode
-	            ? {
-	                title: "",
-	                breadcrumbs: [
-	                  { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
-	                  { label: "Workspaces", icon: "fa-layer-group" },
-	                ],
-	                headerActions: "",
-	              }
-	            : {
-	                title: "",
-	                breadcrumbs: [
-	                  { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
-	                  { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
-	                  { label: cachedWorkspaceName, icon: "fa-building" },
-	                ],
-	                headerActions: "",
-	              },
-	        );
-	      }
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (window.VericaseShell?.inject) {
+        let cachedWorkspaceName = VericaseContext.get("workspaceName") || "Workspace";
+        try {
+          const storedId = (VericaseContext.get("workspaceId") || "").trim();
+          if (storedId && storedId === String(workspaceId || "").trim() && cachedWorkspaceName) {
+            // Keep cachedWorkspaceName as-is
+          }
+        } catch { /* ignore */ }
+        const breadcrumbs = isDirectoryMode
+          ? VericaseShell.buildHierarchicalBreadcrumbs({ includeHome: true })
+          : VericaseShell.buildHierarchicalBreadcrumbs({
+              includeHome: true,
+              workspaceId: workspaceId,
+              workspaceName: cachedWorkspaceName,
+            });
+        VericaseShell.inject({
+          title: "",
+          breadcrumbs,
+          headerActions: "",
+        });
+      }
 
       if (isDirectoryMode) {
         setDirectoryMode(true);
@@ -2932,6 +2934,23 @@
 
       // Load workspace data
       await loadWorkspace();
+
+      // Deep-link to specific tab if specified
+      const tabParam = urlParams.get("tab");
+      if (
+        tabParam &&
+        [
+          "projects-cases",
+          "deadlines",
+          "documents",
+          "about",
+          "purpose",
+          "team",
+          "collaboration",
+        ].includes(tabParam)
+      ) {
+        setTimeout(() => switchTab(tabParam), 100);
+      }
     });
 
     function setDirectoryMeta({ total, shown, loading = false }) {
@@ -3282,9 +3301,13 @@
 
         workspaceData = await response.json();
 
+        const workspaceName = workspaceData.name || workspaceData.workspace_name || "Workspace";
         try {
-          localStorage.setItem("currentWorkspaceId", workspaceId);
-          localStorage.setItem("currentWorkspaceName", workspaceData.name || "Workspace");
+          VericaseContext.set("workspaceId", workspaceId);
+          VericaseContext.set("workspaceName", workspaceName);
+          if (window.VericaseShell?.refreshSidebar) {
+            window.VericaseShell.refreshSidebar();
+          }
         } catch { /* ignore */ }
 
         // Extract data
@@ -3316,13 +3339,13 @@
 
         if (window.VericaseShell?.inject) {
           VericaseShell.inject({
-            title: workspaceData.name,
-            breadcrumbs: [
-              { label: "Control Centre", url: "control-centre.html" },
-              { label: "Workspaces", url: "workspace-hub.html" },
-              { label: workspaceData.name || "Workspace" }
-            ],
-            headerActions: ""
+            title: workspaceName,
+            breadcrumbs: VericaseShell.buildHierarchicalBreadcrumbs({
+              includeHome: true,
+              workspaceId: workspaceId,
+              workspaceName: workspaceName,
+            }),
+            headerActions: "",
           });
         }
 
@@ -3448,8 +3471,8 @@
             </div>
           <div class="card-actions">
             <button class="card-action-btn" data-action="configure"><i class="fas fa-cog"></i> Configure</button>
-            <button class="card-action-btn primary" data-action="develop-case"><i class="fas fa-gavel"></i> Develop Case</button>
-            <button class="card-action-btn" data-action="open"><i class="fas fa-arrow-right"></i> Open</button>
+            <button class="card-action-btn primary" data-action="open"><i class="fas fa-arrow-right"></i> Open</button>
+            <button class="card-action-btn" data-action="develop-case"><i class="fas fa-gavel"></i> Develop Case</button>
             </div>
         </div>
       `).join('');
@@ -3508,11 +3531,10 @@
       if (action === 'configure') {
         window.location.href = `project-setup.html?workspaceId=${workspaceId}&projectId=${id}`;
       } else if (action === 'develop-case') {
-        window.location.href = `case-setup.html?workspaceId=${workspaceId}&projectId=${id}`;
-      } else if (action === 'open') {
+        developCaseFromProject(id);
+      } else {
+        // Default: clicking anywhere on card opens project
         openProject(id);
-      } else if (!e.target.closest('button')) {
-        selectProjectContext(id);
       }
     }
 
@@ -3524,10 +3546,9 @@
       
       if (action === 'configure') {
         window.location.href = `case-setup.html?workspaceId=${workspaceId}&caseId=${id}`;
-      } else if (action === 'open') {
+      } else {
+        // Default: clicking anywhere on card opens case
         openCase(id);
-      } else if (!e.target.closest('button')) {
-        selectCaseContext(id);
       }
     }
 
@@ -3550,23 +3571,56 @@
     function openProject(id) {
       const p = (workspaceData?.projects || []).find(x => String(x.id) === String(id));
       try {
-        localStorage.setItem("profileType", "project");
-        localStorage.setItem("currentProjectId", id);
-        localStorage.setItem("projectId", id);
-        if (p?.name || p?.project_name) localStorage.setItem("currentProjectName", p.name || p.project_name);
+        VericaseContext.set("profileType", "project");
+        VericaseContext.set("projectId", id);
+        VericaseContext.set("workspaceId", workspaceId);
+        if (p?.name || p?.project_name) {
+          VericaseContext.set("projectName", p.name || p.project_name);
+        }
       } catch {}
-      window.location.href = `projectdashboard.html?projectId=${id}`;
+      window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(id)}&workspaceId=${encodeURIComponent(workspaceId)}`;
     }
 
     function openCase(id) {
       const c = (workspaceData?.cases || []).find(x => String(x.id) === String(id));
       try {
-        localStorage.setItem("profileType", "case");
-        localStorage.setItem("currentCaseId", id);
-        localStorage.setItem("caseId", id);
-        if (c?.name || c?.case_name) localStorage.setItem("currentCaseName", c.name || c.case_name);
+        VericaseContext.set("profileType", "case");
+        VericaseContext.set("caseId", id);
+        VericaseContext.set("workspaceId", workspaceId);
+        if (c?.name || c?.case_name) {
+          VericaseContext.set("caseName", c.name || c.case_name);
+        }
       } catch {}
-      window.location.href = `projectdashboard.html?caseId=${id}`;
+      window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(id)}&workspaceId=${encodeURIComponent(workspaceId)}`;
+    }
+
+    async function developCaseFromProject(projectId) {
+      const confirmed = window.confirm(
+        "This will create a new case with stakeholders, keywords, and heads of claim copied from the project. Continue?",
+      );
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/cases`, {
+          method: "POST",
+          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({
+            include_stakeholders: true,
+            include_keywords: true,
+            include_heads_of_claim: true,
+          }),
+        });
+
+        if (!response.ok) throw new Error("Failed to create case");
+        const data = await response.json();
+        const createdCaseId = data.case_id || data.id;
+        if (!createdCaseId) throw new Error("Case created but no ID returned");
+
+        VericaseUI.Toast.success("Case created successfully");
+        window.location.href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}&caseId=${encodeURIComponent(createdCaseId)}&fromProject=true`;
+      } catch (error) {
+        VericaseUI.Toast.error(error.message || "Unable to create case");
+      }
     }
 
     // ========================================
@@ -4095,6 +4149,8 @@
       const structuredHintEl = document.getElementById("aboutStructuredHint");
       const evidenceMapEl = document.getElementById("aboutEvidenceMap");
       const evidenceMapHintEl = document.getElementById("aboutEvidenceMapHint");
+      const sourcesEl = document.getElementById("aboutSources");
+      const sourcesHintEl = document.getElementById("aboutSourcesHint");
 
       const status = (about?.status || "").toLowerCase();
       const updatedAt = about?.updated_at || about?.last_updated || null;
@@ -4107,6 +4163,45 @@
             ? "Building workspace context… (upload ingestion running)"
             : "Upload a document in this workspace to start building the dispute context.";
         summaryEl.innerHTML = renderMarkdown(summary || fallback);
+      }
+
+      if (sourcesEl) {
+        const sources = Array.isArray(about?.sources)
+          ? about.sources
+          : (Array.isArray(about?.data?.sources) ? about.data.sources : []);
+        if (!sources.length) {
+          sourcesEl.innerHTML = `<div class="about-pre">Citations like [S1] will appear here after Refresh.</div>`;
+          if (sourcesHintEl) sourcesHintEl.textContent = "";
+        } else {
+          const rows = sources.slice(0, 18).map((src) => {
+            const label = (src?.label || "").toString().trim();
+            const filename = (src?.filename || "Untitled").toString();
+            const id = (src?.evidence_id || src?.id || "").toString();
+            const date = (src?.document_date || "").toString();
+            const type = (src?.evidence_type || "").toString();
+            const metaParts = [];
+            if (type) metaParts.push(type);
+            if (date) metaParts.push(date);
+            const chips = [];
+            if (label) chips.push(label);
+            return `
+              <div class="about-contract-item">
+                <div>
+                  <div class="about-contract-title">${escapeHtml(filename)}</div>
+                  <div class="about-contract-meta">${escapeHtml(metaParts.join(" | "))}</div>
+                  ${chips.length ? `<div class="about-chips">${chips.map(c => `<span class="about-chip">${escapeHtml(String(c))}</span>`).join("")}</div>` : ""}
+                </div>
+                <div class="about-contract-actions">
+                  ${id ? `<button class="btn btn-sm btn-outline" onclick="downloadDocument('${id}')" title="Download"><i class="fas fa-download"></i></button>` : ""}
+                </div>
+              </div>
+            `;
+          }).join("");
+          sourcesEl.innerHTML = rows;
+          if (sourcesHintEl) {
+            sourcesHintEl.textContent = "Citations like [S3] map to the labels above. Click any source to download and verify.";
+          }
+        }
       }
 
       // Contracts & key terms (pivotal section)

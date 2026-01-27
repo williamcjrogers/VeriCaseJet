@@ -8,11 +8,16 @@
     <link rel="stylesheet" href="brand-styles.css?v=7" />
     <link rel="stylesheet" href="design-system.css?v=7" />
     <script src="vericase-ui.js"></script>
+    <script src="context-manager.js"></script>
     <script src="nav-shell.js"></script>
     <style>
       body {
         background: #f6f4f0;
         color: var(--text-primary);
+      }
+
+      .app-shell .breadcrumb {
+        display: none;
       }
 
       .container {
@@ -930,16 +935,16 @@
           const data = await response.json();
           const projectId = data.id || currentProjectId;
           
-          // Store in localStorage
-          localStorage.setItem("profileType", "project");
-          localStorage.setItem("vericase_current_project", projectId);
-          localStorage.setItem("currentProjectId", projectId);
-          localStorage.setItem("projectId", projectId);
-          localStorage.setItem("currentProjectName", data.project_name || nameValue);
-          localStorage.setItem("vericase_current_project_name", data.project_name || nameValue);
+          // Store in context
+          VericaseContext.set("profileType", "project");
+          VericaseContext.set("projectId", projectId);
+          VericaseContext.set("projectName", data.project_name || nameValue);
           
           VericaseUI.Toast.success(isEditMode ? "Project updated" : "Project created");
-          window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(projectId)}`;
+          const workspaceParam = currentWorkspaceId
+            ? `&workspaceId=${encodeURIComponent(currentWorkspaceId)}`
+            : "";
+          window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(projectId)}${workspaceParam}`;
         } catch (error) {
           VericaseUI.Toast.error(error.message || "Failed to save project");
         } finally {
@@ -1007,11 +1012,11 @@
       document.addEventListener("DOMContentLoaded", () => {
         const params = new URLSearchParams(window.location.search);
         currentProjectId = params.get("projectId");
-        currentWorkspaceId = params.get("workspaceId") || localStorage.getItem("currentWorkspaceId");
+        currentWorkspaceId = params.get("workspaceId") || VericaseContext.get("workspaceId");
         
         if (currentWorkspaceId) {
           try {
-            localStorage.setItem("currentWorkspaceId", currentWorkspaceId);
+            VericaseContext.set("workspaceId", currentWorkspaceId);
           } catch { /* ignore */ }
         }
         
@@ -1024,6 +1029,12 @@
         const workspaceLink = document.getElementById("workspaceLink");
         const breadcrumbCurrent = document.getElementById("breadcrumbCurrent");
 
+        if (workspaceLink && currentWorkspaceId) {
+          workspaceLink.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+          const wsName = VericaseContext.get("workspaceName");
+          if (wsName) workspaceLink.textContent = wsName;
+        }
+
         if (isEditMode) {
           pageTitle.textContent = "Project Configuration";
           pageSubtitle.textContent = "Update project identification, stakeholders, keywords, and contract details.";
@@ -1031,27 +1042,22 @@
           breadcrumbCurrent.textContent = "Edit Project";
           
           backBtn.addEventListener("click", () => {
-            window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(currentProjectId)}`;
+            if (currentWorkspaceId) {
+              window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+            } else {
+              window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(currentProjectId)}`;
+            }
           });
           
           loadProject(currentProjectId).catch((error) => {
             VericaseUI.Toast.error(error.message || "Failed to load project");
           });
-          
-          if (workspaceLink) workspaceLink.style.display = "none";
-          if (workspaceLink?.previousElementSibling) workspaceLink.previousElementSibling.style.display = "none";
         } else {
 	          if (!currentWorkspaceId) {
 	            VericaseUI.Toast.info("Please select a workspace first to create a project.");
 	            window.location.href = "workspace-hub.html";
 	            return;
 	          }
-          
-          if (workspaceLink) {
-            workspaceLink.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
-            const wsName = localStorage.getItem("currentWorkspaceName");
-            if (wsName) workspaceLink.textContent = wsName;
-          }
           
           backBtn.addEventListener("click", () => {
             window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
@@ -1077,7 +1083,13 @@
         if (window.VericaseShell?.inject) {
           VericaseShell.inject({ 
             title: isEditMode ? "Project Configuration" : "Project Setup", 
-            breadcrumbs: null, 
+            breadcrumbs: VericaseShell.buildHierarchicalBreadcrumbs({
+              includeHome: true,
+              workspaceId: currentWorkspaceId,
+              workspaceName: VericaseContext.get("workspaceName") || "Workspace",
+              entityName: isEditMode ? "Edit Project" : "Project Setup",
+              entityType: "project",
+            }),
             headerActions: "" 
           });
         }

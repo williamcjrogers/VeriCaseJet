@@ -156,6 +156,175 @@
   text-overflow: ellipsis;
 }
 
+/* Workspace Context Indicator */
+.sidebar-context-indicator {
+  margin: 0 var(--space-4) var(--space-4);
+}
+
+.sidebar-context-indicator .context-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 6px;
+}
+
+.sidebar-context-indicator.workspace-indicator {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.workspace-indicator .context-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vericase-teal);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.workspace-indicator .context-value:hover {
+  background: rgba(var(--vericase-teal-rgb), 0.12);
+}
+
+.workspace-indicator .context-arrow {
+  margin-left: auto;
+  opacity: 0.6;
+  font-size: 0.75rem;
+}
+
+.app-sidebar.collapsed .workspace-indicator {
+  display: none;
+}
+
+/* Workspace Context Badge (Dashboard) */
+.workspace-context-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--vericase-teal-rgb), 0.08),
+    rgba(var(--vericase-teal-rgb), 0.03)
+  );
+  border: 1px solid rgba(var(--vericase-teal-rgb), 0.15);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.workspace-badge-icon {
+  width: 40px;
+  height: 40px;
+  background: var(--vericase-teal);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.1rem;
+}
+
+.workspace-badge-info {
+  flex: 1;
+}
+
+.workspace-badge-label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.workspace-badge-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.workspace-badge-name:hover {
+  color: var(--vericase-teal);
+}
+
+.workspace-badge-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.badge-action {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(var(--vericase-teal-rgb), 0.1);
+  color: var(--vericase-teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.badge-action:hover {
+  background: var(--vericase-teal);
+  color: white;
+}
+
+/* Workspace Quick Links Panel */
+.workspace-links-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.workspace-links-panel .panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.workspace-links-panel .panel-header span {
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.workspace-links-panel .panel-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ws-quick-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(var(--vericase-teal-rgb), 0.06);
+  border: 1px solid rgba(var(--vericase-teal-rgb), 0.15);
+  border-radius: 8px;
+  color: var(--vericase-teal);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.ws-quick-tab:hover {
+  background: rgba(var(--vericase-teal-rgb), 0.12);
+  border-color: var(--vericase-teal);
+}
+
 /* Sidebar Navigation */
 .sidebar-nav {
   flex: 1;

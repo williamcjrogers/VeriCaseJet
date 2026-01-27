@@ -1785,6 +1785,66 @@ def get_workspace(
         ) from e
 
 
+@router.get("/{workspace_id}/projects")
+def get_workspace_projects(
+    workspace_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> list[dict[str, Any]]:
+    """List projects for a workspace"""
+    try:
+        workspace = _require_workspace(db, workspace_id, user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Error in _require_workspace for workspace_id=%s", workspace_id
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load workspace: {e}"
+        ) from e
+
+    try:
+        projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+        from .models import EmailMessage, EvidenceItem
+
+        project_list = []
+        for p in projects:
+            email_count = (
+                db.query(func.count(EmailMessage.id))
+                .filter(EmailMessage.project_id == p.id)
+                .scalar()
+                or 0
+            )
+            evidence_count = (
+                db.query(func.count(EvidenceItem.id))
+                .filter(EvidenceItem.project_id == p.id)
+                .scalar()
+                or 0
+            )
+            project_list.append(
+                {
+                    "id": str(p.id),
+                    "name": p.project_name,
+                    "project_name": p.project_name,
+                    "code": p.project_code,
+                    "project_code": p.project_code,
+                    "email_count": email_count,
+                    "evidence_count": evidence_count,
+                }
+            )
+        return project_list
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Error fetching workspace projects for workspace_id=%s", workspace_id
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching workspace projects: {e}"
+        ) from e
+
+
 @router.put("/{workspace_id}")
 def update_workspace(
     workspace_id: str,
@@ -2958,6 +3018,7 @@ def get_workspace_about(
             "status": "empty",
             "summary": "",
             "open_questions": [],
+            "sources": [],
             "user_notes": "",
             "updated_at": None,
         }
@@ -2966,11 +3027,13 @@ def get_workspace_about(
     open_questions = data.get("open_questions") if isinstance(data, dict) else None
     contracts = data.get("contracts") if isinstance(data, dict) else None
     structured = data.get("structured") if isinstance(data, dict) else None
+    sources = data.get("sources") if isinstance(data, dict) else None
     return {
         "workspace_id": str(workspace.id),
         "status": about.status,
         "summary": about.summary_md or "",
         "open_questions": open_questions if isinstance(open_questions, list) else [],
+        "sources": sources if isinstance(sources, list) else [],
         "contracts": (
             contracts
             if isinstance(contracts, dict)
@@ -3105,6 +3168,7 @@ async def refresh_workspace_about(
         "status": about.status,
         "summary": about.summary_md or "",
         "open_questions": (about.data or {}).get("open_questions", []),
+        "sources": (about.data or {}).get("sources", []),
         "contracts": (about.data or {}).get(
             "contracts", {"documents": [], "key_terms_overview": [], "gaps": []}
         ),
