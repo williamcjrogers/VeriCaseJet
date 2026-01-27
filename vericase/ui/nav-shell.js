@@ -18,6 +18,163 @@
     }
     return "";
   })();
+
+  const VericaseContext = (() => {
+    if (window.VericaseContext) {
+      try {
+        window.VericaseContext.migrate?.();
+      } catch {
+        // ignore
+      }
+      return window.VericaseContext;
+    }
+
+    const legacyGet = (key) => {
+      try {
+        switch (key) {
+          case "workspaceId":
+            return (
+              localStorage.getItem("currentWorkspaceId") ||
+              localStorage.getItem("workspaceId") ||
+              ""
+            );
+          case "workspaceName":
+            return (
+              localStorage.getItem("currentWorkspaceName") ||
+              localStorage.getItem("workspaceName") ||
+              ""
+            );
+          case "projectId":
+            return (
+              localStorage.getItem("vericase_current_project") ||
+              localStorage.getItem("currentProjectId") ||
+              localStorage.getItem("projectId") ||
+              ""
+            );
+          case "projectName":
+            return (
+              localStorage.getItem("currentProjectName") ||
+              localStorage.getItem("vericase_current_project_name") ||
+              ""
+            );
+          case "caseId":
+            return (
+              localStorage.getItem("currentCaseId") ||
+              localStorage.getItem("caseId") ||
+              ""
+            );
+          case "caseName":
+            return (
+              localStorage.getItem("currentCaseName") ||
+              localStorage.getItem("vericase_current_case_name") ||
+              ""
+            );
+          case "profileType":
+            return localStorage.getItem("profileType") || "";
+          default:
+            return localStorage.getItem(key) || "";
+        }
+      } catch {
+        return "";
+      }
+    };
+
+    const legacySet = (key, value) => {
+      try {
+        const normalized = String(value || "").trim();
+        switch (key) {
+          case "workspaceId":
+            localStorage.setItem("currentWorkspaceId", normalized);
+            localStorage.setItem("workspaceId", normalized);
+            break;
+          case "workspaceName":
+            localStorage.setItem("currentWorkspaceName", normalized);
+            localStorage.setItem("workspaceName", normalized);
+            break;
+          case "projectId":
+            localStorage.setItem("vericase_current_project", normalized);
+            localStorage.setItem("currentProjectId", normalized);
+            localStorage.setItem("projectId", normalized);
+            break;
+          case "projectName":
+            localStorage.setItem("currentProjectName", normalized);
+            localStorage.setItem("vericase_current_project_name", normalized);
+            break;
+          case "caseId":
+            localStorage.setItem("currentCaseId", normalized);
+            localStorage.setItem("caseId", normalized);
+            break;
+          case "caseName":
+            localStorage.setItem("currentCaseName", normalized);
+            localStorage.setItem("vericase_current_case_name", normalized);
+            break;
+          case "profileType":
+            localStorage.setItem("profileType", normalized);
+            break;
+          default:
+            localStorage.setItem(key, normalized);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    const legacyRemove = (key) => {
+      try {
+        switch (key) {
+          case "workspaceId":
+            localStorage.removeItem("currentWorkspaceId");
+            localStorage.removeItem("workspaceId");
+            break;
+          case "workspaceName":
+            localStorage.removeItem("currentWorkspaceName");
+            localStorage.removeItem("workspaceName");
+            break;
+          case "projectId":
+            localStorage.removeItem("vericase_current_project");
+            localStorage.removeItem("currentProjectId");
+            localStorage.removeItem("projectId");
+            break;
+          case "projectName":
+            localStorage.removeItem("currentProjectName");
+            localStorage.removeItem("vericase_current_project_name");
+            break;
+          case "caseId":
+            localStorage.removeItem("currentCaseId");
+            localStorage.removeItem("caseId");
+            break;
+          case "caseName":
+            localStorage.removeItem("currentCaseName");
+            localStorage.removeItem("vericase_current_case_name");
+            break;
+          case "profileType":
+            localStorage.removeItem("profileType");
+            break;
+          default:
+            localStorage.removeItem(key);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    return {
+      get: legacyGet,
+      set: legacySet,
+      remove: legacyRemove,
+      clear: () => {},
+      migrate: () => {},
+    };
+  })();
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
   // ==========================================
   // Error Tracking & Telemetry
   // ==========================================
@@ -271,53 +428,39 @@
       console.log("[FLOW] NavShell context:", ctx);
       return ctx;
     };
+    const normalize = (value) => {
+      const text = String(value || "").trim();
+      return text && text !== "undefined" && text !== "null" ? text : "";
+    };
 
-    if (urlCaseId && urlCaseId !== "undefined" && urlCaseId !== "null") {
+    if (normalize(urlCaseId)) {
+      VericaseContext.set("profileType", "case");
+      VericaseContext.set("caseId", urlCaseId);
+      VericaseContext.remove("projectId");
       return logContext({ type: "case", id: urlCaseId });
     }
 
-    if (
-      urlProjectId &&
-      urlProjectId !== "undefined" &&
-      urlProjectId !== "null"
-    ) {
+    if (normalize(urlProjectId)) {
+      VericaseContext.set("profileType", "project");
+      VericaseContext.set("projectId", urlProjectId);
+      VericaseContext.remove("caseId");
       return logContext({ type: "project", id: urlProjectId });
     }
 
-    const storedProfileType = (localStorage.getItem("profileType") || "").trim();
-    const storedCaseId = (
-      localStorage.getItem("currentCaseId") ||
-      localStorage.getItem("caseId") ||
-      ""
-    ).trim();
-    const storedProjectId = (
-      localStorage.getItem("vericase_current_project") ||
-      localStorage.getItem("currentProjectId") ||
-      localStorage.getItem("projectId") ||
-      ""
-    ).trim();
+    const storedProfileType = (VericaseContext.get("profileType") || "").trim();
+    const storedCaseId = normalize(VericaseContext.get("caseId"));
+    const storedProjectId = normalize(VericaseContext.get("projectId"));
 
-    const normalizedCaseId =
-      storedCaseId && storedCaseId !== "undefined" && storedCaseId !== "null"
-        ? storedCaseId
-        : "";
-    const normalizedProjectId =
-      storedProjectId &&
-        storedProjectId !== "undefined" &&
-        storedProjectId !== "null"
-        ? storedProjectId
-        : "";
-
-    if (storedProfileType === "case" && normalizedCaseId) {
-      return logContext({ type: "case", id: normalizedCaseId });
+    if (storedProfileType === "case" && storedCaseId) {
+      return logContext({ type: "case", id: storedCaseId });
     }
 
-    if (normalizedProjectId) {
-      return logContext({ type: "project", id: normalizedProjectId });
+    if (storedProjectId) {
+      return logContext({ type: "project", id: storedProjectId });
     }
 
-    if (normalizedCaseId) {
-      return logContext({ type: "case", id: normalizedCaseId });
+    if (storedCaseId) {
+      return logContext({ type: "case", id: storedCaseId });
     }
 
     return logContext({ type: "", id: "" });
@@ -335,7 +478,7 @@
       return urlWorkspaceId;
     }
 
-    const storedWorkspaceId = (localStorage.getItem("currentWorkspaceId") || "").trim();
+    const storedWorkspaceId = (VericaseContext.get("workspaceId") || "").trim();
     if (storedWorkspaceId && storedWorkspaceId !== "undefined" && storedWorkspaceId !== "null") {
       return storedWorkspaceId;
     }
@@ -365,16 +508,37 @@
     return getUserRole() === "ADMIN";
   }
 
+  function renderWorkspaceIndicator() {
+    const workspaceId = (VericaseContext.get("workspaceId") || "").trim();
+    const workspaceName = (VericaseContext.get("workspaceName") || "").trim();
+    if (!workspaceId || !workspaceName) return "";
+
+    return `
+      <div class="sidebar-context-indicator workspace-indicator">
+        <div class="context-label">CURRENT WORKSPACE</div>
+        <a href="workspace-hub.html?workspaceId=${encodeURIComponent(workspaceId)}"
+           class="context-value"
+           title="Go to ${escapeHtml(workspaceName)}">
+          <i class="fas fa-layer-group"></i>
+          <span>${escapeHtml(workspaceName)}</span>
+          <i class="fas fa-chevron-right context-arrow"></i>
+        </a>
+      </div>
+    `;
+  }
+
   function buildNavUrl(url) {
     const ctx = getContext();
     const page = getUrlPage(url).split("?")[0];
     const workspaceId = getWorkspaceId();
 
-    // IMPORTANT: "Workspaces" should always open the directory view (no workspaceId).
-    // The hub supports an optional workspaceId to enter a specific workspace, but we should
-    // never auto-carry that context when the user explicitly clicks "Workspaces" in the sidebar.
+    // Preserve workspace context when navigating back to the hub.
     if (page === "workspace-hub.html") {
-      return String(url || "").split("?")[0];
+      const currentWorkspaceId = VericaseContext.get("workspaceId");
+      if (currentWorkspaceId) {
+        return `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+      }
+      return "workspace-hub.html";
     }
 
     // Workspace setup should retain the current workspace context when available.
@@ -528,24 +692,20 @@
     let projectContext = "";
     if (!isCommandCenter && !isMasterDashboard) {
       const contextType =
-        ctx?.type || (localStorage.getItem("profileType") || "project");
+        ctx?.type || (VericaseContext.get("profileType") || "project");
       const contextId = ctx?.id || "";
 
       // Get cached context name to show immediately (avoids flash of "Loading...")
       const cachedContextName =
         contextType === "case"
-          ? localStorage.getItem("currentCaseName") ||
-          localStorage.getItem("vericase_current_case_name") ||
-          "Loading..."
-          : localStorage.getItem("currentProjectName") ||
-          localStorage.getItem("vericase_current_project_name") ||
-          "Loading...";
+          ? VericaseContext.get("caseName") || "Loading..."
+          : VericaseContext.get("projectName") || "Loading...";
 
       const contextLabel =
         contextType === "case" ? "Current Case" : "Current Project";
       const clickHandler =
         contextType === "case"
-          ? `window.location.href='master-dashboard.html'`
+          ? "VericaseShell.showCaseSelector()"
           : "VericaseShell.showProjectSelector()";
       const clickTitle =
         contextType === "case"
@@ -571,6 +731,8 @@
       ? `${SHELL_BASE_URL}assets/LOGOTOBEUSED.png`
       : "assets/LOGOTOBEUSED.png";
 
+    const workspaceIndicator = renderWorkspaceIndicator();
+
     return `
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
@@ -579,6 +741,7 @@
                     </a>
                 </div>
                 ${projectContext}
+                ${workspaceIndicator}
                 <nav class="sidebar-nav">
                     ${navHtml}
                 </nav>
@@ -633,7 +796,7 @@
       <a class="btn btn-icon btn-ghost" href="copilot.html" title="VeriCase Assistant" aria-label="Open VeriCase Assistant">
         <i class="fas fa-balance-scale"></i>
       </a>
-      <a class="btn btn-icon btn-ghost" href="workspace-hub.html" title="Workspaces" aria-label="Open Workspaces">
+      <a class="btn btn-icon btn-ghost" href="${buildNavUrl("workspace-hub.html")}" title="Workspaces" aria-label="Open Workspaces">
         <i class="fas fa-folder-open"></i>
       </a>
       <button class="btn btn-icon btn-ghost" onclick="window.location.reload()" title="Refresh" aria-label="Refresh">
@@ -663,6 +826,37 @@
       `;
       })
       .join("");
+  }
+
+  function buildHierarchicalBreadcrumbs(options = {}) {
+    const crumbs = [];
+    if (options.includeHome) {
+      crumbs.push({
+        label: "Control Centre",
+        url: "control-centre.html",
+        icon: "fa-compass",
+      });
+    }
+
+    crumbs.push({
+      label: "Workspaces",
+      url: "workspace-hub.html",
+      icon: "fa-layer-group",
+    });
+
+    if (options.workspaceId && options.workspaceName) {
+      crumbs.push({
+        label: options.workspaceName,
+        url: `workspace-hub.html?workspaceId=${encodeURIComponent(options.workspaceId)}`,
+        icon: "fa-folder",
+      });
+    }
+
+    if (options.entityName) {
+      crumbs.push({ label: options.entityName });
+    }
+
+    return crumbs;
   }
 
   // ==========================================
@@ -894,7 +1088,7 @@
   async function loadCurrentProjectName() {
     const ctx = getContext();
     const contextType =
-      ctx?.type || (localStorage.getItem("profileType") || "project");
+      ctx?.type || (VericaseContext.get("profileType") || "project");
     const contextId = ctx?.id || "";
 
     const nameElement = document.getElementById("currentProjectName");
@@ -902,12 +1096,8 @@
 
     const cachedName =
       contextType === "case"
-        ? localStorage.getItem("currentCaseName") ||
-        localStorage.getItem("vericase_current_case_name") ||
-        ""
-        : localStorage.getItem("currentProjectName") ||
-        localStorage.getItem("vericase_current_project_name") ||
-        "";
+        ? VericaseContext.get("caseName") || ""
+        : VericaseContext.get("projectName") || "";
 
     // If we don't have an ID (or API fails later), still show the last-known name.
     if (!contextId) {
@@ -936,8 +1126,7 @@
             caseData.case_number ||
             "Unnamed Case";
           nameElement.textContent = name;
-          localStorage.setItem("currentCaseName", name);
-          localStorage.setItem("vericase_current_case_name", name);
+          VericaseContext.set("caseName", name);
         } else {
           nameElement.textContent = cachedName || "Case";
         }
@@ -953,8 +1142,7 @@
         if (project) {
           const name = project.project_name || project.name || "Unnamed Project";
           nameElement.textContent = name;
-          localStorage.setItem("currentProjectName", name);
-          localStorage.setItem("vericase_current_project_name", name);
+          VericaseContext.set("projectName", name);
           return;
         }
       }
@@ -967,8 +1155,7 @@
         const project = await response.json();
         const name = project.project_name || project.name || "Unnamed Project";
         nameElement.textContent = name;
-        localStorage.setItem("currentProjectName", name);
-        localStorage.setItem("vericase_current_project_name", name);
+        VericaseContext.set("projectName", name);
       } else {
         // Fallback: try to load all projects and find this one
         const projects = await fetchProjects();
@@ -978,8 +1165,7 @@
         if (project) {
           const name = project.project_name || project.name || "Unnamed Project";
           nameElement.textContent = name;
-          localStorage.setItem("currentProjectName", name);
-          localStorage.setItem("vericase_current_project_name", name);
+          VericaseContext.set("projectName", name);
         } else {
           nameElement.textContent = cachedName || "Unnamed Project";
         }
@@ -1312,6 +1498,27 @@
         currentContext.remove();
       }
 
+      const currentWorkspace = sidebar.querySelector(".workspace-indicator");
+      const nextWorkspace = nextSidebar.querySelector(".workspace-indicator");
+      if (nextWorkspace) {
+        if (currentWorkspace) {
+          currentWorkspace.replaceWith(nextWorkspace);
+        } else {
+          const header = sidebar.querySelector(".sidebar-header");
+          if (header && currentContext) {
+            currentContext.insertAdjacentElement("afterend", nextWorkspace);
+          } else if (header) {
+            header.insertAdjacentElement("afterend", nextWorkspace);
+          } else if (currentNav) {
+            sidebar.insertBefore(nextWorkspace, currentNav);
+          } else {
+            sidebar.prepend(nextWorkspace);
+          }
+        }
+      } else if (currentWorkspace) {
+        currentWorkspace.remove();
+      }
+
       // Ensure hrefs reflect the updated context.
       refreshNavUrls();
       // Best-effort: update displayed context name.
@@ -1324,18 +1531,15 @@
   function setProjectContext({ projectId, projectName } = {}) {
     try {
       if (projectId && String(projectId).trim()) {
-        localStorage.setItem("profileType", "project");
-        localStorage.setItem("vericase_current_project", String(projectId));
-        localStorage.setItem("currentProjectId", String(projectId));
+        VericaseContext.set("profileType", "project");
+        VericaseContext.set("projectId", String(projectId));
         // Clear case context if switching back to a project
-        localStorage.removeItem("currentCaseId");
-        localStorage.removeItem("caseId");
+        VericaseContext.remove("caseId");
       }
 
       if (projectName && String(projectName).trim()) {
         const name = String(projectName).trim();
-        localStorage.setItem("currentProjectName", name);
-        localStorage.setItem("vericase_current_project_name", name);
+        VericaseContext.set("projectName", name);
 
         const el = document.getElementById("currentProjectName");
         if (el) el.textContent = name;
@@ -1351,19 +1555,15 @@
     try {
       if (caseId && String(caseId).trim()) {
         const id = String(caseId).trim();
-        localStorage.setItem("profileType", "case");
-        localStorage.setItem("currentCaseId", id);
-        localStorage.setItem("caseId", id);
+        VericaseContext.set("profileType", "case");
+        VericaseContext.set("caseId", id);
         // Clear project context if switching to a case
-        localStorage.removeItem("vericase_current_project");
-        localStorage.removeItem("currentProjectId");
-        localStorage.removeItem("projectId");
+        VericaseContext.remove("projectId");
       }
 
       if (caseName && String(caseName).trim()) {
         const name = String(caseName).trim();
-        localStorage.setItem("currentCaseName", name);
-        localStorage.setItem("vericase_current_case_name", name);
+        VericaseContext.set("caseName", name);
 
         const el = document.getElementById("currentProjectName");
         if (el) el.textContent = name;
@@ -1494,13 +1694,11 @@
       return;
     }
 
-    // Store in localStorage
-    localStorage.setItem("profileType", "project");
-    localStorage.setItem("vericase_current_project", selectedId);
-    localStorage.setItem("currentProjectId", selectedId);
+    // Store in context
+    VericaseContext.set("profileType", "project");
+    VericaseContext.set("projectId", selectedId);
     // Clear any case context when switching to a project
-    localStorage.removeItem("currentCaseId");
-    localStorage.removeItem("caseId");
+    VericaseContext.remove("caseId");
 
     // Best-effort store of current project name for other pages
     try {
@@ -1510,8 +1708,7 @@
         const normalized = selectedText
           .trim()
           .replace(/\s*\(([A-Z0-9_-]{1,20})\)\s*$/, "");
-        localStorage.setItem("currentProjectName", normalized);
-        localStorage.setItem("vericase_current_project_name", normalized);
+        VericaseContext.set("projectName", normalized);
       }
     } catch {
       // ignore
@@ -1534,6 +1731,153 @@
     }
   }
 
+  // ==========================================
+  // Case Selector Modal
+  // ==========================================
+  let caseSelectorOptions = {};
+  let casesCache = null;
+
+  function renderCaseSelectorModal() {
+    return `
+      <div class="project-selector-modal" id="caseSelectorModal">
+        <div class="project-selector-content">
+          <div class="project-selector-header">
+            <h3><i class="fas fa-briefcase"></i> Select a Case</h3>
+            <button class="close-btn" onclick="VericaseShell.closeCaseSelector()" id="caseSelectorCloseBtn">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="project-selector-body">
+            <select id="globalCaseSelect" class="form-input">
+              <option value="">-- Select a case --</option>
+            </select>
+            <p class="project-selector-hint">Select a case to continue working with case-specific features.</p>
+          </div>
+          <div class="project-selector-actions">
+            <button class="btn btn-secondary" onclick="VericaseShell.closeCaseSelector()" id="caseSelectorCancelBtn">Cancel</button>
+            <button class="btn btn-vericase" onclick="VericaseShell.confirmCaseSelection()" id="caseSelectorConfirmBtn">
+              <i class="fas fa-check"></i> Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function fetchCases() {
+    if (casesCache) return casesCache;
+
+    try {
+      const apiUrl = window.location.origin;
+      const token =
+        localStorage.getItem("vericase_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("jwt");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const response = await fetch(`${apiUrl}/api/cases`, { headers });
+      if (response.ok) {
+        casesCache = await response.json();
+        return casesCache;
+      }
+    } catch (error) {
+      console.error("[VeriCaseShell] Failed to fetch cases:", error);
+    }
+    return [];
+  }
+
+  async function showCaseSelector(options = {}) {
+    caseSelectorOptions = options;
+
+    // Ensure modal exists in DOM
+    let modal = document.getElementById("caseSelectorModal");
+    if (!modal) {
+      const modalContainer = document.createElement("div");
+      modalContainer.innerHTML = renderCaseSelectorModal();
+      document.body.appendChild(modalContainer.firstElementChild);
+      modal = document.getElementById("caseSelectorModal");
+    }
+
+    // Hide cancel button if required
+    const cancelBtn = document.getElementById("caseSelectorCancelBtn");
+    const closeBtn = document.getElementById("caseSelectorCloseBtn");
+    if (options.required) {
+      if (cancelBtn) cancelBtn.style.display = "none";
+      if (closeBtn) closeBtn.style.display = "none";
+    } else {
+      if (cancelBtn) cancelBtn.style.display = "";
+      if (closeBtn) closeBtn.style.display = "";
+    }
+
+    // Populate dropdown
+    const select = document.getElementById("globalCaseSelect");
+    if (select) {
+      select.innerHTML = '<option value="">Loading cases...</option>';
+      const cases = await fetchCases();
+      const currentCaseId = getContext()?.type === "case" ? getContext().id : "";
+
+      select.innerHTML = '<option value="">-- Select a case --</option>';
+      cases.forEach((item) => {
+        const selected =
+          String(item.id) === String(currentCaseId) ? "selected" : "";
+        const displayName =
+          item.case_name || item.name || item.case_number || "Unnamed Case";
+        select.innerHTML += `<option value="${item.id}" ${selected}>${escapeHtml(displayName)}</option>`;
+      });
+    }
+
+    // Show modal
+    modal.classList.add("active");
+  }
+
+  function closeCaseSelector() {
+    const modal = document.getElementById("caseSelectorModal");
+    if (modal && !caseSelectorOptions.required) {
+      modal.classList.remove("active");
+    }
+  }
+
+  function confirmCaseSelection() {
+    const select = document.getElementById("globalCaseSelect");
+    const selectedId = select?.value;
+
+    if (!selectedId) {
+      if (window.VericaseUI?.Toast) {
+        window.VericaseUI.Toast.warning("Please select a case");
+      } else {
+        alert("Please select a case");
+      }
+      return;
+    }
+
+    VericaseContext.set("profileType", "case");
+    VericaseContext.set("caseId", selectedId);
+    VericaseContext.remove("projectId");
+
+    try {
+      const selectedText = select?.options?.[select.selectedIndex]?.textContent;
+      if (selectedText) {
+        VericaseContext.set("caseName", selectedText.trim());
+      }
+    } catch {
+      // ignore
+    }
+
+    const modal = document.getElementById("caseSelectorModal");
+    if (modal) {
+      modal.classList.remove("active");
+    }
+
+    if (caseSelectorOptions.onSelect) {
+      caseSelectorOptions.onSelect(selectedId);
+    } else {
+      const url = new URL(window.location.href);
+      url.searchParams.set("caseId", selectedId);
+      url.searchParams.delete("projectId");
+      window.location.href = url.toString();
+    }
+  }
+
   // Export
   window.VericaseShell = {
     inject: injectShell,
@@ -1546,6 +1890,10 @@
     showProjectSelector,
     closeProjectSelector,
     confirmProjectSelection,
+    showCaseSelector,
+    closeCaseSelector,
+    confirmCaseSelection,
+    buildHierarchicalBreadcrumbs,
     renderBreadcrumbs,
     refreshNavUrls,
     setProjectContext,

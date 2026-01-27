@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="brand-styles.css?v=9" />
   <link rel="stylesheet" href="design-system.css?v=9" />
   <script src="vericase-ui.js"></script>
+  <script src="context-manager.js"></script>
   <script src="nav-shell.js"></script>
   <style>
     /* Workspace hub provides its own in-page header; avoid duplicated breadcrumb bars when wrapped in the shell */
@@ -2031,15 +2032,6 @@
 
 <body class="workspace-hub-page">
   <div class="workspace-hub-container">
-    <!-- Breadcrumb Navigation -->
-    <nav class="hub-breadcrumb" aria-label="Breadcrumb">
-      <a href="control-centre.html"><i class="fas fa-compass"></i> Control Centre</a>
-      <span class="separator"><i class="fas fa-chevron-right"></i></span>
-      <a href="workspace-hub.html">Workspaces</a>
-      <span class="separator"><i class="fas fa-chevron-right"></i></span>
-      <span class="current" id="breadcrumbWorkspaceName">Loading...</span>
-    </nav>
-
     <!-- Workspaces Directory (no workspaceId) -->
     <section class="hub-section hidden" id="directoryView">
       <header class="directory-hero" aria-label="Workspaces Directory">
