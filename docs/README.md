@@ -5,7 +5,11 @@
 **Project**: Welbourne Tottenham Hale (WR200625/02809)
 
 ## Purpose
-Specialized workflow combining spam classification with bulk deletion capabilities for cleaning the Welbourne PST email database (55,981 emails post-cleaning).
+This documentation and tooling supports **safe, repeatable cleanup of the Welbourne Tottenham Hale email corpus** (PST ingestion) by identifying low-value/automated email and removing it in controlled batches.
+
+- **What it does**: pattern-based classification (HIGH/MEDIUM confidence) to surface spam/automation candidates, plus bulk action + reporting utilities.
+- **How it stays safe**: protected keywords/senders, sample-first review, and explicit confirmation before any destructive change.
+- **Outcome**: a correspondence view focused on actionable / claim-relevant emails with measurable noise reduction.
 
 ## Files in This Skill
 

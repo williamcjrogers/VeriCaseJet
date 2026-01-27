@@ -444,6 +444,13 @@ class EvidenceItemSummary(BaseModel):
     manual_tags: list[str] = []
     extracted_parties: list[Any] = []
     extracted_amounts: list[Any] = []
+    extracted_dates: list[Any] = []
+    # Intelligence fields
+    classification_confidence: int | None = None
+    classification_method: str | None = None
+    ai_analyzed: bool = False
+    document_date_confidence: int | None = None
+    # Source fields
     case_id: str | None = None
     project_id: str | None = None
     source_type: str | None = None

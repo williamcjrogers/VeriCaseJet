@@ -1261,34 +1261,159 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
         temperature=0.2,
     )
 
+    # Log AI response status for debugging
+    if not ai_text:
+        logger.warning(
+            f"[workspace_about] AI returned empty response for workspace {workspace.id}"
+        )
+    elif len(ai_text) < 100:
+        logger.warning(
+            f"[workspace_about] AI returned very short response ({len(ai_text)} chars) for workspace {workspace.id}: {ai_text[:200]}"
+        )
+
     payload = _extract_json_object(ai_text) if ai_text else None
+    if not payload and ai_text:
+        # AI returned something but we couldn't parse JSON - log for debugging
+        logger.warning(
+            f"[workspace_about] Failed to parse JSON from AI response for workspace {workspace.id}. "
+            f"Response length: {len(ai_text)}, first 500 chars: {ai_text[:500]}"
+        )
+
     if not payload:
-        # Deterministic fallback: build a minimal summary without external AI.
+        # Deterministic fallback: build a useful summary without external AI.
+        # Use pathlib to extract just the filename (basename) from full paths
+        from pathlib import PurePosixPath
+
+        def _basename(path: str | None) -> str:
+            """Extract just the filename from a potentially nested path."""
+            if not path:
+                return "Untitled"
+            return PurePosixPath(path).name or path
+
+        def _get_textract_signals(item: EvidenceItem) -> dict[str, str]:
+            """Extract key Textract query results from an evidence item."""
+            signals = {}
+            md = item.extracted_metadata if isinstance(item.extracted_metadata, dict) else {}
+            tex = md.get("textract_data") if isinstance(md, dict) else None
+            if isinstance(tex, dict):
+                q = tex.get("queries")
+                if isinstance(q, dict):
+                    for alias in ("parties", "employer", "contractor", "contract_value",
+                                  "completion_date", "contract_form", "project_name"):
+                        entry = q.get(alias)
+                        ans = None
+                        if isinstance(entry, dict):
+                            ans = entry.get("answer")
+                        elif isinstance(entry, str):
+                            ans = entry
+                        if ans and str(ans).strip():
+                            signals[alias] = str(ans).strip()[:200]
+            return signals
+
+        def _get_excerpt(item: EvidenceItem, max_len: int = 400) -> str:
+            """Get a text excerpt from an evidence item."""
+            text = item.extracted_text or ""
+            if not text:
+                md = item.extracted_metadata if isinstance(item.extracted_metadata, dict) else {}
+                text = md.get("text_preview", "") if isinstance(md, dict) else ""
+            if not text:
+                return ""
+            # Clean and truncate
+            text = " ".join(text.split())[:max_len]
+            if len(text) == max_len:
+                text = text.rsplit(" ", 1)[0] + "..."
+            return text
+
+        # Build structured markdown summary
         summary_lines = [
-            f"Workspace: {workspace.name} ({workspace.code})",
-            f"Contract type: {workspace.contract_type or 'Unknown'}",
+            f"## {workspace.name}",
+            f"**Workspace code:** {workspace.code}",
+            f"**Contract type:** {workspace.contract_type or 'Unknown'}",
         ]
-        if workspace.description:
-            summary_lines.append(f"Description: {workspace.description}")
+        if workspace.description and workspace.description.strip().upper() != "TBC":
+            summary_lines.append(f"**Description:** {workspace.description}")
+
         if projects:
-            summary_lines.append(
-                "Projects: "
-                + ", ".join([p.project_name for p in projects if p.project_name][:10])
-            )
+            summary_lines.append("")
+            summary_lines.append("### Projects")
+            for p in projects[:6]:
+                if p.project_name:
+                    summary_lines.append(f"- {p.project_name}")
+
         if cases:
-            summary_lines.append(
-                "Cases: " + ", ".join([c.name for c in cases if c.name][:10])
-            )
+            summary_lines.append("")
+            summary_lines.append("### Cases")
+            for c in cases[:6]:
+                if c.name:
+                    summary_lines.append(f"- {c.name}")
+
+        # Track contract doc IDs to avoid duplication in evidence section
+        contract_doc_ids = {str(d.id) for d in contract_docs}
+
+        # Extract key facts from contract documents
+        key_facts: list[str] = []
         if contract_docs:
-            summary_lines.append(
-                "Contract documents uploaded: "
-                + ", ".join([d.filename for d in contract_docs if d.filename][:8])
-            )
-        if ordered_items:
-            summary_lines.append(
-                "Recent evidence: "
-                + ", ".join([e.filename for e in ordered_items if e.filename][:8])
-            )
+            summary_lines.append("")
+            summary_lines.append("### Contract Documents")
+            for d in contract_docs[:6]:
+                if d.filename:
+                    basename = _basename(d.filename)
+                    doc_date = d.document_date.strftime("%Y-%m-%d") if d.document_date else None
+                    date_suffix = f" ({doc_date})" if doc_date else ""
+                    summary_lines.append(f"**{basename}**{date_suffix}")
+
+                    # Add extracted signals as bullet points
+                    signals = _get_textract_signals(d)
+                    for key, value in list(signals.items())[:5]:
+                        label = key.replace("_", " ").title()
+                        summary_lines.append(f"  - {label}: {value}")
+                        if key in ("parties", "employer", "contractor", "contract_value"):
+                            key_facts.append(f"{label}: {value}")
+
+                    # Add text excerpt if available and no signals
+                    if not signals:
+                        excerpt = _get_excerpt(d, 300)
+                        if excerpt:
+                            summary_lines.append(f"  - Preview: _{excerpt}_")
+
+        # Show key facts at top if we found any
+        if key_facts:
+            # Insert after the header section
+            insert_idx = 4  # After workspace code and contract type
+            summary_lines.insert(insert_idx, "")
+            summary_lines.insert(insert_idx + 1, "### Key Facts Extracted")
+            for i, fact in enumerate(key_facts[:6]):
+                summary_lines.insert(insert_idx + 2 + i, f"- {fact}")
+
+        # Filter ordered_items to exclude contract docs already listed
+        other_evidence = [
+            e for e in ordered_items
+            if str(e.id) not in contract_doc_ids and e.filename
+        ][:8]
+
+        if other_evidence:
+            summary_lines.append("")
+            summary_lines.append("### Key Evidence")
+            for e in other_evidence[:6]:
+                basename = _basename(e.filename)
+                doc_date = e.document_date.strftime("%Y-%m-%d") if e.document_date else None
+                etype = getattr(e, "evidence_type", None)
+                meta_parts = []
+                if etype:
+                    meta_parts.append(etype)
+                if doc_date:
+                    meta_parts.append(doc_date)
+                meta_suffix = f" ({', '.join(meta_parts)})" if meta_parts else ""
+                summary_lines.append(f"**{basename}**{meta_suffix}")
+
+                # Add excerpt if available
+                excerpt = _get_excerpt(e, 200)
+                if excerpt:
+                    summary_lines.append(f"  - _{excerpt}_")
+
+        summary_lines.append("")
+        summary_lines.append("---")
+        summary_lines.append("*AI analysis unavailable. Click **Refresh** to generate a comprehensive brief.*")
 
         payload = {
             "read_in": "\n".join(summary_lines),
@@ -1297,7 +1422,7 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
                 "documents": [
                     {
                         "evidence_id": str(d.id),
-                        "filename": d.filename,
+                        "filename": _basename(d.filename),
                         "source_labels": [contract_source_labels.get(str(d.id), "")],
                     }
                     for d in contract_docs

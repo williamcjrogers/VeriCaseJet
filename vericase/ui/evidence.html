@@ -1475,6 +1475,445 @@
       text-decoration: underline;
     }
 
+    /* ============================================
+       INTELLIGENCE LAYER STYLES
+       ============================================ */
+    
+    /* AI Confidence Badge */
+    .ai-confidence-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      min-width: 45px;
+      justify-content: center;
+    }
+    
+    .ai-confidence-badge.high {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+    }
+    
+    .ai-confidence-badge.medium {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+    }
+    
+    .ai-confidence-badge.low {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+    }
+    
+    .ai-confidence-badge.none {
+      background: var(--gray-200);
+      color: var(--text-muted);
+    }
+    
+    /* Sentiment Indicator */
+    .sentiment-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+    
+    .sentiment-indicator.positive {
+      color: #10b981;
+    }
+    
+    .sentiment-indicator.neutral {
+      color: var(--text-muted);
+    }
+    
+    .sentiment-indicator.negative {
+      color: #ef4444;
+    }
+    
+    .sentiment-indicator.escalation {
+      color: #dc2626;
+      font-weight: 600;
+    }
+    
+    /* Entity Tags */
+    .entity-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      max-width: 200px;
+    }
+    
+    .entity-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    
+    .entity-tag.person {
+      background: rgba(59, 130, 246, 0.15);
+      color: #3b82f6;
+    }
+    
+    .entity-tag.organization {
+      background: rgba(139, 92, 246, 0.15);
+      color: #8b5cf6;
+    }
+    
+    .entity-tag.date {
+      background: rgba(249, 115, 22, 0.15);
+      color: #f97316;
+    }
+    
+    .entity-tag.money {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+    }
+    
+    .entity-tag.location {
+      background: rgba(236, 72, 153, 0.15);
+      color: #ec4899;
+    }
+    
+    /* Auto Tags Display */
+    .auto-tags-display {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    
+    .auto-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      background: rgba(31, 111, 120, 0.1);
+      color: var(--vericase-teal-dark);
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+    
+    .auto-tag i {
+      margin-right: 4px;
+      font-size: 0.6rem;
+    }
+    
+    /* AI Analyzed Indicator */
+    .ai-analyzed-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+    
+    .ai-analyzed-indicator.analyzed {
+      color: var(--vericase-teal);
+    }
+    
+    .ai-analyzed-indicator.pending {
+      color: var(--text-muted);
+    }
+    
+    /* Intelligence Panel */
+    .intelligence-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 420px;
+      height: 100vh;
+      background: white;
+      border-left: 1px solid var(--gray-200);
+      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      z-index: 1100;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .intelligence-panel.open {
+      transform: translateX(0);
+    }
+    
+    .intelligence-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
+      color: white;
+    }
+    
+    .intelligence-panel-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .intelligence-panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    
+    /* AI Chat Interface */
+    .ai-chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    
+    .ai-chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 16px;
+    }
+    
+    .ai-chat-message {
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      max-width: 90%;
+    }
+    
+    .ai-chat-message.user {
+      background: var(--vericase-teal);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    
+    .ai-chat-message.assistant {
+      background: var(--gray-100);
+      color: var(--text-primary);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    
+    .ai-chat-message.system {
+      background: rgba(249, 115, 22, 0.1);
+      color: #c2410c;
+      font-size: 0.8rem;
+      text-align: center;
+      align-self: center;
+    }
+    
+    .ai-chat-input-container {
+      display: flex;
+      gap: 8px;
+      padding-top: 16px;
+      border-top: 1px solid var(--gray-200);
+    }
+    
+    .ai-chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid var(--gray-200);
+      border-radius: var(--radius-lg);
+      font-size: 0.875rem;
+      resize: none;
+      min-height: 44px;
+      max-height: 120px;
+    }
+    
+    .ai-chat-input:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+    }
+    
+    .ai-chat-send-btn {
+      padding: 12px 16px;
+      background: var(--vericase-teal);
+      color: white;
+      border: none;
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+    
+    .ai-chat-send-btn:hover {
+      background: var(--vericase-teal-dark);
+    }
+    
+    .ai-chat-send-btn:disabled {
+      background: var(--gray-300);
+      cursor: not-allowed;
+    }
+    
+    /* Semantic Search Results */
+    .semantic-search-results {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    
+    .semantic-result-item {
+      padding: 12px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+    
+    .semantic-result-item:hover {
+      border-color: var(--vericase-teal);
+      background: white;
+    }
+    
+    .semantic-result-title {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    
+    .semantic-result-snippet {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    
+    .semantic-result-score {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.7rem;
+      color: var(--vericase-teal);
+      margin-top: 8px;
+    }
+    
+    /* AI Query Suggestions */
+    .ai-query-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .ai-query-suggestion {
+      padding: 6px 12px;
+      background: rgba(31, 111, 120, 0.08);
+      border: 1px solid rgba(31, 111, 120, 0.2);
+      border-radius: 20px;
+      font-size: 0.75rem;
+      color: var(--vericase-teal-dark);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+    
+    .ai-query-suggestion:hover {
+      background: rgba(31, 111, 120, 0.15);
+      border-color: var(--vericase-teal);
+    }
+    
+    /* Intelligence Stats Card */
+    .intelligence-stats-card {
+      background: linear-gradient(135deg, rgba(31, 111, 120, 0.05) 0%, rgba(31, 111, 120, 0.1) 100%);
+      border: 1px solid rgba(31, 111, 120, 0.2);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    
+    .intelligence-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    
+    .intelligence-stat {
+      text-align: center;
+    }
+    
+    .intelligence-stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--vericase-teal-dark);
+    }
+    
+    .intelligence-stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    /* Toolbar AI Button */
+    .btn-ai {
+      background: linear-gradient(135deg, var(--vericase-teal) 0%, #0d9488 100%);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.8125rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all var(--duration-fast);
+      box-shadow: 0 2px 8px rgba(31, 111, 120, 0.3);
+    }
+    
+    .btn-ai:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(31, 111, 120, 0.4);
+    }
+    
+    .btn-ai i {
+      font-size: 0.875rem;
+    }
+    
+    .btn-ai .ai-pulse {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: ai-pulse 2s infinite;
+    }
+    
+    @keyframes ai-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+    
+    .ai-pulse-large {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--vericase-teal), #8b5cf6);
+      animation: ai-pulse-large 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes ai-pulse-large {
+      0%, 100% { 
+        transform: scale(1); 
+        box-shadow: 0 0 0 0 rgba(31, 111, 120, 0.4);
+      }
+      50% { 
+        transform: scale(1.1); 
+        box-shadow: 0 0 20px 10px rgba(31, 111, 120, 0);
+      }
+    }
+
     /* Responsive */
     @media (max-width: 1200px) {
       .collections-sidebar {
@@ -1613,6 +2052,57 @@
     <button class="btn btn-ghost" id="refreshBtn" title="Refresh">
       <i class="fas fa-sync-alt"></i>
     </button>
+
+    <!-- AI Intelligence Button -->
+    <button class="btn-ai" id="aiIntelligenceBtn" title="AI Intelligence - Natural language search and analysis">
+      <i class="fas fa-brain"></i>
+      <span>AI Intelligence</span>
+      <span class="ai-pulse"></span>
+    </button>
+
+    <!-- Case Insights Button -->
+    <button class="btn-secondary" id="caseInsightsBtn" title="Generate AI-powered case insights" onclick="openCaseInsights()">
+      <i class="fas fa-lightbulb" style="color: #fbbf24;"></i>
+      <span>Case Insights</span>
+    </button>
+
+    <!-- Analytics Charts Dropdown -->
+    <div class="dropdown" style="position: relative; display: inline-block;">
+      <button class="btn-secondary" id="chartsDropdownBtn" title="Create analytics charts from data">
+        <i class="fas fa-chart-bar"></i>
+        <span>Charts</span>
+        <i class="fas fa-caret-down" style="margin-left: 4px; font-size: 0.75rem;"></i>
+      </button>
+      <div class="dropdown-menu chart-dropdown" id="chartsDropdownMenu" style="display: none; position: absolute; right: 0; top: 100%; z-index: 1000; min-width: 220px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); margin-top: 4px;">
+        <div class="dropdown-header" style="padding: 8px 12px; font-weight: 600; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border-color);">
+          Document Analytics
+        </div>
+        <button class="dropdown-item" onclick="createChart('category-pie')" style="display: flex; align-items: center; width: 100%; padding: 10px 12px; border: none; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer;">
+          <i class="fas fa-pie-chart" style="width: 20px; color: var(--vericase-teal);"></i>
+          <span>Category Distribution</span>
+        </button>
+        <button class="dropdown-item" onclick="createChart('type-bar')" style="display: flex; align-items: center; width: 100%; padding: 10px 12px; border: none; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer;">
+          <i class="fas fa-chart-bar" style="width: 20px; color: var(--vericase-teal);"></i>
+          <span>File Type Breakdown</span>
+        </button>
+        <button class="dropdown-item" onclick="createChart('timeline')" style="display: flex; align-items: center; width: 100%; padding: 10px 12px; border: none; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer;">
+          <i class="fas fa-chart-line" style="width: 20px; color: var(--vericase-teal);"></i>
+          <span>Document Timeline</span>
+        </button>
+        <div class="dropdown-divider" style="height: 1px; background: var(--border-color); margin: 4px 0;"></div>
+        <div class="dropdown-header" style="padding: 8px 12px; font-weight: 600; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border-color);">
+          AI Analysis
+        </div>
+        <button class="dropdown-item" onclick="createChart('confidence-histogram')" style="display: flex; align-items: center; width: 100%; padding: 10px 12px; border: none; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer;">
+          <i class="fas fa-brain" style="width: 20px; color: #fbbf24;"></i>
+          <span>AI Confidence Scores</span>
+        </button>
+        <button class="dropdown-item" onclick="createChart('stakeholder-network')" style="display: flex; align-items: center; width: 100%; padding: 10px 12px; border: none; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer;">
+          <i class="fas fa-project-diagram" style="width: 20px; color: #8b5cf6;"></i>
+          <span>Stakeholder Network</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Stats Bar -->
@@ -1743,6 +2233,99 @@
             <i class="fas fa-expand"></i> Full Preview
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Intelligence Panel -->
+  <div class="intelligence-panel" id="intelligencePanel">
+    <div class="intelligence-panel-header">
+      <h3><i class="fas fa-brain"></i> AI Intelligence</h3>
+      <button class="btn btn-ghost" onclick="closeIntelligencePanel()" style="color: white; padding: 4px 8px;">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="intelligence-panel-content">
+      <!-- Intelligence Stats -->
+      <div class="intelligence-stats-card">
+        <div class="intelligence-stats-grid">
+          <div class="intelligence-stat">
+            <div class="intelligence-stat-value" id="aiAnalyzedCount">0</div>
+            <div class="intelligence-stat-label">AI Analyzed</div>
+          </div>
+          <div class="intelligence-stat">
+            <div class="intelligence-stat-value" id="entitiesExtracted">0</div>
+            <div class="intelligence-stat-label">Entities Found</div>
+          </div>
+          <div class="intelligence-stat">
+            <div class="intelligence-stat-value" id="avgConfidence">—</div>
+            <div class="intelligence-stat-label">Avg. Confidence</div>
+          </div>
+          <div class="intelligence-stat">
+            <div class="intelligence-stat-value" id="escalationsDetected">0</div>
+            <div class="intelligence-stat-label">Escalations</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Query Suggestions -->
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+          Try asking:
+        </div>
+        <div class="ai-query-suggestions">
+          <button class="ai-query-suggestion" onclick="executeAIQuery('Show documents from the contractor')">
+            Contractor docs
+          </button>
+          <button class="ai-query-suggestion" onclick="executeAIQuery('Find emails about delays')">
+            Delay emails
+          </button>
+          <button class="ai-query-suggestion" onclick="executeAIQuery('Group by document type')">
+            Group by type
+          </button>
+          <button class="ai-query-suggestion" onclick="executeAIQuery('Show escalation emails')">
+            Escalations
+          </button>
+          <button class="ai-query-suggestion" onclick="executeAIQuery('Find payment-related documents')">
+            Payments
+          </button>
+          <button class="ai-query-suggestion" onclick="executeAIQuery('Show high-confidence items')">
+            High confidence
+          </button>
+        </div>
+      </div>
+      
+      <!-- AI Chat Interface -->
+      <div class="ai-chat-container">
+        <div class="ai-chat-messages" id="aiChatMessages">
+          <div class="ai-chat-message assistant">
+            <strong>VeriCase AI</strong><br>
+            I can help you find, filter, and analyze evidence. Ask me anything like:
+            <ul style="margin: 8px 0 0 16px; padding: 0;">
+              <li>"Show me all PDFs from June 2024"</li>
+              <li>"Find documents mentioning delay claims"</li>
+              <li>"Group evidence by stakeholder"</li>
+              <li>"What documents reference Drawing 001?"</li>
+            </ul>
+          </div>
+        </div>
+        <div class="ai-chat-input-container">
+          <textarea 
+            class="ai-chat-input" 
+            id="aiChatInput" 
+            placeholder="Ask me to find, filter, or analyze evidence..."
+            rows="1"
+            onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendAIQuery(); }"
+          ></textarea>
+          <button class="ai-chat-send-btn" onclick="sendAIQuery()" id="aiSendBtn">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Semantic Search Results (populated dynamically) -->
+      <div class="semantic-search-results" id="semanticSearchResults" style="display: none;">
+        <!-- Results appear here -->
       </div>
     </div>
   </div>
@@ -3165,6 +3748,7 @@
             field: "extracted_parties",
             headerName: "Stakeholders",
             width: 160,
+            enableRowGroup: true,  // Enable grouping by stakeholder
             cellRenderer: (params) => {
               const parties = params.value;
               if (!parties || !Array.isArray(parties) || parties.length === 0)
@@ -3173,6 +3757,104 @@
               const extra =
                 parties.length > 2 ? ` +${parties.length - 2}` : "";
               return `<span style="color: var(--vericase-teal); font-size: 0.75rem;">${display}${extra}</span>`;
+            },
+          },
+          // ============================================
+          // INTELLIGENCE COLUMNS - AI Analysis Data
+          // ============================================
+          {
+            field: "classification_confidence",
+            headerName: "AI Confidence",
+            headerTooltip: "AI classification confidence score (0-100%)",
+            width: 110,
+            filter: "agNumberColumnFilter",
+            cellRenderer: (params) => {
+              const confidence = params.value;
+              const aiAnalyzed = safeGet(params.data, "ai_analyzed", false);
+              
+              if (!aiAnalyzed || confidence === null || confidence === undefined) {
+                return '<span class="ai-confidence-badge none" title="Not analyzed"><i class="fas fa-robot"></i> —</span>';
+              }
+              
+              let level = "low";
+              if (confidence >= 80) level = "high";
+              else if (confidence >= 50) level = "medium";
+              
+              return `<span class="ai-confidence-badge ${level}" title="${confidence}% confidence">
+                <i class="fas fa-brain"></i> ${confidence}%
+              </span>`;
+            },
+          },
+          {
+            field: "auto_tags",
+            headerName: "AI Tags",
+            headerTooltip: "Automatically generated tags from AI analysis",
+            width: 180,
+            filter: "agTextColumnFilter",
+            cellRenderer: (params) => {
+              const tags = params.value;
+              if (!tags || !Array.isArray(tags) || tags.length === 0) {
+                return '<span style="color: var(--text-muted);">—</span>';
+              }
+              
+              const displayTags = tags.slice(0, 3);
+              const extra = tags.length > 3 ? ` <span style="color: var(--text-muted); font-size: 0.65rem;">+${tags.length - 3}</span>` : "";
+              
+              const tagHtml = displayTags.map(tag => {
+                const icon = tag.includes("email") ? "fa-envelope" : 
+                            tag.includes("contract") ? "fa-file-contract" :
+                            tag.includes("invoice") ? "fa-file-invoice-dollar" :
+                            tag.includes("meeting") ? "fa-users" :
+                            tag.includes("drawing") ? "fa-drafting-compass" :
+                            "fa-tag";
+                return `<span class="auto-tag"><i class="fas ${icon}"></i>${escapeHtml(tag)}</span>`;
+              }).join("");
+              
+              return `<div class="auto-tags-display">${tagHtml}${extra}</div>`;
+            },
+          },
+          {
+            field: "ai_analyzed",
+            headerName: "AI",
+            headerTooltip: "AI processing status",
+            width: 60,
+            filter: "agSetColumnFilter",
+            cellRenderer: (params) => {
+              const analyzed = params.value;
+              if (analyzed) {
+                return '<span class="ai-analyzed-indicator analyzed" title="AI analyzed"><i class="fas fa-check-circle"></i></span>';
+              }
+              return '<span class="ai-analyzed-indicator pending" title="Pending AI analysis"><i class="fas fa-clock"></i></span>';
+            },
+          },
+          {
+            field: "extracted_dates",
+            headerName: "Key Dates",
+            headerTooltip: "Dates extracted from document content",
+            width: 120,
+            hide: true,  // Hidden by default, can be shown via columns panel
+            cellRenderer: (params) => {
+              const dates = params.value;
+              if (!dates || !Array.isArray(dates) || dates.length === 0) {
+                return '<span style="color: var(--text-muted);">—</span>';
+              }
+              const dateCount = dates.length;
+              return `<span class="entity-tag date" title="${dateCount} dates extracted"><i class="fas fa-calendar"></i> ${dateCount} dates</span>`;
+            },
+          },
+          {
+            field: "extracted_amounts",
+            headerName: "Amounts",
+            headerTooltip: "Financial amounts extracted from document",
+            width: 120,
+            hide: true,  // Hidden by default
+            cellRenderer: (params) => {
+              const amounts = params.value;
+              if (!amounts || !Array.isArray(amounts) || amounts.length === 0) {
+                return '<span style="color: var(--text-muted);">—</span>';
+              }
+              const amountCount = amounts.length;
+              return `<span class="entity-tag money" title="${amountCount} amounts found"><i class="fas fa-pound-sign"></i> ${amountCount}</span>`;
             },
           },
           {
@@ -3356,13 +4038,142 @@
               iconKey: "columns",
               toolPanel: "agColumnsToolPanel",
               toolPanelParams: {
-                suppressRowGroups: true,
-                suppressValues: true,
+                // ENABLE Row Grouping - was suppressed!
+                suppressRowGroups: false,
+                suppressValues: false,
                 suppressPivots: true,
                 suppressPivotMode: true,
               },
             },
+            {
+              id: "filters",
+              labelDefault: "Filters",
+              labelKey: "filters",
+              iconKey: "filter",
+              toolPanel: "agFiltersToolPanel",
+            },
           ],
+          defaultToolPanel: "",
+          hiddenByDefault: true,
+        },
+        // Enable Row Grouping
+        rowGroupPanelShow: "always",
+        groupDefaultExpanded: 1,
+        // Enable aggregation on grouped data
+        suppressAggFuncInHeader: false,
+        // Enable Integrated Charts (AG Grid Enterprise)
+        enableCharts: true,
+        enableRangeSelection: true,
+        chartThemeOverrides: {
+          common: {
+            title: {
+              enabled: true,
+              fontWeight: 'bold',
+              fontSize: 14
+            },
+            legend: {
+              position: 'bottom'
+            }
+          }
+        },
+        // Custom chart menu items
+        getChartToolbarItems: () => {
+          return [
+            'chartSettings',
+            'chartDownload', 
+            'chartData',
+            'chartFormat'
+          ];
+        },
+        // Enable Master/Detail for correspondence/thread view
+        masterDetail: true,
+        isRowMaster: (dataItem) => {
+          // Show detail expansion for rows with correspondence or from email threads
+          return (dataItem && (
+            (dataItem.correspondence_count && dataItem.correspondence_count > 0) ||
+            dataItem.source_email_id ||
+            (dataItem.extracted_parties && dataItem.extracted_parties.length > 0)
+          ));
+        },
+        detailCellRendererParams: {
+          // Render correspondence/thread details
+          detailGridOptions: {
+            columnDefs: [
+              { field: 'filename', headerName: 'Related Document', flex: 2 },
+              { field: 'document_category', headerName: 'Category', width: 150 },
+              { field: 'document_date', headerName: 'Date', width: 120 },
+              { 
+                field: 'relationship', 
+                headerName: 'Relationship',
+                width: 150,
+                cellRenderer: (p) => {
+                  const rel = p.value || 'related';
+                  const colors = {
+                    'attachment': 'var(--vericase-teal)',
+                    'reply': '#22c55e',
+                    'forward': '#fbbf24',
+                    'reference': '#8b5cf6'
+                  };
+                  return `<span style="color: ${colors[rel] || 'var(--text-secondary)'}">${rel}</span>`;
+                }
+              }
+            ],
+            defaultColDef: {
+              flex: 1,
+              resizable: true,
+              sortable: true,
+            },
+          },
+          getDetailRowData: async (params) => {
+            // Fetch related documents/correspondence for this evidence item
+            const evidenceId = params.data.id;
+            try {
+              const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/correspondence`);
+              if (response.ok) {
+                const data = await response.json();
+                params.successCallback(data.items || []);
+              } else {
+                // If no correspondence endpoint, show extracted context
+                const contextData = [];
+                
+                // Show email thread context if from email
+                if (params.data.source_email_id) {
+                  contextData.push({
+                    filename: params.data.source_email_subject || 'Source Email',
+                    document_category: 'Email',
+                    document_date: params.data.source_email_date,
+                    relationship: 'attachment'
+                  });
+                }
+                
+                // Show extracted parties as related context
+                const parties = params.data.extracted_parties || [];
+                parties.forEach(party => {
+                  const name = typeof party === 'string' ? party : (party.name || party.company);
+                  if (name) {
+                    contextData.push({
+                      filename: name,
+                      document_category: 'Stakeholder',
+                      relationship: 'reference'
+                    });
+                  }
+                });
+                
+                params.successCallback(contextData);
+              }
+            } catch (e) {
+              console.warn("[MasterDetail] Error fetching correspondence:", e);
+              params.successCallback([]);
+            }
+          },
+          template: `
+            <div style="padding: 12px; background: rgba(31, 111, 120, 0.05); border-left: 3px solid var(--vericase-teal);">
+              <div style="margin-bottom: 8px; font-weight: 600; color: var(--vericase-teal);">
+                <i class="fas fa-link" style="margin-right: 6px;"></i>Related Documents & Context
+              </div>
+              <div ref="eDetailGrid" style="height: 150px;"></div>
+            </div>
+          `,
         },
         onGridReady: (params) => {
           gridApi = params.api;
@@ -3488,6 +4299,792 @@
         console.warn("[Evidence] Prefetch cache read failed:", e);
       }
       return null;
+    }
+
+    // ============================================
+    // AI INTELLIGENCE PANEL FUNCTIONS
+    // ============================================
+    
+    let intelligencePanelOpen = false;
+    let aiChatHistory = [];
+    
+    function openIntelligencePanel() {
+      const panel = document.getElementById("intelligencePanel");
+      if (panel) {
+        panel.classList.add("open");
+        intelligencePanelOpen = true;
+        updateIntelligenceStats();
+      }
+    }
+    
+    function closeIntelligencePanel() {
+      const panel = document.getElementById("intelligencePanel");
+      if (panel) {
+        panel.classList.remove("open");
+        intelligencePanelOpen = false;
+      }
+    }
+    
+    function toggleIntelligencePanel() {
+      if (intelligencePanelOpen) {
+        closeIntelligencePanel();
+      } else {
+        openIntelligencePanel();
+      }
+    }
+    
+    // Update the intelligence stats from grid data
+    async function updateIntelligenceStats() {
+      try {
+        // Fetch intelligence summary from backend
+        const response = await fetch(`${apiUrl}/api/enhanced/services/status`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log("[AI Intelligence] Services status:", data);
+        }
+        
+        // Calculate stats from currently loaded grid data
+        let aiAnalyzedCount = 0;
+        let totalConfidence = 0;
+        let confidenceCount = 0;
+        let entitiesCount = 0;
+        
+        if (gridApi) {
+          gridApi.forEachNode((node) => {
+            if (node.data) {
+              if (node.data.ai_analyzed) aiAnalyzedCount++;
+              if (node.data.classification_confidence) {
+                totalConfidence += node.data.classification_confidence;
+                confidenceCount++;
+              }
+              if (node.data.extracted_parties?.length) {
+                entitiesCount += node.data.extracted_parties.length;
+              }
+            }
+          });
+        }
+        
+        document.getElementById("aiAnalyzedCount").textContent = aiAnalyzedCount.toString();
+        document.getElementById("entitiesExtracted").textContent = entitiesCount.toString();
+        document.getElementById("avgConfidence").textContent = confidenceCount > 0 
+          ? Math.round(totalConfidence / confidenceCount) + "%" 
+          : "—";
+        
+      } catch (e) {
+        console.warn("[AI Intelligence] Stats update failed:", e);
+      }
+    }
+    
+    // Execute a pre-defined AI query
+    function executeAIQuery(query) {
+      const input = document.getElementById("aiChatInput");
+      if (input) {
+        input.value = query;
+        sendAIQuery();
+      }
+    }
+    
+    // Send a natural language query to AI
+    async function sendAIQuery() {
+      const input = document.getElementById("aiChatInput");
+      const messagesContainer = document.getElementById("aiChatMessages");
+      const sendBtn = document.getElementById("aiSendBtn");
+      
+      if (!input || !messagesContainer) return;
+      
+      const query = input.value.trim();
+      if (!query) return;
+      
+      // Disable input while processing
+      input.disabled = true;
+      sendBtn.disabled = true;
+      
+      // Add user message
+      const userMsgEl = document.createElement("div");
+      userMsgEl.className = "ai-chat-message user";
+      userMsgEl.textContent = query;
+      messagesContainer.appendChild(userMsgEl);
+      
+      // Clear input
+      input.value = "";
+      
+      // Scroll to bottom
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      
+      try {
+        // Process natural language query
+        const result = await processNaturalLanguageQuery(query);
+        
+        // Add assistant response
+        const assistantMsgEl = document.createElement("div");
+        assistantMsgEl.className = "ai-chat-message assistant";
+        assistantMsgEl.innerHTML = result.response;
+        messagesContainer.appendChild(assistantMsgEl);
+        
+        // Show semantic search results if any
+        if (result.searchResults?.length > 0) {
+          showSemanticSearchResults(result.searchResults);
+        }
+        
+      } catch (e) {
+        console.error("[AI Query] Failed:", e);
+        const errorMsgEl = document.createElement("div");
+        errorMsgEl.className = "ai-chat-message system";
+        errorMsgEl.textContent = "Sorry, I encountered an error. Please try again.";
+        messagesContainer.appendChild(errorMsgEl);
+      }
+      
+      // Re-enable input
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
+      
+      // Scroll to bottom
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Process natural language query - local pattern matching + backend semantic search
+    async function processNaturalLanguageQuery(query) {
+      const lowerQuery = query.toLowerCase();
+      let response = "";
+      let searchResults = [];
+      let gridAction = null;
+      
+      // Pattern matching for grid manipulation commands
+      if (lowerQuery.includes("group by") || lowerQuery.includes("group ")) {
+        if (lowerQuery.includes("type") || lowerQuery.includes("format")) {
+          gridAction = { type: "groupBy", field: "file_type" };
+          response = "<strong>Grouped by document type.</strong><br>Drag columns to the group row above the grid to add more groupings.";
+        } else if (lowerQuery.includes("category")) {
+          gridAction = { type: "groupBy", field: "document_category" };
+          response = "<strong>Grouped by category.</strong><br>You can expand each group to see its documents.";
+        } else if (lowerQuery.includes("stakeholder") || lowerQuery.includes("party") || lowerQuery.includes("parties")) {
+          gridAction = { type: "groupBy", field: "extracted_parties" };
+          response = "<strong>Grouped by stakeholder.</strong><br>Documents are now organized by who they're from/about.";
+        } else if (lowerQuery.includes("origin")) {
+          gridAction = { type: "groupBy", field: "origin" };
+          response = "<strong>Grouped by origin.</strong><br>See email attachments vs manual uploads.";
+        } else if (lowerQuery.includes("status")) {
+          gridAction = { type: "groupBy", field: "processing_status" };
+          response = "<strong>Grouped by processing status.</strong>";
+        }
+      } else if (lowerQuery.includes("clear group") || lowerQuery.includes("ungroup") || lowerQuery.includes("remove group")) {
+        gridAction = { type: "clearGroups" };
+        response = "<strong>Grouping cleared.</strong><br>Grid is now showing a flat list.";
+      } else if (lowerQuery.includes("show") && (lowerQuery.includes("column") || lowerQuery.includes("sidebar") || lowerQuery.includes("panel"))) {
+        if (gridApi) gridApi.setSideBarVisible(true);
+        response = "<strong>Opened sidebar.</strong><br>You can drag columns to group, or use filters.";
+      } else if (lowerQuery.includes("high confidence") || lowerQuery.includes("high-confidence")) {
+        gridAction = { type: "filter", field: "classification_confidence", operator: "greaterThan", value: 80 };
+        response = "<strong>Filtered to high-confidence items (>80%).</strong><br>These are documents the AI is most certain about.";
+      } else if (lowerQuery.includes("pdf") || lowerQuery.includes("pdfs")) {
+        gridAction = { type: "filter", field: "file_type", value: "pdf" };
+        response = "<strong>Filtered to PDF documents.</strong>";
+      } else if (lowerQuery.includes("email") || lowerQuery.includes("emails")) {
+        gridAction = { type: "filter", field: "origin", value: "Email Attachment" };
+        response = "<strong>Filtered to email attachments.</strong>";
+      } else if (lowerQuery.includes("clear filter") || lowerQuery.includes("show all") || lowerQuery.includes("reset")) {
+        if (gridApi) gridApi.setFilterModel(null);
+        response = "<strong>Filters cleared.</strong><br>Showing all documents.";
+      } else {
+        // Semantic search for content-based queries
+        try {
+          const caseId = new URLSearchParams(window.location.search).get("case") || "";
+          const searchResponse = await fetch(`${apiUrl}/api/enhanced/search/semantic?query=${encodeURIComponent(query)}&case_id=${caseId}&limit=5`, {
+            method: "POST"
+          });
+          
+          if (searchResponse.ok) {
+            const data = await searchResponse.json();
+            searchResults = data.results || [];
+            
+            if (searchResults.length > 0) {
+              response = `<strong>Found ${searchResults.length} relevant documents.</strong><br>Click on any result below to view it.`;
+            } else {
+              response = "<strong>No matching documents found.</strong><br>Try rephrasing your query or use different keywords.";
+            }
+          } else {
+            response = `I understand you're looking for: <em>"${query}"</em><br><br>Try commands like:<br>• "Group by category"<br>• "Show PDFs"<br>• "Filter to high confidence items"`;
+          }
+        } catch (e) {
+          console.warn("[Semantic Search] Backend not available:", e);
+          response = `<strong>Query understood:</strong> "${query}"<br><br>The semantic search backend is not available. Try grid commands like:<br>• "Group by type"<br>• "Show emails"<br>• "Clear filters"`;
+        }
+      }
+      
+      // Execute grid action if any
+      if (gridAction && gridApi) {
+        executeGridAction(gridAction);
+      }
+      
+      return { response, searchResults };
+    }
+    
+    // Execute a grid manipulation action
+    function executeGridAction(action) {
+      if (!gridApi) return;
+      
+      switch (action.type) {
+        case "groupBy":
+          const colDef = gridApi.getColumnDef(action.field);
+          if (colDef) {
+            gridApi.applyColumnState({
+              state: [{ colId: action.field, rowGroup: true }],
+              defaultState: { rowGroup: false }
+            });
+          }
+          break;
+          
+        case "clearGroups":
+          const columnState = gridApi.getColumnState();
+          const newState = columnState.map(col => ({ ...col, rowGroup: false }));
+          gridApi.applyColumnState({ state: newState });
+          break;
+          
+        case "filter":
+          const filterModel = {};
+          if (action.operator === "greaterThan") {
+            filterModel[action.field] = {
+              filterType: "number",
+              type: "greaterThan",
+              filter: action.value
+            };
+          } else {
+            filterModel[action.field] = {
+              filterType: "text",
+              type: "contains",
+              filter: action.value
+            };
+          }
+          gridApi.setFilterModel(filterModel);
+          break;
+      }
+    }
+    
+    // Show semantic search results in the panel
+    function showSemanticSearchResults(results) {
+      const container = document.getElementById("semanticSearchResults");
+      if (!container) return;
+      
+      if (results.length === 0) {
+        container.style.display = "none";
+        return;
+      }
+      
+      container.style.display = "block";
+      container.innerHTML = results.map(r => `
+        <div class="semantic-result-item" onclick="navigateToEvidence('${r.evidence_id || r.document_id || ""}')">
+          <div class="semantic-result-title">${escapeHtml(r.filename || r.title || "Document")}</div>
+          <div class="semantic-result-snippet">${escapeHtml((r.snippet || r.text_excerpt || "").substring(0, 150))}...</div>
+          ${r.score ? `<div class="semantic-result-score"><i class="fas fa-chart-line"></i> Relevance: ${Math.round(r.score * 100)}%</div>` : ""}
+        </div>
+      `).join("");
+    }
+    
+    // Navigate to a specific evidence item
+    function navigateToEvidence(evidenceId) {
+      if (!evidenceId || !gridApi) return;
+      
+      // Find the row with this ID
+      gridApi.forEachNode((node) => {
+        if (node.data?.id === evidenceId) {
+          gridApi.ensureNodeVisible(node, "middle");
+          node.setSelected(true);
+          showDetail(node.data);
+        }
+      });
+    }
+    
+    // Setup AI Intelligence button handler
+    function setupAIIntelligenceButton() {
+      const aiBtn = document.getElementById("aiIntelligenceBtn");
+      if (aiBtn) {
+        aiBtn.addEventListener("click", toggleIntelligencePanel);
+      }
+    }
+    
+    // Setup Charts dropdown
+    function setupChartsDropdown() {
+      const chartsBtn = document.getElementById("chartsDropdownBtn");
+      const chartsMenu = document.getElementById("chartsDropdownMenu");
+      
+      if (chartsBtn && chartsMenu) {
+        chartsBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const isVisible = chartsMenu.style.display === "block";
+          chartsMenu.style.display = isVisible ? "none" : "block";
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener("click", (e) => {
+          if (!chartsBtn.contains(e.target) && !chartsMenu.contains(e.target)) {
+            chartsMenu.style.display = "none";
+          }
+        });
+        
+        // Add hover effects to dropdown items
+        const items = chartsMenu.querySelectorAll(".dropdown-item");
+        items.forEach(item => {
+          item.addEventListener("mouseenter", () => {
+            item.style.background = "rgba(31, 111, 120, 0.1)";
+          });
+          item.addEventListener("mouseleave", () => {
+            item.style.background = "transparent";
+          });
+        });
+      }
+    }
+    
+    // Create chart from grid data using AG Grid Enterprise Integrated Charts
+    async function createChart(chartType) {
+      // Close dropdown
+      const chartsMenu = document.getElementById("chartsDropdownMenu");
+      if (chartsMenu) chartsMenu.style.display = "none";
+      
+      if (!gridApi) {
+        console.warn("[Charts] Grid API not available");
+        return;
+      }
+      
+      // Get all row data from the grid
+      const rowData = [];
+      gridApi.forEachNode(node => {
+        if (node.data) rowData.push(node.data);
+      });
+      
+      if (rowData.length === 0) {
+        alert("No data available for charting. Please load some documents first.");
+        return;
+      }
+      
+      console.log(`[Charts] Creating ${chartType} chart with ${rowData.length} rows`);
+      
+      try {
+        switch (chartType) {
+          case 'category-pie':
+            createCategoryPieChart(rowData);
+            break;
+          case 'type-bar':
+            createFileTypeBarChart(rowData);
+            break;
+          case 'timeline':
+            createTimelineChart(rowData);
+            break;
+          case 'confidence-histogram':
+            createConfidenceHistogram(rowData);
+            break;
+          case 'stakeholder-network':
+            createStakeholderChart(rowData);
+            break;
+          default:
+            console.warn(`[Charts] Unknown chart type: ${chartType}`);
+        }
+      } catch (error) {
+        console.error("[Charts] Error creating chart:", error);
+        alert(`Error creating chart: ${error.message}`);
+      }
+    }
+    
+    // Category Distribution Pie Chart
+    function createCategoryPieChart(rowData) {
+      const categoryCounts = {};
+      rowData.forEach(row => {
+        const category = row.document_category || row.evidence_type || "Uncategorized";
+        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      });
+      
+      const chartData = Object.entries(categoryCounts).map(([category, count]) => ({
+        category: category,
+        count: count
+      }));
+      
+      // Use AG Grid's createRangeChart API
+      gridApi.createRangeChart({
+        chartType: 'pie',
+        cellRange: {
+          columns: ['document_category'],
+        },
+        aggFunc: 'count',
+        chartThemeOverrides: {
+          pie: {
+            title: {
+              enabled: true,
+              text: 'Document Category Distribution'
+            }
+          }
+        }
+      });
+    }
+    
+    // File Type Bar Chart
+    function createFileTypeBarChart(rowData) {
+      gridApi.createRangeChart({
+        chartType: 'groupedBar',
+        cellRange: {
+          columns: ['file_type'],
+        },
+        aggFunc: 'count',
+        chartThemeOverrides: {
+          bar: {
+            title: {
+              enabled: true,
+              text: 'Document Types'
+            }
+          }
+        }
+      });
+    }
+    
+    // Document Timeline Chart
+    function createTimelineChart(rowData) {
+      // Group by month
+      gridApi.createRangeChart({
+        chartType: 'line',
+        cellRange: {
+          columns: ['document_date'],
+        },
+        aggFunc: 'count',
+        chartThemeOverrides: {
+          line: {
+            title: {
+              enabled: true,
+              text: 'Documents Over Time'
+            }
+          }
+        }
+      });
+    }
+    
+    // AI Confidence Histogram
+    function createConfidenceHistogram(rowData) {
+      // For confidence scores, create a custom popup chart
+      const confidenceCounts = { 
+        "High (80-100%)": 0, 
+        "Medium (50-79%)": 0, 
+        "Low (0-49%)": 0,
+        "Not Analyzed": 0 
+      };
+      
+      rowData.forEach(row => {
+        const conf = row.classification_confidence;
+        if (conf === null || conf === undefined) {
+          confidenceCounts["Not Analyzed"]++;
+        } else if (conf >= 80) {
+          confidenceCounts["High (80-100%)"]++;
+        } else if (conf >= 50) {
+          confidenceCounts["Medium (50-79%)"]++;
+        } else {
+          confidenceCounts["Low (0-49%)"]++;
+        }
+      });
+      
+      // Create a popup with chart visualization
+      showChartPopup("AI Classification Confidence", `
+        <div style="padding: 20px;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${Object.entries(confidenceCounts).map(([label, count]) => {
+              const pct = ((count / rowData.length) * 100).toFixed(1);
+              const color = label.includes("High") ? "#22c55e" 
+                         : label.includes("Medium") ? "#fbbf24" 
+                         : label.includes("Low") ? "#ef4444" 
+                         : "#6b7280";
+              return `
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="width: 140px; font-weight: 500;">${label}</span>
+                  <div style="flex: 1; background: rgba(255,255,255,0.1); height: 24px; border-radius: 4px; overflow: hidden;">
+                    <div style="width: ${pct}%; height: 100%; background: ${color}; display: flex; align-items: center; padding-left: 8px;">
+                      <span style="color: white; font-size: 0.8rem; font-weight: 600;">${count} (${pct}%)</span>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+            Total documents analyzed: ${rowData.length}
+          </div>
+        </div>
+      `);
+    }
+    
+    // Stakeholder Network Chart
+    function createStakeholderChart(rowData) {
+      const stakeholderCounts = {};
+      
+      rowData.forEach(row => {
+        const parties = row.extracted_parties || [];
+        parties.forEach(party => {
+          const name = typeof party === 'string' ? party : (party.name || party.company || JSON.stringify(party));
+          if (name) {
+            stakeholderCounts[name] = (stakeholderCounts[name] || 0) + 1;
+          }
+        });
+      });
+      
+      const sortedStakeholders = Object.entries(stakeholderCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15); // Top 15 stakeholders
+      
+      showChartPopup("Top Stakeholders", `
+        <div style="padding: 20px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${sortedStakeholders.length > 0 ? sortedStakeholders.map(([name, count], idx) => {
+              const maxCount = sortedStakeholders[0][1];
+              const pct = ((count / maxCount) * 100).toFixed(0);
+              return `
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="width: 24px; color: var(--text-muted); text-align: right;">${idx + 1}.</span>
+                  <span style="width: 200px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</span>
+                  <div style="flex: 1; background: rgba(255,255,255,0.1); height: 20px; border-radius: 4px; overflow: hidden;">
+                    <div style="width: ${pct}%; height: 100%; background: linear-gradient(90deg, var(--vericase-teal), #8b5cf6);"></div>
+                  </div>
+                  <span style="width: 50px; text-align: right; color: var(--text-secondary);">${count}</span>
+                </div>
+              `;
+            }).join('') : '<p style="color: var(--text-muted);">No stakeholders extracted yet. Run AI analysis on documents first.</p>'}
+          </div>
+        </div>
+      `);
+    }
+    
+    // Open Case Insights panel
+    async function openCaseInsights() {
+      const caseId = currentCaseId || new URLSearchParams(window.location.search).get('case_id');
+      const projectId = currentProjectId || new URLSearchParams(window.location.search).get('project_id');
+      
+      if (!caseId && !projectId) {
+        showChartPopup("Case Insights", `
+          <div style="padding: 20px; text-align: center; color: var(--text-muted);">
+            <i class="fas fa-info-circle" style="font-size: 2rem; margin-bottom: 12px;"></i>
+            <p>Please select a case or project to generate insights.</p>
+          </div>
+        `);
+        return;
+      }
+      
+      // Show loading state
+      showChartPopup("Case Insights", `
+        <div style="padding: 40px; text-align: center;">
+          <div class="ai-pulse-large"></div>
+          <p style="margin-top: 16px; color: var(--text-secondary);">Generating AI insights...</p>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Analyzing documents and extracting key information</p>
+        </div>
+      `);
+      
+      try {
+        const endpoint = caseId 
+          ? `${apiUrl}/api/enhanced/case/${caseId}/insights`
+          : `${apiUrl}/api/enhanced/project/${projectId}/insights`;
+          
+        const response = await fetch(endpoint);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch insights: ${response.status}`);
+        }
+        
+        const insights = await response.json();
+        
+        // Render insights
+        renderCaseInsights(insights);
+        
+      } catch (error) {
+        console.error("[CaseInsights] Error:", error);
+        
+        // Show fallback with local analysis
+        const localInsights = generateLocalInsights();
+        renderCaseInsights(localInsights);
+      }
+    }
+    
+    // Generate local insights from grid data when API unavailable
+    function generateLocalInsights() {
+      const rowData = [];
+      if (gridApi) {
+        gridApi.forEachNode(node => {
+          if (node.data) rowData.push(node.data);
+        });
+      }
+      
+      const totalDocs = rowData.length;
+      const categories = {};
+      const aiAnalyzed = rowData.filter(r => r.ai_analyzed).length;
+      const highConfidence = rowData.filter(r => r.classification_confidence >= 80).length;
+      const stakeholders = new Set();
+      const dateRange = { earliest: null, latest: null };
+      
+      rowData.forEach(row => {
+        // Categories
+        const cat = row.document_category || 'Uncategorized';
+        categories[cat] = (categories[cat] || 0) + 1;
+        
+        // Stakeholders
+        (row.extracted_parties || []).forEach(p => {
+          const name = typeof p === 'string' ? p : (p.name || p.company);
+          if (name) stakeholders.add(name);
+        });
+        
+        // Date range
+        const docDate = row.document_date;
+        if (docDate) {
+          const d = new Date(docDate);
+          if (!dateRange.earliest || d < dateRange.earliest) dateRange.earliest = d;
+          if (!dateRange.latest || d > dateRange.latest) dateRange.latest = d;
+        }
+      });
+      
+      const topCategories = Object.entries(categories)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+      
+      return {
+        summary: `Repository contains ${totalDocs} documents spanning ${topCategories.length} categories. ${aiAnalyzed} documents have been analyzed with AI classification, with ${highConfidence} showing high confidence scores.`,
+        key_findings: [
+          `${stakeholders.size} unique stakeholders identified across the evidence`,
+          topCategories.length > 0 ? `Top document category: ${topCategories[0][0]} (${topCategories[0][1]} documents)` : null,
+          dateRange.earliest && dateRange.latest ? `Documents date from ${dateRange.earliest.toLocaleDateString()} to ${dateRange.latest.toLocaleDateString()}` : null,
+          `${Math.round((aiAnalyzed / totalDocs) * 100)}% of documents have AI analysis complete`,
+        ].filter(Boolean),
+        document_stats: {
+          total: totalDocs,
+          ai_analyzed: aiAnalyzed,
+          high_confidence: highConfidence,
+          categories: topCategories
+        },
+        stakeholders: Array.from(stakeholders).slice(0, 10),
+        recommendations: [
+          aiAnalyzed < totalDocs * 0.8 ? "Consider running AI analysis on remaining documents to improve classification" : null,
+          stakeholders.size > 20 ? "Large number of stakeholders detected - consider creating stakeholder groups" : null,
+          "Review high-confidence classifications for accuracy before case submission",
+        ].filter(Boolean),
+        source: 'local_analysis'
+      };
+    }
+    
+    // Render case insights in popup
+    function renderCaseInsights(insights) {
+      const isLocal = insights.source === 'local_analysis';
+      
+      const content = `
+        <div style="padding: 20px; max-height: 60vh; overflow-y: auto;">
+          ${isLocal ? `
+            <div style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+              <i class="fas fa-info-circle" style="color: #fbbf24; margin-right: 6px;"></i>
+              <span style="color: #fbbf24; font-size: 0.9rem;">Showing local analysis. Connect to AWS Bedrock for AI-enhanced insights.</span>
+            </div>
+          ` : ''}
+          
+          <!-- Summary -->
+          <div style="margin-bottom: 20px;">
+            <h4 style="color: var(--vericase-teal); margin-bottom: 8px;"><i class="fas fa-file-alt" style="margin-right: 8px;"></i>Summary</h4>
+            <p style="color: var(--text-secondary); line-height: 1.6;">${insights.summary || 'No summary available'}</p>
+          </div>
+          
+          <!-- Key Findings -->
+          ${insights.key_findings && insights.key_findings.length > 0 ? `
+            <div style="margin-bottom: 20px;">
+              <h4 style="color: var(--vericase-teal); margin-bottom: 8px;"><i class="fas fa-lightbulb" style="margin-right: 8px;"></i>Key Findings</h4>
+              <ul style="margin: 0; padding-left: 20px; color: var(--text-secondary);">
+                ${insights.key_findings.map(f => `<li style="margin-bottom: 6px;">${f}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+          
+          <!-- Document Stats -->
+          ${insights.document_stats ? `
+            <div style="margin-bottom: 20px;">
+              <h4 style="color: var(--vericase-teal); margin-bottom: 12px;"><i class="fas fa-chart-pie" style="margin-right: 8px;"></i>Document Statistics</h4>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                <div style="background: rgba(31, 111, 120, 0.1); padding: 12px; border-radius: 8px; text-align: center;">
+                  <div style="font-size: 1.5rem; font-weight: 700; color: var(--vericase-teal);">${insights.document_stats.total}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">Total Documents</div>
+                </div>
+                <div style="background: rgba(34, 197, 94, 0.1); padding: 12px; border-radius: 8px; text-align: center;">
+                  <div style="font-size: 1.5rem; font-weight: 700; color: #22c55e;">${insights.document_stats.ai_analyzed}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">AI Analyzed</div>
+                </div>
+                <div style="background: rgba(139, 92, 246, 0.1); padding: 12px; border-radius: 8px; text-align: center;">
+                  <div style="font-size: 1.5rem; font-weight: 700; color: #8b5cf6;">${insights.document_stats.high_confidence}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">High Confidence</div>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+          
+          <!-- Top Stakeholders -->
+          ${insights.stakeholders && insights.stakeholders.length > 0 ? `
+            <div style="margin-bottom: 20px;">
+              <h4 style="color: var(--vericase-teal); margin-bottom: 8px;"><i class="fas fa-users" style="margin-right: 8px;"></i>Key Stakeholders</h4>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                ${insights.stakeholders.map(s => `
+                  <span style="background: rgba(31, 111, 120, 0.15); color: var(--vericase-teal); padding: 4px 10px; border-radius: 12px; font-size: 0.85rem;">${s}</span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+          
+          <!-- Recommendations -->
+          ${insights.recommendations && insights.recommendations.length > 0 ? `
+            <div>
+              <h4 style="color: #fbbf24; margin-bottom: 8px;"><i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>Recommendations</h4>
+              <ul style="margin: 0; padding-left: 20px; color: var(--text-secondary);">
+                ${insights.recommendations.map(r => `<li style="margin-bottom: 6px;">${r}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+      `;
+      
+      showChartPopup("Case Insights", content);
+    }
+    
+    // Show chart in a popup modal
+    function showChartPopup(title, content) {
+      // Remove existing popup
+      const existing = document.getElementById("chartPopup");
+      if (existing) existing.remove();
+      
+      const popup = document.createElement("div");
+      popup.id = "chartPopup";
+      popup.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--bg-card);
+        border-radius: 12px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        z-index: 10000;
+        width: 600px;
+        max-height: 80vh;
+        overflow: auto;
+      `;
+      
+      popup.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color);">
+          <h3 style="margin: 0; font-size: 1.1rem;"><i class="fas fa-chart-bar" style="color: var(--vericase-teal); margin-right: 8px;"></i>${title}</h3>
+          <button onclick="document.getElementById('chartPopup').remove()" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 4px 8px; font-size: 1.2rem;">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        ${content}
+      `;
+      
+      // Add backdrop
+      const backdrop = document.createElement("div");
+      backdrop.id = "chartBackdrop";
+      backdrop.style.cssText = `
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+      `;
+      backdrop.onclick = () => {
+        backdrop.remove();
+        popup.remove();
+      };
+      
+      document.body.appendChild(backdrop);
+      document.body.appendChild(popup);
     }
 
     function refreshGridData() {
@@ -5373,6 +6970,12 @@
 
       // Initialize grid with admin config
       await initGrid();
+
+      // Setup AI Intelligence Panel
+      setupAIIntelligenceButton();
+      
+      // Setup Charts dropdown
+      setupChartsDropdown();
 
       // Apply initial filters for default category
       applyFilters();
