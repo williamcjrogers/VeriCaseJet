@@ -671,6 +671,7 @@ async def list_evidence_service(
     sort_by,
     sort_order,
     include_hidden,
+    workspace_id=None,
 ):
     query = db.query(EvidenceItem)
     if not include_hidden:
@@ -750,6 +751,14 @@ async def list_evidence_service(
         query = query.filter(
             and_(EvidenceItem.case_id.is_(None), EvidenceItem.project_id.is_(None))
         )
+    # Resolve workspace_id from case or project if not explicitly provided
+    resolved_workspace_id = None
+    if workspace_id:
+        try:
+            resolved_workspace_id = uuid.UUID(workspace_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid workspace_id format")
+
     if case_id:
         try:
             case_uuid = uuid.UUID(case_id)
@@ -757,32 +766,64 @@ async def list_evidence_service(
             raise HTTPException(status_code=400, detail="Invalid case_id format")
         # If the Case is linked to a Project and the caller did not also request an
         # explicit project_id filter, include project-scoped evidence as well.
-        if not project_id:
-            linked_project_id = None
-            try:
-                case = db.query(Case).filter(Case.id == case_uuid).first()
-                if case and getattr(case, "project_id", None):
+        # Also include workspace-scoped documents (uploaded via About tab).
+        linked_project_id = None
+        case_workspace_id = None
+        try:
+            case = db.query(Case).filter(Case.id == case_uuid).first()
+            if case:
+                if getattr(case, "project_id", None):
                     linked_project_id = case.project_id
-            except Exception:
-                linked_project_id = None
+                if getattr(case, "workspace_id", None):
+                    case_workspace_id = case.workspace_id
+        except Exception:
+            pass
 
-            if linked_project_id:
-                query = query.filter(
-                    or_(
-                        EvidenceItem.case_id == case_uuid,
-                        EvidenceItem.project_id == linked_project_id,
-                    )
-                )
-            else:
-                query = query.filter(EvidenceItem.case_id == case_uuid)
-        else:
-            query = query.filter(EvidenceItem.case_id == case_uuid)
+        # Build OR conditions for case filtering
+        case_conditions = [EvidenceItem.case_id == case_uuid]
+
+        if not project_id and linked_project_id:
+            case_conditions.append(EvidenceItem.project_id == linked_project_id)
+
+        # Include workspace-scoped documents (uploaded via About tab)
+        if case_workspace_id:
+            case_conditions.append(
+                EvidenceItem.meta.op("->>")("workspace_id") == str(case_workspace_id)
+            )
+
+        query = query.filter(or_(*case_conditions))
+
     if project_id:
         try:
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid project_id format")
-        query = query.filter(EvidenceItem.project_id == project_uuid)
+
+        # Also include workspace-scoped documents for this project's workspace
+        project_workspace_id = None
+        try:
+            project = db.query(Project).filter(Project.id == project_uuid).first()
+            if project and getattr(project, "workspace_id", None):
+                project_workspace_id = project.workspace_id
+        except Exception:
+            pass
+
+        if project_workspace_id:
+            query = query.filter(
+                or_(
+                    EvidenceItem.project_id == project_uuid,
+                    EvidenceItem.meta.op("->>")("workspace_id")
+                    == str(project_workspace_id),
+                )
+            )
+        else:
+            query = query.filter(EvidenceItem.project_id == project_uuid)
+
+    # Explicit workspace_id filter (without case_id or project_id)
+    if resolved_workspace_id and not case_id and not project_id:
+        query = query.filter(
+            EvidenceItem.meta.op("->>")("workspace_id") == str(resolved_workspace_id)
+        )
     if collection_id:
         try:
             collection_uuid = uuid.UUID(collection_id)
@@ -967,11 +1008,19 @@ async def list_evidence_service(
 
 
 async def get_evidence_server_side_service(
-    request, db, project_id, case_id, collection_id, include_email_info, include_hidden
+    request,
+    db,
+    project_id,
+    case_id,
+    collection_id,
+    include_email_info,
+    include_hidden,
+    workspace_id=None,
 ):
     project_uuid = None
     case_uuid = None
     collection_uuid = None
+    workspace_uuid = None
     if project_id:
         try:
             project_uuid = uuid.UUID(project_id)
@@ -987,6 +1036,11 @@ async def get_evidence_server_side_service(
             collection_uuid = uuid.UUID(collection_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid collection_id format")
+    if workspace_id:
+        try:
+            workspace_uuid = uuid.UUID(workspace_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid workspace_id format")
     base_query = db.query(EvidenceItem)
     if not include_hidden:
         # Filter out evidence items that are directly marked as hidden
@@ -1029,10 +1083,57 @@ async def get_evidence_server_side_service(
                 ),
             )
         )
+
+    # Apply project filter with workspace-scoped documents
     if project_uuid is not None:
-        base_query = base_query.filter(EvidenceItem.project_id == project_uuid)
+        project_workspace_id = None
+        try:
+            project = db.query(Project).filter(Project.id == project_uuid).first()
+            if project and getattr(project, "workspace_id", None):
+                project_workspace_id = project.workspace_id
+        except Exception:
+            pass
+
+        if project_workspace_id:
+            base_query = base_query.filter(
+                or_(
+                    EvidenceItem.project_id == project_uuid,
+                    EvidenceItem.meta.op("->>")("workspace_id")
+                    == str(project_workspace_id),
+                )
+            )
+        else:
+            base_query = base_query.filter(EvidenceItem.project_id == project_uuid)
+
+    # Apply case filter with workspace-scoped documents
     if case_uuid is not None:
-        base_query = base_query.filter(EvidenceItem.case_id == case_uuid)
+        case_workspace_id = None
+        linked_project_id = None
+        try:
+            case = db.query(Case).filter(Case.id == case_uuid).first()
+            if case:
+                if getattr(case, "workspace_id", None):
+                    case_workspace_id = case.workspace_id
+                if getattr(case, "project_id", None):
+                    linked_project_id = case.project_id
+        except Exception:
+            pass
+
+        case_conditions = [EvidenceItem.case_id == case_uuid]
+        if linked_project_id and not project_uuid:
+            case_conditions.append(EvidenceItem.project_id == linked_project_id)
+        if case_workspace_id:
+            case_conditions.append(
+                EvidenceItem.meta.op("->>")("workspace_id") == str(case_workspace_id)
+            )
+        base_query = base_query.filter(or_(*case_conditions))
+
+    # Explicit workspace filter (without case_id or project_id)
+    if workspace_uuid is not None and case_uuid is None and project_uuid is None:
+        base_query = base_query.filter(
+            EvidenceItem.meta.op("->>")("workspace_id") == str(workspace_uuid)
+        )
+
     if collection_uuid is not None:
         base_query = base_query.join(
             EvidenceCollectionItem,

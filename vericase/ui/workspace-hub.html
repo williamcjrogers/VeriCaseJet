@@ -2027,6 +2027,518 @@
         grid-column: auto;
       }
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       INTELLIGENCE DASHBOARD - Interactive Citation & Evidence Components
+       ═══════════════════════════════════════════════════════════════════════════ */
+
+    /* Empty State and Error Messages */
+    .empty-state-message {
+      display: block;
+      padding: 16px;
+      color: var(--text-secondary);
+      font-style: italic;
+      text-align: center;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      border: 1px dashed var(--border-color);
+    }
+    .error-message {
+      display: block;
+      padding: 12px 16px;
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    
+    /* Section Subheadings and Layout Helpers */
+    .section-subheading {
+      margin: 0 0 12px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .issue-tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .issue-groupings-section,
+    .keyword-coverage-section {
+      margin-bottom: 20px;
+    }
+    .keyword-coverage-section:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Citation Chips - Interactive source references like [S1], [S2] */
+    .citation-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 8px;
+      margin: 0 2px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: var(--font-mono, 'SF Mono', 'Monaco', 'Consolas', monospace);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      vertical-align: baseline;
+      position: relative;
+    }
+
+    .citation-chip--document {
+      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+      border: 1px solid #90caf9;
+      color: #1565c0;
+    }
+    .citation-chip--document:hover {
+      background: linear-gradient(135deg, #bbdefb 0%, #90caf9 100%);
+      box-shadow: 0 2px 8px rgba(21, 101, 192, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .citation-chip--correspondence {
+      background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+      border: 1px solid #ffd54f;
+      color: #f57c00;
+    }
+    .citation-chip--correspondence:hover {
+      background: linear-gradient(135deg, #ffecb3 0%, #ffd54f 100%);
+      box-shadow: 0 2px 8px rgba(245, 124, 0, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .citation-chip--contract {
+      background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+      border: 1px solid #81c784;
+      color: #2e7d32;
+    }
+    .citation-chip--contract:hover {
+      background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
+      box-shadow: 0 2px 8px rgba(46, 125, 50, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .citation-chip--expert {
+      background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+      border: 1px solid #ba68c8;
+      color: #7b1fa2;
+    }
+    .citation-chip--expert:hover {
+      background: linear-gradient(135deg, #e1bee7 0%, #ce93d8 100%);
+      box-shadow: 0 2px 8px rgba(123, 31, 162, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .citation-chip--unknown {
+      background: var(--gray-100);
+      border: 1px solid var(--gray-300);
+      color: var(--text-secondary);
+    }
+    .citation-chip--unknown:hover {
+      background: var(--gray-200);
+    }
+
+    /* Tooltip for citation chips */
+    .citation-tooltip {
+      position: fixed;
+      z-index: 10000;
+      max-width: 360px;
+      padding: 12px 14px;
+      background: #1a1a2e;
+      color: #fff;
+      border-radius: 10px;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+    .citation-tooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .citation-tooltip-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .citation-tooltip-meta {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.65);
+      margin-bottom: 8px;
+    }
+    .citation-tooltip-excerpt {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.85);
+      border-left: 2px solid var(--vericase-teal);
+      padding-left: 10px;
+      font-style: italic;
+    }
+    .citation-tooltip-action {
+      margin-top: 10px;
+      font-size: 0.7rem;
+      color: var(--vericase-teal);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Evidence Coverage Dashboard */
+    .coverage-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .coverage-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 14px;
+      background: var(--gray-50);
+      border-radius: 10px;
+      border: 1px solid var(--gray-200);
+      transition: background 0.15s ease;
+    }
+    .coverage-row:hover {
+      background: var(--gray-100);
+    }
+    .coverage-row--gap {
+      border-left: 3px solid #ef5350;
+      background: linear-gradient(90deg, rgba(239, 83, 80, 0.06) 0%, var(--gray-50) 20%);
+    }
+    .coverage-row--partial {
+      border-left: 3px solid #ffb74d;
+    }
+    .coverage-row--strong {
+      border-left: 3px solid #66bb6a;
+    }
+
+    .coverage-issue {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .coverage-issue-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+    .coverage-issue-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .coverage-bar-container {
+      width: 100px;
+      height: 8px;
+      background: var(--gray-200);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .coverage-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .coverage-bar--strong { background: linear-gradient(90deg, #66bb6a, #43a047); }
+    .coverage-bar--partial { background: linear-gradient(90deg, #ffb74d, #ffa726); }
+    .coverage-bar--gap { background: var(--gray-300); }
+
+    .coverage-count {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      min-width: 50px;
+      text-align: right;
+    }
+    .coverage-gap-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      background: #ffebee;
+      color: #c62828;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* Contradiction Comparison Cards */
+    .contradiction-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .contradiction-card {
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg-white);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .contradiction-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: linear-gradient(90deg, rgba(239, 83, 80, 0.08) 0%, rgba(255, 183, 77, 0.08) 100%);
+      border-bottom: 1px solid var(--gray-200);
+      font-weight: 700;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+    }
+    .contradiction-header i {
+      color: #ef5350;
+    }
+
+    .contradiction-body {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      min-height: 80px;
+    }
+
+    .contradiction-side {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .contradiction-side--a {
+      background: linear-gradient(180deg, rgba(33, 150, 243, 0.04) 0%, transparent 100%);
+    }
+    .contradiction-side--b {
+      background: linear-gradient(180deg, rgba(255, 152, 0, 0.04) 0%, transparent 100%);
+    }
+
+    .contradiction-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+    .contradiction-label--a { color: #1976d2; }
+    .contradiction-label--b { color: #f57c00; }
+
+    .contradiction-text {
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+
+    .contradiction-sources {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: auto;
+    }
+
+    .contradiction-vs {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+      background: var(--gray-100);
+      border-left: 1px solid var(--gray-200);
+      border-right: 1px solid var(--gray-200);
+    }
+    .contradiction-vs-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ef5350 0%, #ff7043 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 800;
+    }
+
+    .contradiction-explanation {
+      padding: 10px 14px;
+      background: var(--gray-50);
+      border-top: 1px solid var(--gray-200);
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .contradiction-explanation i {
+      color: var(--vericase-gold);
+      margin-top: 2px;
+    }
+
+    @media (max-width: 700px) {
+      .contradiction-body {
+        grid-template-columns: 1fr;
+      }
+      .contradiction-vs {
+        padding: 8px;
+        border-left: none;
+        border-right: none;
+        border-top: 1px solid var(--gray-200);
+        border-bottom: 1px solid var(--gray-200);
+      }
+    }
+
+    /* Deliverables Progress Cards */
+    .deliverables-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .deliverable-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      background: var(--gray-50);
+      border-radius: 10px;
+      border: 1px solid var(--gray-200);
+    }
+
+    .deliverable-status {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+    .deliverable-status--complete {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .deliverable-status--partial {
+      background: #fff8e1;
+      color: #f57c00;
+    }
+    .deliverable-status--none {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .deliverable-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .deliverable-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+    .deliverable-meta {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .deliverable-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .deliverable-gap-warning {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      color: #c62828;
+    }
+
+    /* Chronology Timeline */
+    .chronology-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      padding-left: 20px;
+      border-left: 2px solid var(--gray-200);
+    }
+
+    .chronology-item {
+      position: relative;
+      padding: 10px 0 10px 20px;
+    }
+    .chronology-item::before {
+      content: '';
+      position: absolute;
+      left: -7px;
+      top: 14px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--vericase-teal);
+      border: 2px solid var(--bg-white);
+      box-shadow: 0 0 0 2px var(--vericase-teal);
+    }
+
+    .chronology-date {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--vericase-teal);
+      margin-bottom: 4px;
+    }
+    .chronology-party {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 10px;
+      background: var(--gray-100);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    .chronology-quote {
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      line-height: 1.5;
+      padding: 8px 12px;
+      background: var(--gray-50);
+      border-radius: 8px;
+      border-left: 3px solid var(--vericase-gold);
+      margin-top: 6px;
+    }
+    .chronology-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+    .chronology-tag {
+      padding: 2px 8px;
+      background: var(--vericase-teal);
+      color: #fff;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
   </style>
 </head>
 
@@ -4634,13 +5146,14 @@
       if (summaryEl) {
         const summary = purpose?.summary || purpose?.summary_md || "";
         if (lastError) {
-          summaryEl.textContent = `Unable to load Purpose data: ${lastError}`;
+          summaryEl.innerHTML = `<span class="error-message">${escapeHtml(`Unable to load Purpose data: ${lastError}`)}</span>`;
+        } else if (summary) {
+          // Parse citations into interactive chips
+          summaryEl.innerHTML = _parseCitationsToChips(summary);
         } else {
-          summaryEl.textContent =
-            summary ||
-            (isEmpty
-              ? "No purpose baseline yet. Add a goal statement and/or upload the instruction narrative."
-              : "Building purpose baseline…");
+          summaryEl.innerHTML = `<span class="empty-state-message">${isEmpty
+            ? "No purpose baseline yet. Add a goal statement and/or upload the instruction narrative."
+            : "Building purpose baseline…"}</span>`;
         }
       }
 
@@ -4659,84 +5172,67 @@
         const evidenceOrg = data?.evidence_organisation || {};
 
         if (deliverablesEl) {
-          if (tracking.length) {
-            deliverablesEl.textContent = tracking.slice(0, 16).map((d) => {
-              const name = (d?.deliverable || "").toString().trim();
-              const statusVal = (d?.status || "").toString().trim();
-              const gaps = (d?.gaps || "").toString().trim();
-              const evidence = (d?.evidence || "").toString().trim();
-              const bits = [];
-              if (name) bits.push(`• ${name}`);
-              if (statusVal) bits.push(`  - Status: ${statusVal}`);
-              if (evidence) bits.push(`  - Evidence: ${evidence}`);
-              if (gaps) bits.push(`  - Gaps: ${gaps}`);
-              return bits.join("\n");
-            }).join("\n");
-          } else if (Array.isArray(baseline?.deliverables) && baseline.deliverables.length) {
-            deliverablesEl.textContent = baseline.deliverables.slice(0, 14).map(d => `• ${String(d || "")}`).join("\n");
+          if (tracking.length || (Array.isArray(baseline?.deliverables) && baseline.deliverables.length)) {
+            // Use new interactive deliverables grid
+            deliverablesEl.innerHTML = _renderDeliverablesGrid(tracking, baseline, _purposeSourcesCache);
           } else {
-            deliverablesEl.textContent = isEmpty
+            deliverablesEl.innerHTML = `<div class="empty-state-message">${isEmpty
               ? "Define a baseline or upload the instruction narrative to generate deliverables."
-              : "Define deliverables in the purpose baseline or upload the instruction narrative.";
+              : "Define deliverables in the purpose baseline or upload the instruction narrative."}</div>`;
           }
         }
 
         if (chronologyEl) {
           if (chronology.length) {
-            chronologyEl.textContent = chronology.slice(0, 12).map((c) => {
-              const date = (c?.date || "").toString().trim();
-              const party = (c?.party || "").toString().trim();
-              const quote = (c?.quote || "").toString().trim();
-              const tags = Array.isArray(c?.issue_tags) ? c.issue_tags.join(", ") : "";
-              const line = `• ${date || "Unknown date"} — ${party || "Unknown party"}${tags ? ` (${tags})` : ""}`;
-              return quote ? `${line}\n  - ${quote}` : line;
-            }).join("\n");
+            // Use new interactive chronology timeline
+            chronologyEl.innerHTML = _renderChronologyTimeline(chronology);
           } else {
-            chronologyEl.textContent = isEmpty
+            chronologyEl.innerHTML = `<div class="empty-state-message">${isEmpty
               ? "Add baseline instructions to start building the chronology."
-              : "Chronology will be generated from dated evidence and correspondence.";
+              : "Chronology will be generated from dated evidence and correspondence."}</div>`;
           }
         }
 
         if (contradictionsEl) {
           if (contradictions.length) {
-            contradictionsEl.textContent = contradictions.slice(0, 10).map((c) => {
-              const a = (c?.statement_a || "").toString().trim();
-              const b = (c?.statement_b || "").toString().trim();
-              const exp = (c?.explanation || "").toString().trim();
-              const lines = [];
-              if (a) lines.push(`• A: ${a}`);
-              if (b) lines.push(`  - B: ${b}`);
-              if (exp) lines.push(`  - Why: ${exp}`);
-              return lines.join("\n");
-            }).join("\n");
+            // Use new interactive contradiction cards
+            contradictionsEl.innerHTML = _renderContradictionCards(contradictions, _purposeSourcesCache);
           } else {
-            contradictionsEl.textContent = isEmpty
+            contradictionsEl.innerHTML = `<div class="empty-state-message">${isEmpty
               ? "Upload instruction narrative and key documents to surface contradictions."
-              : "Contradictions will surface once key emails, inspections, and drawings are ingested.";
+              : "Contradictions will surface once key emails, inspections, and drawings are ingested."}</div>`;
           }
         }
 
         if (evidenceOrgEl) {
           const issueGroups = Array.isArray(evidenceOrg?.issue_groupings) ? evidenceOrg.issue_groupings : [];
           const keywordMap = evidenceOrg?.keyword_map || {};
-          const lines = [];
-          if (issueGroups.length) {
-            lines.push("Issue groupings:");
-            issueGroups.slice(0, 8).forEach((g) => lines.push(`• ${String(g || "")}`));
-          }
-          if (keywordMap && typeof keywordMap === "object" && Object.keys(keywordMap).length) {
-            lines.push("");
-            lines.push("Keyword map:");
-            Object.entries(keywordMap).slice(0, 8).forEach(([k, v]) => {
-              lines.push(`• ${k}: ${String(v || "")}`);
-            });
-          }
-          evidenceOrgEl.textContent = lines.length
-            ? lines.join("\n")
-            : (isEmpty
+          const hasData = issueGroups.length || (keywordMap && Object.keys(keywordMap).length);
+          
+          if (hasData) {
+            // Build HTML with issue groupings and interactive coverage grid
+            let html = '';
+            
+            if (issueGroups.length) {
+              html += '<div class="issue-groupings-section"><h4 class="section-subheading">Issue Groupings</h4><div class="issue-tags-row">';
+              issueGroups.slice(0, 8).forEach(g => {
+                html += `<span class="citation-chip citation-chip--report">${escapeHtml(String(g || ""))}</span>`;
+              });
+              html += '</div></div>';
+            }
+            
+            if (keywordMap && typeof keywordMap === "object" && Object.keys(keywordMap).length) {
+              html += '<div class="keyword-coverage-section"><h4 class="section-subheading">Evidence Coverage by Keyword</h4>';
+              html += _renderCoverageGrid(keywordMap, issueGroups, _purposeSourcesCache);
+              html += '</div>';
+            }
+            
+            evidenceOrgEl.innerHTML = html;
+          } else {
+            evidenceOrgEl.innerHTML = `<div class="empty-state-message">${isEmpty
               ? "Define issue groupings in the instruction narrative to map evidence."
-              : "Evidence organisation will align to instruction keywords and issue groupings.");
+              : "Evidence organisation will align to instruction keywords and issue groupings."}</div>`;
+          }
         }
       } catch {
         // best-effort
@@ -4769,6 +5265,8 @@
           throw new Error(detail || "Failed to load Purpose");
         }
         workspacePurpose = await res.json();
+        // Populate source cache for citation chip tooltips
+        _purposeSourcesCache = Array.isArray(workspacePurpose?.sources) ? workspacePurpose.sources : [];
         _renderPurpose(workspacePurpose);
 
         const status = (workspacePurpose?.status || "").toLowerCase();
@@ -4845,6 +5343,8 @@
           throw new Error(detail || "Failed to refresh Purpose");
         }
         workspacePurpose = await res.json().catch(() => workspacePurpose);
+        // Populate source cache for citation chip tooltips
+        _purposeSourcesCache = Array.isArray(workspacePurpose?.sources) ? workspacePurpose.sources : [];
         _renderPurpose(workspacePurpose);
         _clearPurposePoll();
         purposePollHandle = setTimeout(() => loadWorkspacePurpose().catch(() => {}), 1200);
@@ -5857,6 +6357,322 @@ ${escapeHtml(c?.body_preview || "")}
       if (!name) return '?';
       return name.split(/[\s@]+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
     }
+
+    // ========================================
+    // INTELLIGENCE DASHBOARD - Interactive Components
+    // ========================================
+
+    // Global sources cache for tooltip lookups
+    let _purposeSourcesCache = [];
+
+    // Tooltip element (singleton)
+    let _citationTooltip = null;
+
+    function _ensureTooltip() {
+      if (_citationTooltip) return _citationTooltip;
+      _citationTooltip = document.createElement('div');
+      _citationTooltip.className = 'citation-tooltip';
+      document.body.appendChild(_citationTooltip);
+      return _citationTooltip;
+    }
+
+    function _showCitationTooltip(chip, label) {
+      const tooltip = _ensureTooltip();
+      const source = _purposeSourcesCache.find(s => (s.label || '').toUpperCase() === label.toUpperCase());
+      
+      if (!source) {
+        tooltip.innerHTML = `<div class="citation-tooltip-title">${escapeHtml(label)}</div><div class="citation-tooltip-meta">Source not found in current context</div>`;
+      } else {
+        const filename = source.filename || 'Untitled';
+        const type = source.evidence_type || source.type || 'document';
+        const date = source.document_date || '';
+        const excerpt = source.excerpt || source.text_preview || '';
+        
+        tooltip.innerHTML = `
+          <div class="citation-tooltip-title">
+            <i class="fas ${type === 'correspondence' ? 'fa-envelope' : 'fa-file-alt'}"></i>
+            ${escapeHtml(filename)}
+          </div>
+          <div class="citation-tooltip-meta">${escapeHtml([type, date].filter(Boolean).join(' • '))}</div>
+          ${excerpt ? `<div class="citation-tooltip-excerpt">"${escapeHtml(excerpt.slice(0, 180))}${excerpt.length > 180 ? '...' : ''}"</div>` : ''}
+          <div class="citation-tooltip-action"><i class="fas fa-download"></i> Click to download</div>
+        `;
+      }
+
+      const rect = chip.getBoundingClientRect();
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.top = `${rect.bottom + 8}px`;
+      tooltip.style.transform = 'translateX(-50%)';
+      tooltip.classList.add('visible');
+    }
+
+    function _hideCitationTooltip() {
+      if (_citationTooltip) {
+        _citationTooltip.classList.remove('visible');
+      }
+    }
+
+    function _handleCitationClick(label) {
+      const source = _purposeSourcesCache.find(s => (s.label || '').toUpperCase() === label.toUpperCase());
+      if (source && (source.evidence_id || source.id)) {
+        downloadDocument(source.evidence_id || source.id);
+      }
+    }
+
+    /**
+     * Parse text containing [S#] citation patterns and convert to interactive chips
+     */
+    function _parseCitationsToChips(text, sources) {
+      if (!text || typeof text !== 'string') return '';
+      
+      // Build source type lookup
+      const sourceTypes = {};
+      (sources || []).forEach(s => {
+        const label = (s.label || '').toUpperCase();
+        const type = (s.evidence_type || s.type || 'document').toLowerCase();
+        sourceTypes[label] = type;
+      });
+
+      // Replace [S#] patterns with chip HTML
+      const chipPattern = /\[S(\d+)\]/gi;
+      let result = escapeHtml(text);
+      
+      result = result.replace(/\[S(\d+)\]/gi, (match, num) => {
+        const label = `S${num}`;
+        const type = sourceTypes[label.toUpperCase()] || 'document';
+        let chipClass = 'citation-chip--unknown';
+        
+        if (type.includes('contract') || type.includes('agreement')) {
+          chipClass = 'citation-chip--contract';
+        } else if (type.includes('correspondence') || type.includes('email')) {
+          chipClass = 'citation-chip--correspondence';
+        } else if (type.includes('expert') || type.includes('report')) {
+          chipClass = 'citation-chip--expert';
+        } else if (type.includes('document') || type.includes('drawing') || type.includes('photo')) {
+          chipClass = 'citation-chip--document';
+        }
+
+        return `<span class="citation-chip ${chipClass}" data-label="${label}" onmouseenter="_showCitationTooltip(this, '${label}')" onmouseleave="_hideCitationTooltip()" onclick="_handleCitationClick('${label}')">${label}</span>`;
+      });
+
+      return result;
+    }
+
+    /**
+     * Render evidence coverage grid from keyword_map
+     */
+    function _renderCoverageGrid(keywordMap, issueGroupings, sources) {
+      if (!keywordMap || typeof keywordMap !== 'object' || !Object.keys(keywordMap).length) {
+        if (!issueGroupings || !issueGroupings.length) {
+          return '<div class="about-pre" style="color: var(--text-muted);">Evidence coverage will appear after refresh. Upload documents to build the evidence map.</div>';
+        }
+      }
+
+      const rows = [];
+      const allIssues = new Set([...(issueGroupings || []), ...Object.keys(keywordMap || {})]);
+      
+      allIssues.forEach(issue => {
+        if (!issue || typeof issue !== 'string') return;
+        const issueName = issue.toString().trim();
+        if (!issueName) return;
+
+        const citationsStr = (keywordMap || {})[issueName] || '';
+        const citationMatches = citationsStr.match(/\[S\d+\]/gi) || [];
+        const count = citationMatches.length;
+        
+        // Determine coverage level
+        let level = 'gap';
+        let barWidth = 0;
+        if (count >= 3) {
+          level = 'strong';
+          barWidth = Math.min(100, 60 + count * 8);
+        } else if (count >= 1) {
+          level = 'partial';
+          barWidth = 20 + count * 20;
+        }
+
+        const chips = citationMatches.slice(0, 6).map(c => {
+          const label = c.replace(/[\[\]]/g, '');
+          return `<span class="citation-chip citation-chip--document" style="font-size: 0.7rem; padding: 1px 6px;" data-label="${label}" onmouseenter="_showCitationTooltip(this, '${label}')" onmouseleave="_hideCitationTooltip()" onclick="_handleCitationClick('${label}')">${label}</span>`;
+        }).join('');
+        
+        const moreCount = citationMatches.length > 6 ? citationMatches.length - 6 : 0;
+
+        rows.push(`
+          <div class="coverage-row coverage-row--${level}">
+            <div class="coverage-issue">
+              <div class="coverage-issue-name">${escapeHtml(issueName)}</div>
+              <div class="coverage-issue-chips">
+                ${chips}
+                ${moreCount > 0 ? `<span style="font-size: 0.7rem; color: var(--text-muted);">+${moreCount} more</span>` : ''}
+              </div>
+            </div>
+            <div class="coverage-bar-container">
+              <div class="coverage-bar coverage-bar--${level}" style="width: ${barWidth}%"></div>
+            </div>
+            ${count === 0 
+              ? '<span class="coverage-gap-badge"><i class="fas fa-exclamation-circle"></i> Gap</span>'
+              : `<span class="coverage-count">${count} source${count !== 1 ? 's' : ''}</span>`
+            }
+          </div>
+        `);
+      });
+
+      if (!rows.length) {
+        return '<div class="about-pre" style="color: var(--text-muted);">No issue coverage data available yet.</div>';
+      }
+
+      return `<div class="coverage-grid">${rows.join('')}</div>`;
+    }
+
+    /**
+     * Render contradiction cards with side-by-side comparison
+     */
+    function _renderContradictionCards(contradictions, sources) {
+      if (!Array.isArray(contradictions) || !contradictions.length) {
+        return '<div class="about-pre" style="color: var(--text-muted);">No contradictions detected yet. Upload more evidence to surface inconsistencies.</div>';
+      }
+
+      const cards = contradictions.slice(0, 8).map((c, idx) => {
+        const stmtA = (c.statement_a || c.position_a || '').toString().trim();
+        const stmtB = (c.statement_b || c.position_b || '').toString().trim();
+        const explanation = (c.explanation || c.why || '').toString().trim();
+        const sourceA = c.source_a || '';
+        const sourceB = c.source_b || '';
+
+        if (!stmtA && !stmtB) return '';
+
+        return `
+          <div class="contradiction-card">
+            <div class="contradiction-header">
+              <i class="fas fa-exclamation-triangle"></i>
+              Contradiction #${idx + 1}
+            </div>
+            <div class="contradiction-body">
+              <div class="contradiction-side contradiction-side--a">
+                <div class="contradiction-label contradiction-label--a">
+                  <i class="fas fa-circle"></i> Position A
+                </div>
+                <div class="contradiction-text">${_parseCitationsToChips(stmtA, sources) || '<em>No statement</em>'}</div>
+                ${sourceA ? `<div class="contradiction-sources">${_parseCitationsToChips(sourceA, sources)}</div>` : ''}
+              </div>
+              <div class="contradiction-vs">
+                <div class="contradiction-vs-badge">VS</div>
+              </div>
+              <div class="contradiction-side contradiction-side--b">
+                <div class="contradiction-label contradiction-label--b">
+                  <i class="fas fa-circle"></i> Position B
+                </div>
+                <div class="contradiction-text">${_parseCitationsToChips(stmtB, sources) || '<em>No statement</em>'}</div>
+                ${sourceB ? `<div class="contradiction-sources">${_parseCitationsToChips(sourceB, sources)}</div>` : ''}
+              </div>
+            </div>
+            ${explanation ? `
+              <div class="contradiction-explanation">
+                <i class="fas fa-lightbulb"></i>
+                <span>${escapeHtml(explanation)}</span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).filter(Boolean);
+
+      if (!cards.length) {
+        return '<div class="about-pre" style="color: var(--text-muted);">No contradictions to display.</div>';
+      }
+
+      return `<div class="contradiction-cards">${cards.join('')}</div>`;
+    }
+
+    /**
+     * Render deliverables with progress tracking
+     */
+    function _renderDeliverablesGrid(tracking, baseline, sources) {
+      const items = Array.isArray(tracking) && tracking.length ? tracking : 
+                    (baseline?.deliverables && Array.isArray(baseline.deliverables) ? 
+                      baseline.deliverables.map(d => ({ deliverable: d, status: 'unknown' })) : []);
+
+      if (!items.length) {
+        return '<div class="about-pre" style="color: var(--text-muted);">Define deliverables in the purpose baseline or upload instruction documents.</div>';
+      }
+
+      const rows = items.slice(0, 12).map(d => {
+        const name = (d.deliverable || d.name || '').toString().trim();
+        const status = (d.status || '').toString().toLowerCase();
+        const evidence = (d.evidence || '').toString();
+        const gaps = (d.gaps || '').toString().trim();
+
+        if (!name) return '';
+
+        let statusClass = 'deliverable-status--none';
+        let statusIcon = '<i class="fas fa-circle"></i>';
+        if (status.includes('complete') || status.includes('done') || status.includes('verified')) {
+          statusClass = 'deliverable-status--complete';
+          statusIcon = '<i class="fas fa-check"></i>';
+        } else if (status.includes('partial') || status.includes('progress') || status.includes('some')) {
+          statusClass = 'deliverable-status--partial';
+          statusIcon = '<i class="fas fa-adjust"></i>';
+        }
+
+        const evidenceChips = evidence ? _parseCitationsToChips(evidence, sources) : '';
+
+        return `
+          <div class="deliverable-row">
+            <div class="deliverable-status ${statusClass}">${statusIcon}</div>
+            <div class="deliverable-content">
+              <div class="deliverable-name">${escapeHtml(name)}</div>
+              ${status ? `<div class="deliverable-meta">Status: ${escapeHtml(status)}</div>` : ''}
+              ${evidenceChips ? `<div class="deliverable-chips">${evidenceChips}</div>` : ''}
+              ${gaps ? `<div class="deliverable-gap-warning"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(gaps)}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).filter(Boolean);
+
+      if (!rows.length) {
+        return '<div class="about-pre" style="color: var(--text-muted);">No deliverables to display.</div>';
+      }
+
+      return `<div class="deliverables-grid">${rows.join('')}</div>`;
+    }
+
+    /**
+     * Render chronology as visual timeline
+     */
+    function _renderChronologyTimeline(chronology) {
+      if (!Array.isArray(chronology) || !chronology.length) {
+        return '<div class="about-pre" style="color: var(--text-muted);">Chronology will be generated from dated evidence and correspondence.</div>';
+      }
+
+      const items = chronology.slice(0, 15).map(c => {
+        const date = (c.date || '').toString().trim();
+        const party = (c.party || '').toString().trim();
+        const quote = (c.quote || c.description || '').toString().trim();
+        const tags = Array.isArray(c.issue_tags) ? c.issue_tags : [];
+
+        if (!date && !party && !quote) return '';
+
+        return `
+          <div class="chronology-item">
+            <div class="chronology-date">${escapeHtml(date || 'Unknown date')}</div>
+            ${party ? `<div class="chronology-party"><i class="fas fa-user"></i> ${escapeHtml(party)}</div>` : ''}
+            ${quote ? `<div class="chronology-quote">${escapeHtml(quote)}</div>` : ''}
+            ${tags.length ? `
+              <div class="chronology-tags">
+                ${tags.slice(0, 4).map(t => `<span class="chronology-tag">${escapeHtml(t)}</span>`).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).filter(Boolean);
+
+      if (!items.length) {
+        return '<div class="about-pre" style="color: var(--text-muted);">No chronology items to display.</div>';
+      }
+
+      return `<div class="chronology-timeline">${items.join('')}</div>`;
+    }
+
   </script>
 </body>
 

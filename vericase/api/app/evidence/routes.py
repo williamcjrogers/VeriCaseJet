@@ -138,6 +138,9 @@ async def list_evidence(
     include_hidden: Annotated[
         bool, Query(description="Include spam-filtered/hidden items")
     ] = False,
+    workspace_id: Annotated[
+        str | None, Query(description="Include workspace-scoped documents")
+    ] = None,
 ) -> EvidenceListResponse:
     return await list_evidence_service(
         db,
@@ -161,6 +164,7 @@ async def list_evidence(
         sort_by,
         sort_order,
         include_hidden,
+        workspace_id,
     )
 
 
@@ -175,6 +179,9 @@ async def get_evidence_server_side(
     include_hidden: bool = Query(
         False, description="Include spam-filtered/hidden items"
     ),
+    workspace_id: str | None = Query(
+        None, description="Include workspace-scoped documents"
+    ),
 ) -> ServerSideEvidenceResponse:
     return await get_evidence_server_side_service(
         request,
@@ -184,6 +191,7 @@ async def get_evidence_server_side(
         collection_id,
         include_email_info,
         include_hidden,
+        workspace_id,
     )
 
 
