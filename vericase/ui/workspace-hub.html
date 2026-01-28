@@ -2981,6 +2981,8 @@
             </div>
           </div>
 
+          <div id="aboutRefreshJobPanel"></div>
+
           <div class="about-grid">
             <div class="about-card about-span-2">
               <div class="about-card-title">
@@ -5170,6 +5172,7 @@
             const id = (src?.evidence_id || src?.id || "").toString();
             const date = (src?.document_date || "").toString();
             const type = (src?.evidence_type || "").toString();
+            const canDownload = id && type.toLowerCase() !== "email";
             const metaParts = [];
             if (type) metaParts.push(type);
             if (date) metaParts.push(date);
@@ -5183,7 +5186,7 @@
                   ${chips.length ? `<div class="about-chips">${chips.map(c => `<span class="about-chip">${escapeHtml(String(c))}</span>`).join("")}</div>` : ""}
                 </div>
                 <div class="about-contract-actions">
-                  ${id ? `<button class="btn btn-sm btn-outline" onclick="downloadDocument('${id}')" title="Download"><i class="fas fa-download"></i></button>` : ""}
+                  ${canDownload ? `<button class="btn btn-sm btn-outline" onclick="downloadDocument('${id}')" title="Download"><i class="fas fa-download"></i></button>` : ""}
                 </div>
               </div>
             `;
@@ -5484,16 +5487,45 @@
       if (!workspaceId) return;
       const useForce = true; // Always run the deepest read-in by default
       try {
-        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/about/refresh`, {
+        const toast = VericaseUI.Toast.info("Refreshing workspace overview…", { duration: 0 });
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/about/refresh_job`, {
           method: "POST",
           headers: getAuthHeaders(),
-          body: JSON.stringify({ force: useForce }),
+          body: JSON.stringify({ force: useForce, deep: true }),
         });
-        if (!res.ok) throw new Error("Failed to refresh About");
-        workspaceAbout = await res.json().catch(() => workspaceAbout);
-        _renderAbout(workspaceAbout);
-        _clearAboutPoll();
-        aboutPollHandle = setTimeout(() => loadWorkspaceAbout().catch(() => {}), 1200);
+        const data = await res.json().catch(() => ({}));
+        VericaseUI.Toast.dismiss(toast);
+        if (!res.ok) {
+          const msg = typeof data?.detail === "string" ? data.detail : "Failed to refresh About";
+          throw new Error(msg);
+        }
+
+        const jobId = (data?.job_id || data?.jobId || data?.id || "").toString();
+        const panel = document.getElementById("aboutRefreshJobPanel");
+        if (panel && jobId) {
+          panel.innerHTML = `
+            <div class="analysis-job" data-workspace-id="${workspaceId}" data-job-id="${jobId}">
+              <div class="analysis-job-row">
+                <div class="analysis-job-title">
+                  <i class="fas fa-circle-info" aria-hidden="true"></i>
+                  Refreshing workspace overview
+                  <span class="analysis-job-meta">Job: <span class="mono">${jobId}</span></span>
+                </div>
+              </div>
+              <div class="analysis-progress">
+                <div class="analysis-progress-bar" style="width: 0%;"></div>
+              </div>
+              <div class="analysis-progress-text">Queued…</div>
+            </div>
+          `.trim();
+
+          const jobEl = panel.querySelector(".analysis-job");
+          if (jobEl) startWorkspaceAnalysisStream(jobEl).catch(() => {});
+        } else {
+          // Fallback: poll About (best-effort)
+          _clearAboutPoll();
+          aboutPollHandle = setTimeout(() => loadWorkspaceAbout().catch(() => {}), 1200);
+        }
       } catch (e) {
         console.debug("About refresh failed:", e);
       }

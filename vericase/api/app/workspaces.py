@@ -305,6 +305,13 @@ class AboutRefreshRequest(BaseModel):
     force: bool = False
 
 
+class AboutRefreshJobRequest(BaseModel):
+    """Start a background (Celery) refresh for the Workspace About read-in."""
+
+    force: bool = True
+    deep: bool = True
+
+
 class AboutAskRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
 
@@ -642,7 +649,22 @@ async def _build_workspace_about_snapshot(
     workspace: Workspace,
     force: bool = False,
     deep: bool = False,
+    progress_cb: Callable[[dict[str, Any]], None] | None = None,
 ) -> WorkspaceAbout:
+    def _progress(percent: int, message: str, **extra: Any) -> None:
+        if not progress_cb:
+            return
+        payload: dict[str, Any] = {
+            "stage": "about",
+            "percent": max(0, min(100, int(percent))),
+            "message": message,
+            **extra,
+        }
+        try:
+            progress_cb(payload)
+        except Exception:
+            return
+
     about = (
         db.query(WorkspaceAbout)
         .filter(WorkspaceAbout.workspace_id == workspace.id)
@@ -668,15 +690,22 @@ async def _build_workspace_about_snapshot(
         and latest_doc_at
         and about.updated_at >= latest_doc_at
     ):
+        _progress(100, "Workspace overview already up-to-date.")
         return about
 
     about.status = "building"
     about.last_error = None
     db.commit()
+    _progress(
+        5, "Starting workspace overview synthesis…", deep=bool(deep), force=bool(force)
+    )
 
     # Aggregate core workspace context
     projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
     cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+    _progress(
+        10, f"Loaded workspace scope ({len(projects)} projects, {len(cases)} cases)."
+    )
 
     # Pull workspace-scoped evidence, plus related project/case evidence (bounded).
     project_ids = [p.id for p in projects]
@@ -725,6 +754,10 @@ async def _build_workspace_about_snapshot(
         .order_by(desc(EvidenceItem.created_at))
         .limit(200)
         .all()
+    )
+    _progress(
+        22,
+        f"Gathered source pools ({len(evidence_pool)} evidence items, {len(workspace_docs)} workspace docs).",
     )
 
     def _looks_like_contract(it: EvidenceItem) -> bool:
@@ -823,6 +856,7 @@ async def _build_workspace_about_snapshot(
 
     contract_docs = [d for d in workspace_docs if _looks_like_contract(d)]
     contract_docs = contract_docs[:6]
+    _progress(28, f"Detected {len(contract_docs)} contract candidate(s).")
 
     about_hints = [
         "instruction",
@@ -926,6 +960,7 @@ async def _build_workspace_about_snapshot(
         and len(candidate_items) > 3
     ):
         try:
+            _progress(40, "Reranking sources for counsel read-in (deep mode)…")
             aws = get_aws_services()
             snippets: list[str] = []
             for it in candidate_items:
@@ -973,6 +1008,8 @@ async def _build_workspace_about_snapshot(
             ordered_items = candidate_items[:target_docs]
     else:
         ordered_items = candidate_items[:target_docs]
+
+    _progress(55, f"Selected top sources for read-in ({len(ordered_items)} items).")
 
     sources: list[dict[str, Any]] = []
     source_blocks: list[str] = []
@@ -1229,8 +1266,14 @@ async def _build_workspace_about_snapshot(
     prompt = f"""
 Build a counsel-ready Workspace Read-In that reduces read-in time to minutes.
 
+CRITICAL: This must be a comprehensive overview, NOT a dumping-ground of filenames/previews.
+- Do NOT list every document.
+- Do NOT paste long excerpts.
+- Prefer structured sections, synthesis, and “what matters + why + what evidence supports it”.
+- It is OK to cite a small number of pivotal sources as examples per section.
+
 Return ONE JSON object with keys:
-- read_in: string (plain text; use headings + bullets; be comprehensive but factual)
+- read_in: string (markdown; headings + bullets; comprehensive but highly structured; no per-document previews)
 - structured: object with:
   - at_a_glance: object {{headline, dispute_type, location, contract_form, contract_value, key_dates, current_position, quantum}}
   - parties_roles: array of objects {{name, role, organisation, notes, sources}}
@@ -1238,7 +1281,7 @@ Return ONE JSON object with keys:
   - evidence_map: object with arrays for {{contracts, pleadings, expert_reports, correspondence, programmes, photos}} each item {{filename, evidence_id, why_relevant, sources}}
   - next_actions: array of objects {{action, why, owner_hint, sources}}
 - contracts: object with:
-  - documents: array of objects {{evidence_id, filename, contract_form, contract_date, parties, contract_value, key_terms, risks, source_labels}}
+  - documents: array of objects (max 8) {{evidence_id, filename, contract_form, contract_date, parties, contract_value, key_terms, risks, source_labels}}
   - key_terms_overview: array of strings (most important clauses/terms, each with citation)
   - gaps: array of strings (missing contract documents/clauses/appendices)
 - open_questions: array of strings (8-20 items; prioritized; each should be answerable by a missing document or fact)
@@ -1272,6 +1315,7 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
     # Always use the workspace tool so Bedrock Guardrails apply consistently.
     tool_name = "workspace_about"
     max_tokens = 7000 if deep else 3200
+    _progress(78, "Invoking AI to generate the read-in…")
     ai_text = await _complete_with_tool_fallback(
         tool_name=tool_name,
         prompt=prompt,
@@ -1292,6 +1336,7 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
         )
 
     payload = _extract_json_object(ai_text) if ai_text else None
+    _progress(88, "Parsing and saving overview…")
     if not payload and ai_text:
         # AI returned something but we couldn't parse JSON - log for debugging
         logger.warning(
@@ -1323,13 +1368,18 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
                 q = tex.get("queries")
                 if isinstance(q, dict):
                     for alias in (
+                        "project_name",
                         "parties",
                         "employer",
                         "contractor",
                         "contract_value",
-                        "completion_date",
                         "contract_form",
-                        "project_name",
+                        "contract_date",
+                        "completion_date",
+                        "payment_terms",
+                        "retention",
+                        "liquidated_damages",
+                        "delay_clauses",
                     ):
                         entry = q.get(alias)
                         ans = None
@@ -1341,149 +1391,418 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
                             signals[alias] = str(ans).strip()[:200]
             return signals
 
-        def _get_excerpt(item: EvidenceItem, max_len: int = 400) -> str:
-            """Get a text excerpt from an evidence item."""
-            text = item.extracted_text or ""
-            if not text:
-                md = (
-                    item.extracted_metadata
-                    if isinstance(item.extracted_metadata, dict)
-                    else {}
-                )
-                text = md.get("text_preview", "") if isinstance(md, dict) else ""
-            if not text:
-                return ""
-            # Clean and truncate
-            text = " ".join(text.split())[:max_len]
-            if len(text) == max_len:
-                text = text.rsplit(" ", 1)[0] + "..."
-            return text
+        labels_by_id: dict[str, str] = {}
+        try:
+            for s in sources:
+                if isinstance(s, dict):
+                    eid = str(s.get("evidence_id") or "").strip()
+                    lab = str(s.get("label") or "").strip()
+                    if eid and lab:
+                        labels_by_id[eid] = lab
+        except Exception:
+            labels_by_id = {}
 
-        # Build structured markdown summary
-        summary_lines = [
-            f"## {workspace.name}",
+        def _cite(evidence_id: str | None) -> str:
+            if not evidence_id:
+                return ""
+            lab = labels_by_id.get(str(evidence_id))
+            return f"[{lab}]" if lab else ""
+
+        def _clean(value: str | None) -> str:
+            return str(value or "").strip()
+
+        # Build a comprehensive-but-structured overview from extracted metadata/text.
+        contract_form = ""
+        contract_value = ""
+        employer = ""
+        contractor = ""
+        parties = ""
+        key_dates: list[str] = []
+        contract_terms: list[str] = []
+        contract_docs_payload: list[dict[str, Any]] = []
+
+        for d in contract_docs[:6]:
+            sig = _get_textract_signals(d)
+            cite = _cite(str(d.id))
+
+            contract_form = contract_form or _clean(sig.get("contract_form"))
+            contract_value = contract_value or _clean(sig.get("contract_value"))
+            employer = employer or _clean(sig.get("employer"))
+            contractor = contractor or _clean(sig.get("contractor"))
+            parties = parties or _clean(sig.get("parties"))
+
+            contract_date = _clean(sig.get("contract_date"))
+            completion_date = _clean(sig.get("completion_date"))
+            if contract_date:
+                key_dates.append(f"Contract date: {contract_date} {cite}".strip())
+            if completion_date:
+                key_dates.append(f"Completion date: {completion_date} {cite}".strip())
+
+            for alias, label in (
+                ("payment_terms", "Payment terms"),
+                ("retention", "Retention"),
+                ("liquidated_damages", "Liquidated damages"),
+                ("delay_clauses", "Delay/EOT clauses"),
+            ):
+                ans = _clean(sig.get(alias))
+                if ans:
+                    contract_terms.append(f"{label}: {ans} {cite}".strip())
+
+            contract_docs_payload.append(
+                {
+                    "evidence_id": str(d.id),
+                    "filename": _basename(d.filename),
+                    "contract_form": contract_form,
+                    "contract_date": contract_date
+                    or (d.document_date.isoformat() if d.document_date else ""),
+                    "parties": parties,
+                    "contract_value": contract_value,
+                    "key_terms": {
+                        k: v
+                        for k, v in sig.items()
+                        if k
+                        in {
+                            "payment_terms",
+                            "retention",
+                            "liquidated_damages",
+                            "delay_clauses",
+                        }
+                        and _clean(v)
+                    },
+                    "risks": [],
+                    "source_labels": (
+                        [labels_by_id.get(str(d.id), "")]
+                        if labels_by_id.get(str(d.id))
+                        else []
+                    ),
+                }
+            )
+
+        parties_roles: list[dict[str, Any]] = []
+        if employer:
+            parties_roles.append(
+                {
+                    "name": employer,
+                    "role": "Employer / Client",
+                    "organisation": "",
+                    "notes": "",
+                    "sources": [],
+                }
+            )
+        if contractor and contractor != employer:
+            parties_roles.append(
+                {
+                    "name": contractor,
+                    "role": "Contractor",
+                    "organisation": "",
+                    "notes": "",
+                    "sources": [],
+                }
+            )
+
+        def _category_for(it: EvidenceItem) -> str | None:
+            fn = (it.filename or "").lower()
+            et = (it.evidence_type or "").lower()
+            if _looks_like_contract(it) or et == "contract":
+                return "contracts"
+            if any(
+                k in fn
+                for k in (
+                    "particulars",
+                    "defence",
+                    "defense",
+                    "pleading",
+                    "claim form",
+                    "statement of case",
+                    "witness statement",
+                    "skeleton",
+                )
+            ):
+                return "pleadings"
+            if any(k in fn for k in ("expert", "joint statement", "report")) or et in {
+                "expert_report"
+            }:
+                return "expert_reports"
+            if any(
+                k in fn
+                for k in (
+                    "programme",
+                    "program",
+                    "baseline",
+                    "as-built",
+                    "primavera",
+                    "p6",
+                    "ms project",
+                )
+            ) or et in {"programme", "schedule"}:
+                return "programmes"
+            if any(
+                fn.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".gif", ".webp")
+            ) or et in {
+                "photo",
+                "image",
+            }:
+                return "photos"
+            return None
+
+        totals = {
+            k: 0
+            for k in (
+                "contracts",
+                "pleadings",
+                "expert_reports",
+                "programmes",
+                "photos",
+            )
+        }
+        try:
+            for d in workspace_docs:
+                cat = _category_for(d)
+                if cat:
+                    totals[cat] = totals.get(cat, 0) + 1
+        except Exception:
+            pass
+
+        evidence_map: dict[str, list[dict[str, Any]]] = {
+            "contracts": [],
+            "pleadings": [],
+            "expert_reports": [],
+            "correspondence": [],
+            "programmes": [],
+            "photos": [],
+        }
+
+        def _add_map_item(cat: str, it: EvidenceItem, why: str) -> None:
+            if len(evidence_map.get(cat, [])) >= 6:
+                return
+            evidence_map.setdefault(cat, []).append(
+                {
+                    "filename": _basename(it.filename),
+                    "evidence_id": str(it.id),
+                    "why_relevant": why,
+                }
+            )
+
+        why_by_cat = {
+            "contracts": "Contract / appointment document (used for clause/term extraction).",
+            "pleadings": "Statement of case / pleadings material (frames issues + case theory).",
+            "expert_reports": "Expert report material (technical causation/defects/quantum).",
+            "programmes": "Programme / delay material (critical for EOT and causation).",
+            "photos": "Photo / image evidence (conditions/defects/inspections).",
+        }
+        for it in ordered_items:
+            cat = _category_for(it)
+            if not cat:
+                continue
+            _add_map_item(cat, it, why_by_cat.get(cat, "Key evidence item."))
+
+        for d in contract_docs[:6]:
+            if all(
+                str(x.get("evidence_id")) != str(d.id)
+                for x in evidence_map["contracts"]
+            ):
+                _add_map_item("contracts", d, why_by_cat["contracts"])
+
+        issue_keywords = {
+            "Payment / valuation": (
+                "payment",
+                "invoice",
+                "valuation",
+                "pay less",
+                "application",
+            ),
+            "Delay / EOT / programme": (
+                "delay",
+                "eot",
+                "extension of time",
+                "programme",
+                "program",
+                "critical path",
+            ),
+            "Defects / quality": (
+                "defect",
+                "snag",
+                "inspection",
+                "water ingress",
+                "leak",
+            ),
+            "Variations / scope": ("variation", "change", "instruction", "scope"),
+            "Termination / dispute process": (
+                "termination",
+                "adjudication",
+                "litigation",
+                "without prejudice",
+            ),
+        }
+        scores: dict[str, int] = {k: 0 for k in issue_keywords}
+        for it in ordered_items:
+            blob = f"{(it.filename or '')} {(it.evidence_type or '')}".lower()
+            tags = it.auto_tags if isinstance(it.auto_tags, list) else []
+            blob += " " + " ".join([str(t).lower() for t in tags if t])
+            for label, kws in issue_keywords.items():
+                if any(k in blob for k in kws):
+                    scores[label] += 1
+        top_issues = [
+            k
+            for k, v in sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+            if v > 0
+        ][:4]
+        issues_payload: list[dict[str, Any]] = []
+        for t in top_issues:
+            issues_payload.append(
+                {
+                    "issue": t,
+                    "what_happened": "Unknown (needs notices/pleadings/correspondence to confirm).",
+                    "why_it_matters": "This theme appears repeatedly in filenames/tags; it often drives liability/quantum.",
+                    "sources": [],
+                }
+            )
+
+        open_questions = [
+            "What is the dispute headline / claim narrative (one paragraph)?",
+            "Who are the key parties and roles (Employer, Contractor, PM, QS, Engineer)?",
+            "What is the contract form, scope, and key dates (start/completion/EOT)?",
+            "What are the pleaded issues (delay, variations, payment, defects, termination)?",
+            "Which notices/claims exist (payment notice, pay less, EOT, defect notices, termination notices)?",
+            "What is the quantum position (claimed vs admitted vs paid)?",
+        ]
+
+        next_actions: list[dict[str, Any]] = [
+            {
+                "action": "Upload the executed contract pack (amendments, schedules, appointments).",
+                "why": "Contract form/terms drive entitlement, risk, and dispute strategy.",
+                "owner_hint": "Case handler",
+                "sources": [],
+            },
+            {
+                "action": "Upload key notices/claims and any pleaded documents (if proceedings exist).",
+                "why": "These define the issues and remedies being pursued/defended.",
+                "owner_hint": "Case handler",
+                "sources": [],
+            },
+            {
+                "action": "Upload programme / delay analysis material (baseline, updates, as-built).",
+                "why": "Delay/EOT disputes turn on programme evidence and causation.",
+                "owner_hint": "Case handler / delay expert",
+                "sources": [],
+            },
+        ]
+
+        at_a_glance = {
+            "headline": f"{workspace.name}",
+            "dispute_type": "Unknown",
+            "location": "",
+            "contract_form": contract_form or (workspace.contract_type or "Unknown"),
+            "contract_value": contract_value,
+            "key_dates": key_dates[:6],
+            "current_position": "",
+            "quantum": "",
+        }
+
+        summary_lines: list[str] = [
+            f"## {workspace.name} — Workspace Overview",
             f"**Workspace code:** {workspace.code}",
             f"**Contract type:** {workspace.contract_type or 'Unknown'}",
         ]
         if workspace.description and workspace.description.strip().upper() != "TBC":
             summary_lines.append(f"**Description:** {workspace.description}")
 
-        if projects:
-            summary_lines.append("")
-            summary_lines.append("### Projects")
-            for p in projects[:6]:
-                if p.project_name:
-                    summary_lines.append(f"- {p.project_name}")
+        summary_lines.extend(
+            [
+                "",
+                "### At a glance",
+                f"- **Contract form:** {at_a_glance['contract_form'] or 'Unknown'}",
+            ]
+        )
+        if contract_value:
+            summary_lines.append(f"- **Contract value:** {contract_value}")
+        if employer or contractor:
+            party_bits = " / ".join([p for p in (employer, contractor) if p])
+            summary_lines.append(f"- **Key parties:** {party_bits}")
+        if key_dates:
+            summary_lines.append("- **Key dates:** " + " • ".join(key_dates[:6]))
 
-        if cases:
-            summary_lines.append("")
-            summary_lines.append("### Cases")
-            for c in cases[:6]:
-                if c.name:
-                    summary_lines.append(f"- {c.name}")
+        summary_lines.append("")
+        summary_lines.append("### Contract & key terms (detected)")
+        if contract_docs_payload:
+            examples = [
+                f"{d.get('filename')} {_cite(d.get('evidence_id'))}".strip()
+                for d in contract_docs_payload[:3]
+            ]
+            examples = [e for e in examples if e]
+            summary_lines.append("- **Contract documents:** " + " • ".join(examples))
+        else:
+            summary_lines.append("- **Contract documents:** None detected yet.")
+        if contract_terms:
+            summary_lines.append("- **Key terms (signals):**")
+            for t in contract_terms[:8]:
+                summary_lines.append(f"  - {t}")
 
-        # Track contract doc IDs to avoid duplication in evidence section
-        contract_doc_ids = {str(d.id) for d in contract_docs}
-
-        # Extract key facts from contract documents
-        key_facts: list[str] = []
-        if contract_docs:
-            summary_lines.append("")
-            summary_lines.append("### Contract Documents")
-            for d in contract_docs[:6]:
-                if d.filename:
-                    basename = _basename(d.filename)
-                    doc_date = (
-                        d.document_date.strftime("%Y-%m-%d")
-                        if d.document_date
-                        else None
-                    )
-                    date_suffix = f" ({doc_date})" if doc_date else ""
-                    summary_lines.append(f"**{basename}**{date_suffix}")
-
-                    # Add extracted signals as bullet points
-                    signals = _get_textract_signals(d)
-                    for key, value in list(signals.items())[:5]:
-                        label = key.replace("_", " ").title()
-                        summary_lines.append(f"  - {label}: {value}")
-                        if key in (
-                            "parties",
-                            "employer",
-                            "contractor",
-                            "contract_value",
-                        ):
-                            key_facts.append(f"{label}: {value}")
-
-                    # Add text excerpt if available and no signals
-                    if not signals:
-                        excerpt = _get_excerpt(d, 300)
-                        if excerpt:
-                            summary_lines.append(f"  - Preview: _{excerpt}_")
-
-        # Show key facts at top if we found any
-        if key_facts:
-            # Insert after the header section
-            insert_idx = 4  # After workspace code and contract type
-            summary_lines.insert(insert_idx, "")
-            summary_lines.insert(insert_idx + 1, "### Key Facts Extracted")
-            for i, fact in enumerate(key_facts[:6]):
-                summary_lines.insert(insert_idx + 2 + i, f"- {fact}")
-
-        # Filter ordered_items to exclude contract docs already listed
-        other_evidence = [
-            e for e in ordered_items if str(e.id) not in contract_doc_ids and e.filename
-        ][:8]
-
-        if other_evidence:
-            summary_lines.append("")
-            summary_lines.append("### Key Evidence")
-            for e in other_evidence[:6]:
-                basename = _basename(e.filename)
-                doc_date = (
-                    e.document_date.strftime("%Y-%m-%d") if e.document_date else None
+        summary_lines.append("")
+        summary_lines.append("### Evidence map (high-signal)")
+        for label, key in (
+            ("Contracts", "contracts"),
+            ("Pleadings", "pleadings"),
+            ("Expert reports", "expert_reports"),
+            ("Programmes", "programmes"),
+            ("Photos", "photos"),
+        ):
+            items = evidence_map.get(key, [])
+            total = totals.get(key, len(items))
+            if items:
+                ex = "; ".join(
+                    [
+                        f"{it.get('filename')} {_cite(it.get('evidence_id'))}".strip()
+                        for it in items[:3]
+                    ]
                 )
-                etype = getattr(e, "evidence_type", None)
-                meta_parts = []
-                if etype:
-                    meta_parts.append(etype)
-                if doc_date:
-                    meta_parts.append(doc_date)
-                meta_suffix = f" ({', '.join(meta_parts)})" if meta_parts else ""
-                summary_lines.append(f"**{basename}**{meta_suffix}")
+                summary_lines.append(f"- **{label}:** {total} item(s). Examples: {ex}")
+            else:
+                summary_lines.append(f"- **{label}:** None detected yet.")
 
-                # Add excerpt if available
-                excerpt = _get_excerpt(e, 200)
-                if excerpt:
-                    summary_lines.append(f"  - _{excerpt}_")
+        summary_lines.append("")
+        summary_lines.append("### Likely issues (inferred)")
+        if issues_payload:
+            for it in issues_payload[:4]:
+                summary_lines.append(
+                    f"- **{it.get('issue')}**: {it.get('why_it_matters')}"
+                )
+        else:
+            summary_lines.append(
+                "- Unknown (need notices/pleadings/correspondence to confirm)."
+            )
+
+        summary_lines.append("")
+        summary_lines.append("### Next actions")
+        for a in next_actions[:6]:
+            summary_lines.append(f"- {a.get('action')} — {a.get('why')}")
+
+        summary_lines.append("")
+        summary_lines.append("### Open questions (gaps to close)")
+        for q in open_questions[:10]:
+            summary_lines.append(f"- {q}")
 
         summary_lines.append("")
         summary_lines.append("---")
         summary_lines.append(
-            "*AI analysis unavailable. Click **Refresh** to generate a comprehensive brief.*"
+            "*This overview is auto-generated from extracted metadata/text. Upload key documents and refresh again to deepen it.*"
         )
 
         payload = {
             "read_in": "\n".join(summary_lines),
-            "structured": {},
+            "structured": {
+                "at_a_glance": at_a_glance,
+                "parties_roles": parties_roles,
+                "issues": issues_payload,
+                "evidence_map": evidence_map,
+                "next_actions": next_actions,
+            },
             "contracts": {
-                "documents": [
-                    {
-                        "evidence_id": str(d.id),
-                        "filename": _basename(d.filename),
-                        "source_labels": [contract_source_labels.get(str(d.id), "")],
-                    }
-                    for d in contract_docs
-                ],
-                "key_terms_overview": [],
+                "documents": contract_docs_payload,
+                "key_terms_overview": contract_terms[:20],
                 "gaps": [],
             },
-            "open_questions": [
-                "What is the dispute headline / claim narrative?",
-                "Who are the key parties and roles (Employer, Contractor, PM, QS, Engineer)?",
-                "What is the contract form, scope, and key dates (start/completion/EOT)?",
-                "What are the pleaded issues (delay, variations, payment, defects, termination)?",
-                "Which documents are missing and need collecting?",
-            ],
+            "open_questions": open_questions,
             "sources": sources,
         }
 
@@ -1578,6 +1897,7 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
     about.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(about)
+    _progress(100, "Workspace overview ready.")
     return about
 
 
@@ -3446,6 +3766,51 @@ async def refresh_workspace_about(
         "structured": (about.data or {}).get("structured", {}),
         "user_notes": about.user_notes or "",
         "updated_at": about.updated_at.isoformat() if about.updated_at else None,
+    }
+
+
+@router.post("/{workspace_id}/about/refresh_job")
+def refresh_workspace_about_job(
+    workspace_id: str,
+    payload: AboutRefreshJobRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """Start a Celery-backed About refresh (reliable in production + job progress)."""
+
+    workspace = _require_workspace(db, workspace_id, user)
+    about = (
+        db.query(WorkspaceAbout)
+        .filter(WorkspaceAbout.workspace_id == workspace.id)
+        .first()
+    )
+    if not about:
+        about = WorkspaceAbout(workspace_id=workspace.id, status="empty")
+        db.add(about)
+        db.commit()
+        db.refresh(about)
+
+    about.status = "building"
+    about.last_error = None
+    about.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(about)
+
+    task = celery_app.send_task(
+        "worker_app.worker.refresh_workspace_about",
+        args=[str(workspace.id)],
+        kwargs={
+            "owner_user_id": str(user.id),
+            "force": bool(payload.force),
+            "deep": bool(payload.deep),
+        },
+        queue=settings.CELERY_QUEUE,
+    )
+
+    return {
+        "status": "queued",
+        "workspace_id": str(workspace.id),
+        "job_id": str(task.id),
     }
 
 

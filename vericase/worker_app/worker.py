@@ -1410,3 +1410,169 @@ def analyze_workspace(
         }
     finally:
         db.close()
+
+
+@celery_app.task(
+    bind=True,
+    name="worker_app.worker.refresh_workspace_about",
+    queue=settings.CELERY_QUEUE,
+    soft_time_limit=3600,  # 1h
+    time_limit=3900,  # 1h05m hard kill
+)
+def refresh_workspace_about(
+    self,
+    workspace_id: str,
+    *,
+    owner_user_id: str | None = None,
+    force: bool = True,
+    deep: bool = True,
+) -> dict:
+    """Refresh the Workspace About read-in (Celery-backed) with progress updates."""
+
+    import time
+    import uuid as _uuid
+
+    from sqlalchemy.orm import sessionmaker
+
+    # Local helper: run a coroutine safely in Celery worker context.
+    def _run_async(coro):
+        import asyncio
+
+        try:
+            return asyncio.run(coro)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+
+    try:
+        ws_uuid = _uuid.UUID(str(workspace_id))
+    except Exception:
+        return {"status": "failed", "error": "invalid workspace_id"}
+
+    base_meta = {
+        "workspace_id": str(ws_uuid),
+        "owner_user_id": str(owner_user_id) if owner_user_id else None,
+        "started_at": int(time.time()),
+        "stage": "about",
+        "percent": 1,
+        "message": "Starting workspace overview refresh…",
+    }
+    self.update_state(state="PROGRESS", meta=base_meta)
+
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+    try:
+        from sqlalchemy import desc
+
+        from app.models import EvidenceItem, Workspace
+        from app.workspaces import _build_workspace_about_snapshot, enhanced_processor
+
+        ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
+        if not ws:
+            return {"status": "failed", "error": "workspace not found"}
+
+        # Deep refresh: best-effort ensure extracted text/metadata exists for key docs.
+        if deep and enhanced_processor is not None:
+            try:
+                docs = (
+                    db.query(EvidenceItem)
+                    .filter(
+                        EvidenceItem.meta.op("->>")("workspace_id") == str(ws.id)  # type: ignore[union-attr]
+                    )
+                    .order_by(desc(EvidenceItem.created_at))
+                    .limit(60)
+                    .all()
+                )
+                to_process: list[EvidenceItem] = []
+                for d in docs:
+                    status = (d.processing_status or "").lower()
+                    has_text = bool((d.extracted_text or "").strip())
+                    md = (
+                        d.extracted_metadata
+                        if isinstance(d.extracted_metadata, dict)
+                        else {}
+                    )
+                    has_tex = isinstance(md.get("textract_data"), dict)
+                    if (
+                        status not in ("ready", "completed")
+                        or not has_text
+                        or not has_tex
+                    ):
+                        to_process.append(d)
+
+                total = min(len(to_process), 12)
+                for idx, d in enumerate(to_process[:12], start=1):
+                    try:
+                        pct = 10 + int((idx / max(1, total)) * 25)
+                        self.update_state(
+                            state="PROGRESS",
+                            meta={
+                                **base_meta,
+                                "percent": pct,
+                                "message": f"Processing documents… {idx}/{total}",
+                            },
+                        )
+                        _run_async(
+                            enhanced_processor.process_evidence_item(str(d.id), db)
+                        )
+                    except Exception as e:
+                        logger.info(
+                            "About refresh doc processing failed for %s: %s", d.id, e
+                        )
+            except Exception as e:
+                logger.info("About refresh pre-processing skipped: %s", e)
+
+        def _about_progress(meta: dict) -> None:
+            try:
+                p = int(meta.get("percent", 0) or 0)
+            except Exception:
+                p = 0
+            payload = {
+                **base_meta,
+                "stage": "about",
+                "percent": max(0, min(100, p)),
+                "message": str(meta.get("message") or "Building workspace overview…"),
+                "detail": meta,
+            }
+            self.update_state(state="PROGRESS", meta=payload)
+
+        _run_async(
+            _build_workspace_about_snapshot(
+                db=db,
+                workspace=ws,
+                force=bool(force),
+                deep=bool(deep),
+                progress_cb=_about_progress,
+            )
+        )
+
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                **base_meta,
+                "stage": "complete",
+                "percent": 100,
+                "message": "Workspace overview refreshed.",
+            },
+        )
+
+        return {
+            "status": "completed",
+            "workspace_id": str(ws_uuid),
+            "owner_user_id": str(owner_user_id) if owner_user_id else None,
+        }
+    except Exception as exc:
+        logger.exception("Workspace About refresh failed: %s", exc)
+        return {
+            "status": "failed",
+            "error": str(exc)[:500],
+            "workspace_id": str(ws_uuid),
+        }
+    finally:
+        db.close()
