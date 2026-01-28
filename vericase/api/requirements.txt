@@ -1,6 +1,7 @@
 
 fastapi==0.121.3
 uvicorn[standard]==0.38.0
+sse-starlette==3.0.3
 python-dotenv==1.2.1
 boto3==1.41.0
 awscrt>=0.23.0  # AWS Common Runtime for accelerated S3 transfers (3-10x faster)

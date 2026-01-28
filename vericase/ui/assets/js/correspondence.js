@@ -35,9 +35,26 @@ const gridReadyPromise = new Promise((resolve) => {
   // Wait for grid to be ready using promise (no polling)
   await gridReadyPromise;
 
-  // Keywords and stakeholders are now preloaded in onGridReady callback
-  // which also triggers a cell refresh after caches are populated.
-  
+  // IMPORTANT: The onGridReady callback may have started loading keywords/stakeholders
+  // BEFORE VeriCaseApp.init() completed, meaning they were loaded with null project/case IDs.
+  // Clear caches and reload with correct IDs to ensure keyword names display properly.
+  keywordsCache = null;
+  keywordIndex = null;
+  stakeholdersCache = null;
+
+  try {
+    await Promise.all([
+      ensureKeywordsLoaded(),
+      ensureStakeholdersLoaded()
+    ]);
+    // Force a cell refresh so keyword/stakeholder chips show names instead of IDs
+    if (gridApi) {
+      gridApi.refreshCells({ force: true });
+    }
+  } catch (e) {
+    console.warn("[Correspondence] Could not reload keywords/stakeholders after init:", e);
+  }
+
   console.log(
     "[Correspondence] Grid ready with project:",
     projectId,

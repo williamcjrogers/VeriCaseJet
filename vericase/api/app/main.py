@@ -137,7 +137,10 @@ from .routers.lex import router as lex_router  # Lex legislation/caselaw API
 from .routers.contract_intelligence import (
     router as contract_intelligence_router,
 )  # Contract Intelligence API
-from .chronology_builder import router as chronology_builder_router  # Chronology Builder
+from .chronology_builder import (
+    router as chronology_builder_router,
+)  # Chronology Builder
+from .jobs import router as jobs_router  # Job status + progress (Celery)
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer(auto_error=False)
@@ -315,6 +318,7 @@ app.include_router(users_router)
 app.include_router(sharing_router)
 app.include_router(favorites_router)
 app.include_router(versioning_router)
+app.include_router(jobs_router)  # Job status + progress (Celery)
 app.include_router(ai_router)
 app.include_router(orchestrator_router)
 app.include_router(ai_chat_router)  # AI Chat with multi-model research

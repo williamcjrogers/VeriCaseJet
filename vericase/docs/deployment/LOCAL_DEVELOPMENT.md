@@ -24,8 +24,16 @@ docker-compose up -d
 ### Access Your App
 
 - **Dashboard**: http://localhost:8010/ui/dashboard.html
+- **Workspace Hub**: http://localhost:8010/ui/workspace-hub.html
 - **API Docs**: http://localhost:8010/docs
 - **MinIO Console**: http://localhost:9003 (admin/changeme123)
+
+### Workspace “Start / Continue analysis” (new)
+
+In the **Workspace Hub → open a workspace → Purpose tab**, you’ll see a **Start / Continue analysis** card.
+
+- It runs **Purpose refresh + keyword rescan** as a single background job (with a progress bar).
+- Make sure **worker + redis** are running (`docker-compose ps`), otherwise jobs will stay queued.
 
 ---
 

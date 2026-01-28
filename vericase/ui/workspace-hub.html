@@ -11,6 +11,9 @@
   <script src="vericase-ui.js"></script>
   <script src="context-manager.js"></script>
   <script src="nav-shell.js"></script>
+  <!-- HTMX: small, declarative UI flows (used for analysis stepper) -->
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/json-enc.js"></script>
   <style>
     /* Workspace hub provides its own in-page header; avoid duplicated breadcrumb bars when wrapped in the shell */
     .app-shell .hub-breadcrumb {
@@ -27,6 +30,116 @@
     body.workspace-hub-page > .workspace-hub-container {
       padding: 32px 48px;
       min-height: 100vh;
+    }
+
+    /* === WORKSPACE ANALYSIS (Purpose + Keywords) === */
+    .analysis-stepper {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .analysis-step {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border-default);
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: var(--shadow-xs);
+    }
+
+    .analysis-step-badge {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--vericase-teal);
+      background: rgba(var(--vericase-teal-rgb), 0.12);
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.18);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .analysis-step-title {
+      font-weight: 650;
+      color: var(--text-primary);
+      line-height: 1.2;
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    .analysis-step-sub {
+      margin-top: 4px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      line-height: 1.35;
+    }
+
+    .analysis-job {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.18);
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .analysis-job-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .analysis-job-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 650;
+      color: var(--text-primary);
+      flex-wrap: wrap;
+    }
+
+    .analysis-job-meta {
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.85rem;
+      margin-left: 6px;
+    }
+
+    .analysis-progress {
+      height: 10px;
+      border-radius: 999px;
+      background: var(--gray-200);
+      border: 1px solid var(--gray-300);
+      overflow: hidden;
+    }
+
+    .analysis-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(var(--vericase-teal-rgb), 0.95), rgba(47, 134, 200, 0.92));
+      transition: width 0.2s ease;
+    }
+
+    .analysis-progress-text {
+      margin-top: 8px;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      line-height: 1.35;
+    }
+
+    .mono {
+      font-family: var(--font-mono);
     }
     /* === WORKSPACES - DIRECTORY + WORKSPACE VIEW === */
 
@@ -3028,6 +3141,9 @@
               <button class="btn btn-sm btn-outline" onclick="refreshWorkspacePurpose(true)" title="Refresh (rebuild brief from baseline + evidence)">
                 <i class="fas fa-sync-alt"></i> Refresh
               </button>
+              <button class="btn btn-sm btn-outline" onclick="switchTab('documents')" title="Upload/view workspace documents">
+                <i class="fas fa-folder-open"></i> Documents
+              </button>
               <button class="btn btn-sm btn-outline" onclick="rescanWorkspaceKeywords()" title="Rescan correspondence + evidence for keywords (keeps workspace outputs aligned)">
                 <i class="fas fa-tags"></i> Rescan keywords
               </button>
@@ -3035,6 +3151,64 @@
           </div>
 
           <div class="about-grid">
+            <div class="about-card about-span-2" id="analysisStarterCard">
+              <div class="about-card-title">
+                <i class="fas fa-rocket" aria-hidden="true"></i>
+                Start / Continue analysis
+              </div>
+              <div class="about-card-body">
+                <div class="analysis-stepper" id="analysisStepper">
+                  <div class="analysis-step">
+                    <div class="analysis-step-badge">1</div>
+                    <div>
+                      <div class="analysis-step-title">Baseline</div>
+                      <div class="analysis-step-sub">Add baseline instructions and/or select an instruction document.</div>
+                    </div>
+                  </div>
+                  <div class="analysis-step">
+                    <div class="analysis-step-badge">2</div>
+                    <div>
+                      <div class="analysis-step-title">Generate purpose brief</div>
+                      <div class="analysis-step-sub">Creates deliverables, chronology, contradictions, and evidence mapping.</div>
+                    </div>
+                  </div>
+                  <div class="analysis-step">
+                    <div class="analysis-step-badge">3</div>
+                    <div>
+                      <div class="analysis-step-title">Align tags</div>
+                      <div class="analysis-step-sub">Rescans correspondence + evidence so keyword filters stay coherent.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="about-actions-row">
+                  <button
+                    class="btn btn-vericase"
+                    id="analysisRunBtn"
+                    hx-ext="json-enc"
+                    hx-post=""
+                    hx-vals="{}"
+                    hx-target="#analysisJobPanel"
+                    hx-swap="innerHTML"
+                    title="Runs Purpose refresh + keyword rescan"
+                  >
+                    <i class="fas fa-play"></i> Run workspace analysis
+                  </button>
+                  <button class="btn btn-outline" type="button" onclick="runWorkspaceAnalysisPreset('purpose')" title="Generate the Purpose brief only">
+                    <i class="fas fa-bullseye"></i> Purpose only
+                  </button>
+                  <button class="btn btn-outline" type="button" onclick="runWorkspaceAnalysisPreset('keywords')" title="Rescan keyword matches only">
+                    <i class="fas fa-tags"></i> Keywords only
+                  </button>
+                </div>
+
+                <div class="about-hint" id="analysisHint">
+                  This is the “next right action”: generate a brief and align tags so everything downstream (filters, summaries, timelines) stays in sync.
+                </div>
+                <div id="analysisJobPanel"></div>
+              </div>
+            </div>
+
             <div class="about-card about-span-2">
               <div class="about-card-title">
                 <i class="fas fa-flag" aria-hidden="true"></i>
@@ -3077,7 +3251,15 @@
                 <i class="fas fa-bolt" aria-hidden="true"></i>
                 Generated brief (updates from baseline + evidence)
               </div>
-              <div class="about-card-body about-pre" id="purposeSummary">Add baseline instructions and/or choose an instruction document, then click Refresh to generate a brief, deliverables, chronology, contradictions, and evidence mapping.</div>
+              <div class="about-card-body about-markdown" id="purposeSummary">Add baseline instructions and/or choose an instruction document, then click Refresh to generate a brief, deliverables, chronology, contradictions, and evidence mapping.</div>
+            </div>
+
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-list-check" aria-hidden="true"></i>
+                Open questions & next actions
+              </div>
+              <div class="about-card-body about-markdown" id="purposeOpenQuestions"></div>
             </div>
 
             <div class="about-card">
@@ -3336,6 +3518,298 @@
       return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
     }
 
+    // HTMX: inject auth header into all requests
+    try {
+      document.addEventListener("htmx:configRequest", (evt) => {
+        try {
+          const token =
+            localStorage.getItem("vericase_token") ||
+            localStorage.getItem("token") ||
+            localStorage.getItem("jwt") ||
+            localStorage.getItem("auth_token");
+          if (token) evt.detail.headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+      });
+    } catch {}
+
+    // Workspace analysis (Purpose + Keywords) job streaming
+    let analysisStreamAbort = null;
+    let analysisPollHandle = null;
+
+    function stopWorkspaceAnalysisUpdates() {
+      try {
+        if (analysisStreamAbort) analysisStreamAbort.abort();
+      } catch {}
+      analysisStreamAbort = null;
+      if (analysisPollHandle) {
+        try { clearInterval(analysisPollHandle); } catch {}
+      }
+      analysisPollHandle = null;
+    }
+
+    function configureWorkspaceAnalysisCta() {
+      const btn = document.getElementById("analysisRunBtn");
+      if (!btn || !workspaceId) return;
+      btn.setAttribute(
+        "hx-post",
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/analysis/start_fragment`,
+      );
+      // default: full analysis (purpose + keywords)
+      btn.setAttribute(
+        "hx-vals",
+        JSON.stringify({
+          include_purpose: true,
+          include_keywords: true,
+          force: true,
+          deep: true,
+          keyword_mode: "overwrite",
+          include_emails: true,
+          include_evidence: true,
+          max_emails: 50000,
+          max_evidence: 50000,
+        }),
+      );
+    }
+
+    function runWorkspaceAnalysisPreset(preset) {
+      if (!workspaceId) return;
+      configureWorkspaceAnalysisCta();
+      const btn = document.getElementById("analysisRunBtn");
+      if (!btn) return;
+
+      const base = {
+        include_purpose: true,
+        include_keywords: true,
+        force: true,
+        deep: true,
+        keyword_mode: "overwrite",
+        include_emails: true,
+        include_evidence: true,
+        max_emails: 50000,
+        max_evidence: 50000,
+      };
+
+      if (preset === "purpose") {
+        base.include_purpose = true;
+        base.include_keywords = false;
+      } else if (preset === "keywords") {
+        base.include_purpose = false;
+        base.include_keywords = true;
+        base.deep = false;
+      }
+
+      btn.setAttribute("hx-vals", JSON.stringify(base));
+      stopWorkspaceAnalysisUpdates();
+      // Trigger the HTMX request
+      try {
+        btn.click();
+      } catch {}
+    }
+
+    function _parseSseBlock(block) {
+      const lines = String(block || "").split(/\r?\n/);
+      let eventName = "message";
+      const dataLines = [];
+      for (const raw of lines) {
+        const line = String(raw || "");
+        if (line.startsWith("event:")) {
+          eventName = line.slice("event:".length).trim() || "message";
+        } else if (line.startsWith("data:")) {
+          dataLines.push(line.slice("data:".length).trimStart());
+        }
+      }
+      const data = dataLines.join("\n");
+      return { event: eventName, data };
+    }
+
+    function _applyWorkspaceAnalysisStatus(jobEl, payload) {
+      if (!jobEl || !payload) return;
+      const bar = jobEl.querySelector(".analysis-progress-bar");
+      const text = jobEl.querySelector(".analysis-progress-text");
+
+      const state = String(payload.state || "").toUpperCase();
+      const meta = payload.meta && typeof payload.meta === "object" ? payload.meta : {};
+
+      let percent = 0;
+      if (payload.ready) {
+        percent = 100;
+      } else if (meta && typeof meta.percent !== "undefined") {
+        const n = Number(meta.percent);
+        percent = Number.isFinite(n) ? n : 0;
+      } else if (state === "STARTED" || state === "PROGRESS") {
+        percent = 5;
+      }
+      percent = Math.max(0, Math.min(100, Math.round(percent)));
+
+      const stage = String(meta.stage || "").trim();
+      const resultObj =
+        payload.result && typeof payload.result === "object"
+          ? payload.result
+          : null;
+      const resultStatus = String(
+        (resultObj && resultObj.status) || (meta && meta.status) || "",
+      )
+        .trim()
+        .toLowerCase();
+      const message =
+        String(meta.message || "").trim() ||
+        (payload.ready
+          ? (payload.successful
+              ? (resultStatus === "failed"
+                  ? "Workspace analysis finished with errors."
+                  : "Workspace analysis complete.")
+              : "Workspace analysis failed.")
+          : (stage ? `Running: ${stage}…` : "Running…"));
+
+      if (bar) bar.style.width = `${percent}%`;
+      if (text) {
+        const bits = [];
+        if (stage) bits.push(stage);
+        bits.push(message);
+        text.textContent = bits.filter(Boolean).join(" • ");
+      }
+    }
+
+    async function _pollWorkspaceAnalysisJob(jobId, wsId, jobEl) {
+      stopWorkspaceAnalysisUpdates();
+      if (!jobId || !wsId) return;
+
+      analysisPollHandle = setInterval(async () => {
+        try {
+          const res = await fetch(
+            `/api/jobs/${encodeURIComponent(jobId)}?workspace_id=${encodeURIComponent(wsId)}`,
+            { headers: getAuthHeaders() },
+          );
+          if (!res.ok) return;
+          const payload = await res.json().catch(() => null);
+          _applyWorkspaceAnalysisStatus(jobEl, payload);
+          if (payload && payload.ready) {
+            stopWorkspaceAnalysisUpdates();
+            if (payload.successful) {
+              const result =
+                payload.result && typeof payload.result === "object"
+                  ? payload.result
+                  : (payload.meta && typeof payload.meta === "object" ? payload.meta : {});
+              const status = String(result?.status || "").toLowerCase();
+              const errs = Array.isArray(result?.errors) ? result.errors : [];
+              if (status === "failed") {
+                const tail = errs.length ? ` (${String(errs[0] || "").slice(0, 140)})` : "";
+                VericaseUI.Toast.error(`Workspace analysis finished with errors${tail}`);
+              } else {
+                VericaseUI.Toast.success("Workspace analysis complete.");
+              }
+              loadWorkspacePurpose().catch(() => {});
+              loadWorkspaceAbout().catch(() => {});
+            } else {
+              VericaseUI.Toast.error(payload.error || "Workspace analysis failed.");
+            }
+          }
+        } catch {}
+      }, 1500);
+    }
+
+    async function startWorkspaceAnalysisStream(jobEl) {
+      stopWorkspaceAnalysisUpdates();
+      const jobId = jobEl?.dataset?.jobId || "";
+      const wsId = jobEl?.dataset?.workspaceId || workspaceId || "";
+      if (!jobId || !wsId) return;
+
+      // Prime UI immediately (queued state)
+      _applyWorkspaceAnalysisStatus(jobEl, {
+        state: "PENDING",
+        ready: false,
+        successful: false,
+        failed: false,
+        meta: { stage: "queued", percent: 0, message: "Queued…" },
+      });
+
+      const abort = new AbortController();
+      analysisStreamAbort = abort;
+
+      try {
+        const res = await fetch(
+          `/api/jobs/${encodeURIComponent(jobId)}/events?workspace_id=${encodeURIComponent(wsId)}&interval_s=1`,
+          { headers: getAuthHeaders(), signal: abort.signal },
+        );
+        if (!res.ok || !res.body) throw new Error("SSE unavailable");
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+
+          while (true) {
+            let sep = buf.indexOf("\n\n");
+            let sepLen = 2;
+            const sepCr = buf.indexOf("\r\n\r\n");
+            if (sepCr !== -1 && (sep === -1 || sepCr < sep)) {
+              sep = sepCr;
+              sepLen = 4;
+            }
+            if (sep === -1) break;
+
+            const block = buf.slice(0, sep);
+            buf = buf.slice(sep + sepLen);
+            if (!block.trim()) continue;
+
+            const evt = _parseSseBlock(block);
+            if (evt.event === "status" && evt.data) {
+              const payload = JSON.parse(evt.data);
+              _applyWorkspaceAnalysisStatus(jobEl, payload);
+              if (payload && payload.ready) {
+                stopWorkspaceAnalysisUpdates();
+                if (payload.successful) {
+                  const result =
+                    payload.result && typeof payload.result === "object"
+                      ? payload.result
+                      : (payload.meta && typeof payload.meta === "object" ? payload.meta : {});
+                  const status = String(result?.status || "").toLowerCase();
+                  const errs = Array.isArray(result?.errors) ? result.errors : [];
+                  if (status === "failed") {
+                    const tail = errs.length ? ` (${String(errs[0] || "").slice(0, 140)})` : "";
+                    VericaseUI.Toast.error(`Workspace analysis finished with errors${tail}`);
+                  } else {
+                    VericaseUI.Toast.success("Workspace analysis complete.");
+                  }
+                  loadWorkspacePurpose().catch(() => {});
+                  loadWorkspaceAbout().catch(() => {});
+                } else {
+                  VericaseUI.Toast.error(payload.error || "Workspace analysis failed.");
+                }
+              }
+            }
+          }
+        }
+
+        // If the stream ends without an explicit terminal status, fall back to polling.
+        try {
+          if (abort && abort.signal && abort.signal.aborted) return;
+        } catch {}
+        _pollWorkspaceAnalysisJob(jobId, wsId, jobEl).catch(() => {});
+      } catch (e) {
+        // If we intentionally aborted (e.g., user navigated away), don't fallback.
+        try {
+          if (abort && abort.signal && abort.signal.aborted) return;
+        } catch {}
+        // Fallback: polling endpoint
+        _pollWorkspaceAnalysisJob(jobId, wsId, jobEl).catch(() => {});
+      }
+    }
+
+    // Auto-start streaming when the analysis job panel is swapped in.
+    try {
+      document.addEventListener("htmx:afterSwap", (evt) => {
+        const target = evt?.target;
+        if (!target || target.id !== "analysisJobPanel") return;
+        const jobEl = target.querySelector(".analysis-job");
+        if (jobEl) startWorkspaceAnalysisStream(jobEl).catch(() => {});
+      });
+    } catch {}
+
     function handleAuthFailure(res) {
       if (res && (res.status === 401 || res.status === 403)) {
         if (!purposeAuthRedirected) {
@@ -3450,6 +3924,7 @@
 
       // Load workspace data
       await loadWorkspace();
+      try { configureWorkspaceAnalysisCta(); } catch {}
 
       // Deep-link to specific tab if specified
       const tabParam = urlParams.get("tab");
@@ -5139,6 +5614,7 @@
       const chronologyEl = document.getElementById("purposeChronology");
       const contradictionsEl = document.getElementById("purposeContradictions");
       const evidenceOrgEl = document.getElementById("purposeEvidenceOrganisation");
+      const openQEl = document.getElementById("purposeOpenQuestions");
       const hintEl = document.getElementById("purposeChatHint");
 
       const status = (purpose?.status || "").toLowerCase();
@@ -5152,8 +5628,8 @@
         if (lastError) {
           summaryEl.innerHTML = `<span class="error-message">${escapeHtml(`Unable to load Purpose data: ${lastError}`)}</span>`;
         } else if (summary) {
-          // Parse citations into interactive chips
-          summaryEl.innerHTML = _parseCitationsToChips(summary);
+          // Render markdown + convert citations [S#] into interactive chips
+          summaryEl.innerHTML = renderMarkdownWithCitations(summary, _purposeSourcesCache);
         } else {
           summaryEl.innerHTML = `<span class="empty-state-message">${isEmpty
             ? "No baseline yet. Add goal text and/or select an instruction document."
@@ -5174,6 +5650,7 @@
         const chronology = Array.isArray(data?.chronology) ? data.chronology : [];
         const contradictions = Array.isArray(data?.contradictions) ? data.contradictions : [];
         const evidenceOrg = data?.evidence_organisation || {};
+        const openQuestions = Array.isArray(data?.open_questions) ? data.open_questions : [];
 
         if (deliverablesEl) {
           if (tracking.length || (Array.isArray(baseline?.deliverables) && baseline.deliverables.length)) {
@@ -5236,6 +5713,23 @@
             evidenceOrgEl.innerHTML = `<div class="empty-state-message">${isEmpty
               ? "Add issue buckets/keywords in the baseline or instruction document to map evidence."
               : "Evidence mapping aligns to instruction keywords and issue buckets."}</div>`;
+          }
+        }
+
+        if (openQEl) {
+          if (openQuestions.length) {
+            const md = openQuestions
+              .slice(0, 12)
+              .map((q) => `- ${String(q || "").trim()}`)
+              .filter(Boolean)
+              .join("\n");
+            openQEl.innerHTML = md
+              ? renderMarkdownWithCitations(md, _purposeSourcesCache)
+              : `<div class="empty-state-message">No open questions to display.</div>`;
+          } else {
+            openQEl.innerHTML = `<div class="empty-state-message">${isEmpty
+              ? "Add baseline instructions and refresh to generate open questions."
+              : "No open questions returned yet. Refresh after ingesting key documents."}</div>`;
           }
         }
       } catch {
@@ -5332,69 +5826,13 @@
     }
 
     async function refreshWorkspacePurpose(force) {
-      if (!workspaceId) return;
-      const useForce = true; // Always run the deepest purpose analysis by default
-      try {
-        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/purpose/refresh`, {
-          method: "POST",
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ force: useForce, deep: useForce }),
-        });
-        if (!res.ok) {
-          const { detail } = await parseApiError(res);
-          console.debug("Purpose refresh failed:", { status: res.status, detail });
-          if (handleAuthFailure(res)) return;
-          throw new Error(detail || "Failed to refresh Purpose");
-        }
-        workspacePurpose = await res.json().catch(() => workspacePurpose);
-        // Populate source cache for citation chip tooltips
-        _purposeSourcesCache = Array.isArray(workspacePurpose?.sources) ? workspacePurpose.sources : [];
-        _renderPurpose(workspacePurpose);
-        _clearPurposePoll();
-        purposePollHandle = setTimeout(() => loadWorkspacePurpose().catch(() => {}), 1200);
-      } catch (e) {
-        const msg = typeof e?.message === "string" ? e.message : "Failed to refresh Purpose";
-        console.debug("Purpose refresh failed:", e);
-        VericaseUI.Toast.error(msg);
-      }
+      // Run via unified “analysis job” so the UI can show progress and avoid fragmentation.
+      runWorkspaceAnalysisPreset("purpose");
     }
 
     async function rescanWorkspaceKeywords() {
-      if (!workspaceId) return;
-      const toast = VericaseUI.Toast.info(
-        "Rescanning workspace keywords across correspondence + evidence…",
-        { duration: 0 },
-      );
-      try {
-        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/keywords/rescan`, {
-          method: "POST",
-          headers: getAuthHeaders(),
-        body: JSON.stringify({
-            include_emails: true,
-            include_evidence: true,
-            max_emails: 50000,
-            max_evidence: 50000,
-          mode: "overwrite",
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          const msg = typeof data?.detail === "string" ? data.detail : "Keyword rescan failed";
-          throw new Error(msg);
-        }
-        VericaseUI.Toast.dismiss(toast);
-        VericaseUI.Toast.success(
-          `Workspace rescan complete: ${Number(data.emails_updated || 0)} emails updated, ${Number(data.evidence_updated || 0)} evidence items updated.`,
-        );
-
-        // Best-effort: refresh the smart summaries so they can reflect new tagging.
-        refreshWorkspaceAbout(true).catch(() => {});
-        refreshWorkspacePurpose(true).catch(() => {});
-      } catch (e) {
-        console.debug("Workspace keyword rescan failed:", e);
-        VericaseUI.Toast.dismiss(toast);
-        VericaseUI.Toast.error("Workspace keyword rescan failed.");
-      }
+      // Run via unified “analysis job” so the UI can show progress and avoid fragmentation.
+      runWorkspaceAnalysisPreset("keywords");
     }
 
     async function askWorkspacePurpose() {
@@ -6324,6 +6762,39 @@ ${escapeHtml(c?.body_preview || "")}
       closeList();
 
       return out.join("\n");
+    }
+
+    function renderMarkdownWithCitations(markdown, sources) {
+      const html = renderMarkdown(markdown || "");
+      if (!html) return html;
+
+      // Build source type lookup (S# -> evidence_type)
+      const sourceTypes = {};
+      (sources || []).forEach((s) => {
+        const label = (s?.label || "").toString().toUpperCase();
+        const type = (s?.evidence_type || s?.type || "document").toString().toLowerCase();
+        if (label) sourceTypes[label] = type;
+      });
+
+      // Replace [S#] patterns in the rendered HTML
+      return html.replace(/\[S(\d+)\]/gi, (_m, num) => {
+        const label = `S${num}`;
+        const type = sourceTypes[label.toUpperCase()] || "document";
+        let chipClass = "citation-chip--unknown";
+
+        if (type.includes("contract") || type.includes("agreement")) {
+          chipClass = "citation-chip--contract";
+        } else if (type.includes("correspondence") || type.includes("email")) {
+          chipClass = "citation-chip--correspondence";
+        } else if (type.includes("expert") || type.includes("report")) {
+          chipClass = "citation-chip--expert";
+        } else if (type.includes("document") || type.includes("drawing") || type.includes("photo")) {
+          chipClass = "citation-chip--document";
+        }
+
+        const safeLabel = escapeHtml(label);
+        return `<span class="citation-chip ${chipClass}" data-label="${safeLabel}" onmouseenter="_showCitationTooltip(this, '${safeLabel}')" onmouseleave="_hideCitationTooltip()" onclick="_handleCitationClick('${safeLabel}')">${safeLabel}</span>`;
+      });
     }
 
     function formatDate(dateStr) {

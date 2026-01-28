@@ -1210,3 +1210,203 @@ def s3_key_from_db(doc_id: str) -> str:
             text("SELECT s3_key FROM pst_files WHERE id::text=:i"), {"i": doc_id}
         ).scalar()
         return row if row else ""
+
+
+@celery_app.task(
+    bind=True,
+    name="worker_app.worker.analyze_workspace",
+    queue=settings.CELERY_QUEUE,
+    soft_time_limit=7200,  # 2h
+    time_limit=7500,  # 2h05m hard kill
+)
+def analyze_workspace(
+    self,
+    workspace_id: str,
+    *,
+    owner_user_id: str | None = None,
+    include_purpose: bool = True,
+    include_keywords: bool = True,
+    force: bool = True,
+    deep: bool = True,
+    keyword_mode: str = "overwrite",
+    include_emails: bool = True,
+    include_evidence: bool = True,
+    max_emails: int = 50000,
+    max_evidence: int = 50000,
+) -> dict:
+    """Run a cohesive “workspace analysis” flow with progress updates.
+
+    This is intentionally opinionated:
+    - Purpose refresh (deep) builds the brief + deliverables + chronology + contradictions.
+    - Keyword rescan updates tags across correspondence + evidence so filtering stays aligned.
+    """
+
+    import time
+    import uuid as _uuid
+
+    from sqlalchemy.orm import sessionmaker
+
+    # Local helper: run a coroutine safely in Celery worker context.
+    def _run_async(coro):
+        import asyncio
+
+        try:
+            return asyncio.run(coro)
+        except RuntimeError:
+            # Fallback if a loop is already running in this worker process.
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+
+    # Resolve workspace UUID early for consistent meta.
+    try:
+        ws_uuid = _uuid.UUID(str(workspace_id))
+    except Exception:
+        return {"status": "failed", "error": "invalid workspace_id"}
+
+    base_meta = {
+        "workspace_id": str(ws_uuid),
+        "owner_user_id": str(owner_user_id) if owner_user_id else None,
+        "started_at": int(time.time()),
+        "stage": "init",
+        "percent": 1,
+        "message": "Starting workspace analysis…",
+    }
+    self.update_state(state="PROGRESS", meta=base_meta)
+
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+    try:
+        from app.models import Workspace
+
+        ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
+        if not ws:
+            return {"status": "failed", "error": "workspace not found"}
+
+        # Weighting: purpose is the bulk of perceived value.
+        purpose_weight = 70 if include_purpose and include_keywords else 100
+        keywords_weight = 30 if include_purpose and include_keywords else 100
+
+        purpose_result = None
+        keywords_result = None
+
+        if include_purpose:
+            try:
+                from app.workspaces import _build_workspace_purpose_snapshot
+
+                def _purpose_progress(meta: dict) -> None:
+                    try:
+                        p = int(meta.get("percent", 0) or 0)
+                    except Exception:
+                        p = 0
+                    if include_keywords:
+                        overall = int((p / 100.0) * purpose_weight)
+                    else:
+                        overall = p
+                    payload = {
+                        **base_meta,
+                        "stage": "purpose",
+                        "percent": max(0, min(100, overall)),
+                        "message": str(meta.get("message") or "Purpose analysis…"),
+                        "detail": meta,
+                    }
+                    self.update_state(state="PROGRESS", meta=payload)
+
+                _run_async(
+                    _build_workspace_purpose_snapshot(
+                        db=db,
+                        workspace=ws,
+                        force=bool(force),
+                        deep=bool(deep),
+                        progress_cb=_purpose_progress,
+                    )
+                )
+                purpose_result = {"status": "completed"}
+            except Exception as exc:
+                logger.exception("Workspace purpose analysis failed: %s", exc)
+                purpose_result = {"status": "failed", "error": str(exc)[:500]}
+
+        if include_keywords:
+            try:
+                from app.workspaces import _rescan_workspace_keywords_impl
+
+                def _keywords_progress(meta: dict) -> None:
+                    try:
+                        p = int(meta.get("percent", 0) or 0)
+                    except Exception:
+                        p = 0
+                    if include_purpose:
+                        overall = purpose_weight + int((p / 100.0) * keywords_weight)
+                    else:
+                        overall = p
+                    payload = {
+                        **base_meta,
+                        "stage": "keywords",
+                        "percent": max(0, min(100, overall)),
+                        "message": str(meta.get("message") or "Keyword scan…"),
+                        "detail": meta,
+                    }
+                    self.update_state(state="PROGRESS", meta=payload)
+
+                keywords_result = _rescan_workspace_keywords_impl(
+                    db=db,
+                    workspace=ws,
+                    mode=str(keyword_mode or "overwrite"),
+                    include_emails=bool(include_emails),
+                    include_evidence=bool(include_evidence),
+                    max_emails=int(max_emails or 0),
+                    max_evidence=int(max_evidence or 0),
+                    progress_cb=_keywords_progress,
+                )
+            except Exception as exc:
+                logger.exception("Workspace keyword rescan failed: %s", exc)
+                keywords_result = {"status": "failed", "error": str(exc)[:500]}
+
+        overall_status = "completed"
+        errors: list[str] = []
+        if include_purpose and isinstance(purpose_result, dict):
+            if str(purpose_result.get("status") or "").lower() == "failed":
+                overall_status = "failed"
+                if purpose_result.get("error"):
+                    errors.append(f"purpose: {purpose_result.get('error')}")
+        if include_keywords and isinstance(keywords_result, dict):
+            if str(keywords_result.get("status") or "").lower() == "failed":
+                overall_status = "failed"
+                if keywords_result.get("error"):
+                    errors.append(f"keywords: {keywords_result.get('error')}")
+
+        # Final progress update (Celery SUCCESS will follow immediately after return)
+        final_message = (
+            "Workspace analysis complete."
+            if overall_status == "completed"
+            else "Workspace analysis finished with errors."
+        )
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                **base_meta,
+                "stage": "complete",
+                "percent": 100,
+                "message": final_message,
+                "status": overall_status,
+                "errors": errors,
+                "purpose": purpose_result,
+                "keywords": keywords_result,
+            },
+        )
+
+        return {
+            "status": overall_status,
+            "workspace_id": str(ws_uuid),
+            "owner_user_id": str(owner_user_id) if owner_user_id else None,
+            "purpose": purpose_result,
+            "keywords": keywords_result,
+            "errors": errors,
+        }
+    finally:
+        db.close()

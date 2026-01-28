@@ -11,6 +11,7 @@ import json
 import re
 from datetime import timezone
 from datetime import datetime
+from collections.abc import Callable
 from typing import Annotated, Any
 
 from fastapi import (
@@ -23,7 +24,7 @@ from fastapi import (
     Form,
     Query,
 )
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
@@ -39,6 +40,7 @@ from .storage import put_object, presign_get, delete_object
 from .evidence.utils import compute_file_hash, get_file_type, log_activity
 from .ai_runtime import complete_chat
 from .ai_settings import get_tool_config
+from .tasks import celery_app
 from .models import (
     Workspace,
     WorkspaceAbout,
@@ -319,6 +321,24 @@ class PurposeConfigRequest(BaseModel):
 class PurposeRefreshRequest(BaseModel):
     force: bool = False
     deep: bool = False
+
+
+class WorkspaceAnalysisStartRequest(BaseModel):
+    """Kick off a background “workspace analysis” job (purpose refresh + keyword rescan)."""
+
+    include_purpose: bool = True
+    include_keywords: bool = True
+
+    # Purpose refresh options
+    force: bool = True
+    deep: bool = True
+
+    # Keyword scan options
+    keyword_mode: str = Field(default="overwrite", description="merge|overwrite")
+    include_emails: bool = True
+    include_evidence: bool = True
+    max_emails: int = 50000
+    max_evidence: int = 50000
 
 
 class PurposeAskRequest(BaseModel):
@@ -1293,13 +1313,24 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
         def _get_textract_signals(item: EvidenceItem) -> dict[str, str]:
             """Extract key Textract query results from an evidence item."""
             signals = {}
-            md = item.extracted_metadata if isinstance(item.extracted_metadata, dict) else {}
+            md = (
+                item.extracted_metadata
+                if isinstance(item.extracted_metadata, dict)
+                else {}
+            )
             tex = md.get("textract_data") if isinstance(md, dict) else None
             if isinstance(tex, dict):
                 q = tex.get("queries")
                 if isinstance(q, dict):
-                    for alias in ("parties", "employer", "contractor", "contract_value",
-                                  "completion_date", "contract_form", "project_name"):
+                    for alias in (
+                        "parties",
+                        "employer",
+                        "contractor",
+                        "contract_value",
+                        "completion_date",
+                        "contract_form",
+                        "project_name",
+                    ):
                         entry = q.get(alias)
                         ans = None
                         if isinstance(entry, dict):
@@ -1314,7 +1345,11 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
             """Get a text excerpt from an evidence item."""
             text = item.extracted_text or ""
             if not text:
-                md = item.extracted_metadata if isinstance(item.extracted_metadata, dict) else {}
+                md = (
+                    item.extracted_metadata
+                    if isinstance(item.extracted_metadata, dict)
+                    else {}
+                )
                 text = md.get("text_preview", "") if isinstance(md, dict) else ""
             if not text:
                 return ""
@@ -1358,7 +1393,11 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
             for d in contract_docs[:6]:
                 if d.filename:
                     basename = _basename(d.filename)
-                    doc_date = d.document_date.strftime("%Y-%m-%d") if d.document_date else None
+                    doc_date = (
+                        d.document_date.strftime("%Y-%m-%d")
+                        if d.document_date
+                        else None
+                    )
                     date_suffix = f" ({doc_date})" if doc_date else ""
                     summary_lines.append(f"**{basename}**{date_suffix}")
 
@@ -1367,7 +1406,12 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
                     for key, value in list(signals.items())[:5]:
                         label = key.replace("_", " ").title()
                         summary_lines.append(f"  - {label}: {value}")
-                        if key in ("parties", "employer", "contractor", "contract_value"):
+                        if key in (
+                            "parties",
+                            "employer",
+                            "contractor",
+                            "contract_value",
+                        ):
                             key_facts.append(f"{label}: {value}")
 
                     # Add text excerpt if available and no signals
@@ -1387,8 +1431,7 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
 
         # Filter ordered_items to exclude contract docs already listed
         other_evidence = [
-            e for e in ordered_items
-            if str(e.id) not in contract_doc_ids and e.filename
+            e for e in ordered_items if str(e.id) not in contract_doc_ids and e.filename
         ][:8]
 
         if other_evidence:
@@ -1396,7 +1439,9 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
             summary_lines.append("### Key Evidence")
             for e in other_evidence[:6]:
                 basename = _basename(e.filename)
-                doc_date = e.document_date.strftime("%Y-%m-%d") if e.document_date else None
+                doc_date = (
+                    e.document_date.strftime("%Y-%m-%d") if e.document_date else None
+                )
                 etype = getattr(e, "evidence_type", None)
                 meta_parts = []
                 if etype:
@@ -1413,7 +1458,9 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
 
         summary_lines.append("")
         summary_lines.append("---")
-        summary_lines.append("*AI analysis unavailable. Click **Refresh** to generate a comprehensive brief.*")
+        summary_lines.append(
+            "*AI analysis unavailable. Click **Refresh** to generate a comprehensive brief.*"
+        )
 
         payload = {
             "read_in": "\n".join(summary_lines),
@@ -2184,9 +2231,33 @@ def rescan_workspace_keywords(
     """
 
     workspace = _require_workspace(db, workspace_id, user)
+    return _rescan_workspace_keywords_impl(
+        db=db,
+        workspace=workspace,
+        mode=(payload.mode or "merge"),
+        include_emails=bool(payload.include_emails),
+        include_evidence=bool(payload.include_evidence),
+        max_emails=int(payload.max_emails or 0),
+        max_evidence=int(payload.max_evidence or 0),
+        progress_cb=None,
+    )
 
-    mode = (payload.mode or "merge").strip().lower()
-    if mode not in ("merge", "overwrite"):
+
+def _rescan_workspace_keywords_impl(
+    *,
+    db: Session,
+    workspace: Workspace,
+    mode: str = "merge",
+    include_emails: bool = True,
+    include_evidence: bool = True,
+    max_emails: int = 0,
+    max_evidence: int = 0,
+    progress_cb: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Worker-friendly implementation of keyword rescanning with optional progress callbacks."""
+
+    mode_norm = (mode or "merge").strip().lower()
+    if mode_norm not in ("merge", "overwrite"):
         raise HTTPException(status_code=400, detail="Invalid mode (merge|overwrite)")
 
     projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
@@ -2234,54 +2305,35 @@ def rescan_workspace_keywords(
     evidence_scanned = 0
     evidence_updated = 0
 
-    if payload.include_emails:
-        from .models import EmailMessage
+    emails_total = 0
+    evidence_total = 0
 
-        email_conds = []
-        if project_ids:
-            email_conds.append(EmailMessage.project_id.in_(project_ids))
-        if case_ids:
-            email_conds.append(EmailMessage.case_id.in_(case_ids))
+    # Pre-load bounded query sets so we can provide useful progress.
+    emails = []
+    evidence_items = []
 
-        if email_conds:
-            q = db.query(EmailMessage).filter(or_(*email_conds))
-            q = q.order_by(desc(EmailMessage.created_at))
-            q = q.limit(int(payload.max_emails or 0))
-            for e in q.all():
-                emails_scanned += 1
-                matcher = _matcher_for(
-                    getattr(e, "case_id", None), getattr(e, "project_id", None)
-                )
-                if not matcher.names_by_id:
-                    continue
-                body = (
-                    e.body_text_clean
-                    or e.body_text
-                    or e.body_preview
-                    or (
-                        re.sub(r"<[^>]+>", " ", e.body_html or "")
-                        if e.body_html
-                        else ""
-                    )
-                )
-                new_ids = matcher.match_keyword_ids(e.subject, body)
-                existing = (
-                    e.matched_keywords if isinstance(e.matched_keywords, list) else []
-                )
-                if mode == "overwrite":
-                    merged = _unique_strings(new_ids)
-                    if merged != existing:
-                        e.matched_keywords = merged
-                        emails_updated += 1
-                else:
-                    if not new_ids:
-                        continue
-                    merged = _unique_strings([*existing, *new_ids])
-                    if merged != existing:
-                        e.matched_keywords = merged
-                        emails_updated += 1
+    if include_emails:
+        try:
+            from .models import EmailMessage
 
-    if payload.include_evidence:
+            email_conds = []
+            if project_ids:
+                email_conds.append(EmailMessage.project_id.in_(project_ids))
+            if case_ids:
+                email_conds.append(EmailMessage.case_id.in_(case_ids))
+
+            if email_conds:
+                q = db.query(EmailMessage).filter(or_(*email_conds))
+                q = q.order_by(desc(EmailMessage.created_at))
+                if max_emails and int(max_emails) > 0:
+                    q = q.limit(int(max_emails))
+                emails = q.all()
+                emails_total = len(emails)
+        except Exception:
+            emails = []
+            emails_total = 0
+
+    if include_evidence:
         evidence_conds = [
             EvidenceItem.meta.op("->>")("workspace_id") == str(workspace.id)
         ]
@@ -2291,16 +2343,87 @@ def rescan_workspace_keywords(
             evidence_conds.append(EvidenceItem.case_id.in_(case_ids))
 
         q = db.query(EvidenceItem).filter(or_(*evidence_conds))
-        q = q.order_by(desc(EvidenceItem.created_at)).limit(
-            int(payload.max_evidence or 0)
+        q = q.order_by(desc(EvidenceItem.created_at))
+        if max_evidence and int(max_evidence) > 0:
+            q = q.limit(int(max_evidence))
+        evidence_items = q.all()
+        evidence_total = len(evidence_items)
+
+    total_items = emails_total + evidence_total
+    progress_every = 200
+
+    def _emit_progress(message: str) -> None:
+        if not progress_cb:
+            return
+        done = emails_scanned + evidence_scanned
+        percent = int((done / total_items) * 100) if total_items else 100
+        payload: dict[str, Any] = {
+            "stage": "keywords",
+            "percent": max(0, min(100, percent)),
+            "current": done,
+            "total": total_items,
+            "emails_scanned": emails_scanned,
+            "emails_total": emails_total,
+            "emails_updated": emails_updated,
+            "evidence_scanned": evidence_scanned,
+            "evidence_total": evidence_total,
+            "evidence_updated": evidence_updated,
+            "mode": mode_norm,
+            "message": message,
+        }
+        try:
+            progress_cb(payload)
+        except Exception:
+            # best-effort only (never break the job for UI progress failures)
+            pass
+
+    _emit_progress(
+        f"Starting keyword rescan (mode={mode_norm}, emails={emails_total}, evidence={evidence_total})…"
+    )
+
+    # Emails
+    for idx, e in enumerate(emails):
+        emails_scanned += 1
+        matcher = _matcher_for(
+            getattr(e, "case_id", None), getattr(e, "project_id", None)
         )
-        for it in q.all():
-            evidence_scanned += 1
-            matcher = _matcher_for(
-                getattr(it, "case_id", None), getattr(it, "project_id", None)
+        if matcher.names_by_id:
+            body = (
+                e.body_text_clean
+                or e.body_text
+                or e.body_preview
+                or (re.sub(r"<[^>]+>", " ", e.body_html or "") if e.body_html else "")
             )
-            if not matcher.names_by_id:
-                continue
+            new_ids = matcher.match_keyword_ids(e.subject, body)
+            existing = (
+                e.matched_keywords if isinstance(e.matched_keywords, list) else []
+            )
+            if mode_norm == "overwrite":
+                merged = _unique_strings(new_ids)
+                if merged != existing:
+                    e.matched_keywords = merged
+                    emails_updated += 1
+            else:
+                if new_ids:
+                    merged = _unique_strings([*existing, *new_ids])
+                    if merged != existing:
+                        e.matched_keywords = merged
+                        emails_updated += 1
+
+        if progress_cb and (
+            emails_scanned == 1
+            or emails_scanned == emails_total
+            or (emails_scanned % progress_every == 0)
+        ):
+            _emit_progress(f"Scanning emails… {emails_scanned}/{emails_total}")
+
+    # Evidence
+    for it in evidence_items:
+        evidence_scanned += 1
+        matcher = _matcher_for(
+            getattr(it, "case_id", None), getattr(it, "project_id", None)
+        )
+        if matcher.names_by_id:
             extracted = it.extracted_text or ""
             if len(extracted) > 200000:
                 extracted = extracted[:200000]
@@ -2317,7 +2440,8 @@ def rescan_workspace_keywords(
                 it.keywords_matched if isinstance(it.keywords_matched, list) else []
             )
             changed = False
-            if mode == "overwrite":
+
+            if mode_norm == "overwrite":
                 merged_ids = _unique_strings(new_ids)
                 if merged_ids != existing_ids:
                     it.keywords_matched = merged_ids
@@ -2330,28 +2454,36 @@ def rescan_workspace_keywords(
                     it.auto_tags = merged_auto
                     changed = True
             else:
-                if not new_ids:
-                    continue
-                merged_ids = _unique_strings([*existing_ids, *new_ids])
-                if merged_ids != existing_ids:
-                    it.keywords_matched = merged_ids
-                    changed = True
-                auto = it.auto_tags if isinstance(it.auto_tags, list) else []
-                name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
-                name_tags = [t for t in name_tags if t]
-                merged_auto = _unique_strings([*auto, *name_tags])
-                if merged_auto != auto:
-                    it.auto_tags = merged_auto
-                    changed = True
+                if new_ids:
+                    merged_ids = _unique_strings([*existing_ids, *new_ids])
+                    if merged_ids != existing_ids:
+                        it.keywords_matched = merged_ids
+                        changed = True
+                    auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+                    name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
+                    name_tags = [t for t in name_tags if t]
+                    merged_auto = _unique_strings([*auto, *name_tags])
+                    if merged_auto != auto:
+                        it.auto_tags = merged_auto
+                        changed = True
 
             if changed:
                 evidence_updated += 1
+
+        if progress_cb and (
+            evidence_scanned == 1
+            or evidence_scanned == evidence_total
+            or (evidence_scanned % progress_every == 0)
+        ):
+            _emit_progress(f"Scanning evidence… {evidence_scanned}/{evidence_total}")
 
     try:
         db.commit()
     except Exception:
         db.rollback()
         raise
+
+    _emit_progress("Keyword rescan complete.")
 
     return {
         "status": "success",
@@ -2360,7 +2492,7 @@ def rescan_workspace_keywords(
         "emails_updated": emails_updated,
         "evidence_scanned": evidence_scanned,
         "evidence_updated": evidence_updated,
-        "mode": mode,
+        "mode": mode_norm,
     }
 
 
@@ -3609,7 +3741,23 @@ async def _build_workspace_purpose_snapshot(
     workspace: Workspace,
     force: bool = False,
     deep: bool = False,
+    progress_cb: Callable[[dict[str, Any]], None] | None = None,
 ) -> WorkspacePurpose:
+    def _progress(percent: int, message: str, **extra: Any) -> None:
+        if not progress_cb:
+            return
+        payload: dict[str, Any] = {
+            "stage": "purpose",
+            "percent": max(0, min(100, int(percent))),
+            "message": message,
+            **extra,
+        }
+        try:
+            progress_cb(payload)
+        except Exception:
+            # best-effort only; never fail the job because a UI progress callback broke
+            return
+
     try:
         purpose = (
             db.query(WorkspacePurpose)
@@ -3639,16 +3787,22 @@ async def _build_workspace_purpose_snapshot(
         and latest_doc_at
         and purpose.updated_at >= latest_doc_at
     ):
+        _progress(100, "Purpose brief already up-to-date.")
         return purpose
 
     purpose.status = "building"
     purpose.last_error = None
     db.commit()
+    _progress(5, "Starting purpose synthesis…", deep=bool(deep), force=bool(force))
 
     projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
     cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
     project_ids = [p.id for p in projects]
     case_ids = [c.id for c in cases]
+    _progress(
+        10,
+        f"Loaded workspace scope ({len(project_ids)} projects, {len(case_ids)} cases).",
+    )
 
     purpose_text = (purpose.purpose_text or "").strip()
     instruction_item = _get_workspace_scoped_evidence(
@@ -3704,6 +3858,10 @@ async def _build_workspace_purpose_snapshot(
             )
     except Exception:
         email_pool = []
+    _progress(
+        22,
+        f"Gathered source pools ({len(evidence_pool)} evidence items, {len(email_pool)} emails).",
+    )
 
     purpose_hints = [
         "instruction",
@@ -3775,10 +3933,15 @@ async def _build_workspace_purpose_snapshot(
     target_emails = 8 if deep else 5
     email_candidate_limit = 50 if deep else 25
     top_emails = ranked_emails[:target_emails]
+    _progress(
+        32,
+        f"Selected top sources ({len(top_evidence)} evidence, {len(top_emails)} emails).",
+    )
 
     # Deep mode: rerank evidence/email candidates for purpose extraction (best-effort).
     if deep and getattr(settings, "BEDROCK_RERANK_ENABLED", False):
         try:
+            _progress(40, "Reranking sources for purpose synthesis (deep mode)…")
             aws = get_aws_services()
             rerank_query = (
                 "Select the most relevant sources for building a purpose baseline from an instruction narrative. "
@@ -3856,6 +4019,7 @@ async def _build_workspace_purpose_snapshot(
                             seen_em.add(sid)
                 if picked_em:
                     top_emails = picked_em[:target_emails]
+            _progress(55, "Reranking complete.")
         except Exception:
             pass
 
@@ -3946,6 +4110,7 @@ async def _build_workspace_purpose_snapshot(
         if instruction_item
         else "None"
     )
+    _progress(65, "Prepared prompt context (sources + excerpts).", sources=len(sources))
 
     system_prompt = (
         "You are a senior construction disputes barrister's assistant. "
@@ -3983,6 +4148,7 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2]):
 
     # Always use the workspace tool so Bedrock Guardrails apply consistently.
     tool_name = "workspace_purpose"
+    _progress(78, "Invoking AI to generate the brief…")
     ai_text = await _complete_with_tool_fallback(
         tool_name=tool_name,
         prompt=prompt,
@@ -3993,6 +4159,7 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2]):
     )
 
     payload = _extract_json_object(ai_text) if ai_text else None
+    _progress(90, "Parsing and saving brief…")
     if not payload:
         summary_lines = [
             f"Workspace: {workspace.name} ({workspace.code})",
@@ -4021,6 +4188,7 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2]):
     purpose.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(purpose)
+    _progress(100, "Purpose brief ready.")
     return purpose
 
 
@@ -4229,6 +4397,98 @@ def refresh_workspace_purpose(
         "updated_at": purpose.updated_at.isoformat() if purpose.updated_at else None,
         "last_error": purpose.last_error,
     }
+
+
+def _render_analysis_job_fragment(*, workspace_id: str, job_id: str) -> str:
+    # Keep HTML very small; UI JS enhances it (progress bar + streaming).
+    ws = (workspace_id or "").strip()
+    jid = (job_id or "").strip()
+    return f"""
+<div class="analysis-job" data-workspace-id="{ws}" data-job-id="{jid}">
+  <div class="analysis-job-row">
+    <div class="analysis-job-title">
+      <i class="fas fa-rocket" aria-hidden="true"></i>
+      Workspace analysis running
+      <span class="analysis-job-meta">Job: <span class="mono">{jid}</span></span>
+    </div>
+  </div>
+  <div class="analysis-progress">
+    <div class="analysis-progress-bar" style="width: 0%;"></div>
+  </div>
+  <div class="analysis-progress-text">Queued…</div>
+</div>
+""".strip()
+
+
+@router.post("/{workspace_id}/analysis/start")
+def start_workspace_analysis(
+    workspace_id: str,
+    payload: WorkspaceAnalysisStartRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """Start a background job that makes the workspace feel coherent (purpose + keywords)."""
+
+    workspace = _require_workspace(db, workspace_id, user)
+
+    task = celery_app.send_task(
+        "worker_app.worker.analyze_workspace",
+        args=[str(workspace.id)],
+        kwargs={
+            "owner_user_id": str(user.id),
+            "include_purpose": bool(payload.include_purpose),
+            "include_keywords": bool(payload.include_keywords),
+            "force": bool(payload.force),
+            "deep": bool(payload.deep),
+            "keyword_mode": str(payload.keyword_mode or "overwrite"),
+            "include_emails": bool(payload.include_emails),
+            "include_evidence": bool(payload.include_evidence),
+            "max_emails": int(payload.max_emails or 0),
+            "max_evidence": int(payload.max_evidence or 0),
+        },
+        queue=settings.CELERY_QUEUE,
+    )
+
+    return {
+        "status": "queued",
+        "workspace_id": str(workspace.id),
+        "job_id": str(task.id),
+    }
+
+
+@router.post("/{workspace_id}/analysis/start_fragment", response_class=HTMLResponse)
+def start_workspace_analysis_fragment(
+    workspace_id: str,
+    payload: WorkspaceAnalysisStartRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> HTMLResponse:
+    """HTMX helper: returns a small HTML fragment that the UI can enhance/stream."""
+
+    workspace = _require_workspace(db, workspace_id, user)
+
+    task = celery_app.send_task(
+        "worker_app.worker.analyze_workspace",
+        args=[str(workspace.id)],
+        kwargs={
+            "owner_user_id": str(user.id),
+            "include_purpose": bool(payload.include_purpose),
+            "include_keywords": bool(payload.include_keywords),
+            "force": bool(payload.force),
+            "deep": bool(payload.deep),
+            "keyword_mode": str(payload.keyword_mode or "overwrite"),
+            "include_emails": bool(payload.include_emails),
+            "include_evidence": bool(payload.include_evidence),
+            "max_emails": int(payload.max_emails or 0),
+            "max_evidence": int(payload.max_evidence or 0),
+        },
+        queue=settings.CELERY_QUEUE,
+    )
+
+    html = _render_analysis_job_fragment(
+        workspace_id=str(workspace.id), job_id=str(task.id)
+    )
+    return HTMLResponse(content=html)
 
 
 @router.post("/{workspace_id}/purpose/ask")

@@ -3,6 +3,7 @@
 # FastAPI and Server
 fastapi==0.121.3
 uvicorn[standard]==0.38.0
+sse-starlette==3.0.3
 
 # Database
 SQLAlchemy==2.0.44
