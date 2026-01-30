@@ -15,6 +15,25 @@
 
   const $ = (id) => document.getElementById(id);
 
+  function clearAuthAndRedirect() {
+    try {
+      ["vericase_token", "token", "jwt", "access_token", "user"].forEach((key) =>
+        localStorage.removeItem(key),
+      );
+    } catch {
+      // ignore
+    }
+
+    try {
+      // Clear CSRF tokens so a fresh login doesn't inherit a stale session state.
+      ["csrf-token", "vericase_csrf"].forEach((key) => sessionStorage.removeItem(key));
+    } catch {
+      // ignore
+    }
+
+    window.location.href = "login.html";
+  }
+
   const escape = (value) => {
     try {
       if (typeof window.escapeHtml === "function") return window.escapeHtml(value);
@@ -55,16 +74,19 @@
   }
 
   function requireAuthOrRedirect() {
-    const token =
-      localStorage.getItem("vericase_token") ||
-      localStorage.getItem("token") ||
-      localStorage.getItem("jwt") ||
-      localStorage.getItem("access_token");
-    if (!token) {
-      window.location.href = "login.html";
-      return false;
+    try {
+      const token =
+        localStorage.getItem("vericase_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("jwt") ||
+        localStorage.getItem("access_token");
+      if (token) return true;
+    } catch {
+      // ignore
     }
-    return true;
+
+    clearAuthAndRedirect();
+    return false;
   }
 
   async function apiCall(endpoint, method = "GET", body = null) {
@@ -81,9 +103,7 @@
     const response = await window.secureApiFetch(endpoint, options);
 
     if (response.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "login.html";
+      clearAuthAndRedirect();
       return null;
     }
 
@@ -99,9 +119,7 @@
       }
       const norm = String(detail || "").toLowerCase();
       if (norm.includes("not authenticated") || norm.includes("authentication")) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        window.location.href = "login.html";
+        clearAuthAndRedirect();
         return null;
       }
       return response;
@@ -533,6 +551,31 @@
         }
         return;
       }
+
+      if (response) {
+        let detail = "";
+        try {
+          const err = await response.clone().json();
+          detail = typeof err?.detail === "string" ? err.detail : "";
+        } catch {
+          try {
+            detail = (await response.clone().text()) || "";
+          } catch {
+            // ignore
+          }
+        }
+
+        const tableHost = $("tableContent");
+        if (tableHost) {
+          tableHost.innerHTML = `
+            <div class="loading">
+              <p style="color: #ef4444;">Failed to load users (HTTP ${escape(response.status)})</p>
+              ${detail ? `<p style="color: #718096; font-size: 12px; margin-top: 8px;">${escape(detail)}</p>` : ""}
+            </div>
+          `;
+        }
+        return;
+      }
     } catch (error) {
       console.error("[admin-users] Failed to load users:", error);
     }
@@ -642,6 +685,28 @@
             </div>
           `;
         }
+        return;
+      }
+
+      if (response && host) {
+        let detail = "";
+        try {
+          const err = await response.clone().json();
+          detail = typeof err?.detail === "string" ? err.detail : "";
+        } catch {
+          try {
+            detail = (await response.clone().text()) || "";
+          } catch {
+            // ignore
+          }
+        }
+
+        host.innerHTML = `
+          <div class="loading">
+            <p style="color: #ef4444;">Failed to load invitations (HTTP ${escape(response.status)})</p>
+            ${detail ? `<p style="color: #718096; font-size: 12px; margin-top: 8px;">${escape(detail)}</p>` : ""}
+          </div>
+        `;
         return;
       }
     } catch (error) {
