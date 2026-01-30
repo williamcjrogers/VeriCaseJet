@@ -106,8 +106,8 @@ def _serialize_job(ar: AsyncResult) -> tuple[dict[str, Any], str | None]:
 def get_job_status(
     job_id: str,
     workspace_id: str = Query(..., description="Workspace scope for access control"),
-    db: DbSession = Depends(get_db),
-    user: CurrentUser = Depends(current_user),
+    db: DbSession,
+    user: CurrentUser,
 ) -> JobStatusResponse:
     _ = _require_workspace_access(db, workspace_id, user)
 
@@ -127,8 +127,8 @@ async def stream_job_events(
     job_id: str,
     workspace_id: str = Query(..., description="Workspace scope for access control"),
     interval_s: float = Query(1.0, ge=0.25, le=10.0),
-    db: DbSession = Depends(get_db),
-    user: CurrentUser = Depends(current_user),
+    db: DbSession,
+    user: CurrentUser,
 ) -> EventSourceResponse:
     _ = _require_workspace_access(db, workspace_id, user)
 
