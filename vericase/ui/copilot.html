@@ -933,17 +933,17 @@
       <div class="messages-container" id="messagesContainer">
         <div class="copilot-empty-state" id="emptyState">
           <div class="empty-icon">
-            <i class="fas fa-robot"></i>
+            <i class="fas fa-balance-scale"></i>
           </div>
           <h2>How can I help you today?</h2>
-          <p>I'm your AI-powered legal assistant. Ask me anything about your documents, research case law, draft responses, or analyze evidence.</p>
+          <p>Hi, I'm VeriCase Assistant. I'm here to help you with your documents, research case law, draft responses, and analyze evidence.</p>
 
           <!-- Capability Cards -->
           <div class="capability-grid">
             <div class="capability-card" data-prompt="Summarize all documents uploaded in the last 7 days">
               <div class="capability-card-icon teal"><i class="fas fa-file-alt"></i></div>
               <h3>Summarize Documents</h3>
-              <p>Get AI summaries of your uploaded files and evidence</p>
+              <p>Get summaries of your uploaded files and evidence</p>
             </div>
             <div class="capability-card" data-prompt="Search for precedent cases related to delay claims under FIDIC contracts">
               <div class="capability-card-icon blue"><i class="fas fa-gavel"></i></div>
@@ -1305,8 +1305,8 @@
       const avatar = document.createElement("div");
       avatar.className = "message-avatar";
       avatar.innerHTML = role === "user" 
-        ? '<i class="fas fa-user"></i>' 
-        : '<i class="fas fa-robot"></i>';
+        ? '<i class="fas fa-user"></i>'
+        : '<i class="fas fa-balance-scale"></i>';
 
       const contentDiv = document.createElement("div");
       contentDiv.className = "message-content";
@@ -1342,7 +1342,7 @@
 
       const avatar = document.createElement("div");
       avatar.className = "message-avatar";
-      avatar.innerHTML = '<i class="fas fa-robot"></i>';
+      avatar.innerHTML = '<i class="fas fa-balance-scale"></i>';
 
       const typingDiv = document.createElement("div");
       typingDiv.className = "typing-indicator";

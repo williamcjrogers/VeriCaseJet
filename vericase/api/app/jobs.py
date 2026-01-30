@@ -6,14 +6,13 @@ Why:
 - We already use Celery for PST/OCR. This exposes a small job API for workspace analysis.
 """
 
-from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Any
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -29,8 +28,6 @@ from .tasks import celery_app
 
 logger = logging.getLogger(__name__)
 
-DbSession = Annotated[Session, Depends(get_db)]
-CurrentUser = Annotated[User, Depends(current_user)]
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -106,8 +103,8 @@ def _serialize_job(ar: AsyncResult) -> tuple[dict[str, Any], str | None]:
 def get_job_status(
     job_id: str,
     workspace_id: str = Query(..., description="Workspace scope for access control"),
-    db: DbSession,
-    user: CurrentUser,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ) -> JobStatusResponse:
     _ = _require_workspace_access(db, workspace_id, user)
 
@@ -127,8 +124,8 @@ async def stream_job_events(
     job_id: str,
     workspace_id: str = Query(..., description="Workspace scope for access control"),
     interval_s: float = Query(1.0, ge=0.25, le=10.0),
-    db: DbSession,
-    user: CurrentUser,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ) -> EventSourceResponse:
     _ = _require_workspace_access(db, workspace_id, user)
 
