@@ -899,7 +899,7 @@
           <div class="progress-steps">
             <div class="step" id="step-analysis">
               <div class="step-icon"><i class="fas fa-microscope"></i></div>
-              <span class="step-text">AI Analysis</span>
+              <span class="step-text">Analysis</span>
             </div>
             <div class="step" id="step-people">
               <div class="step-icon"><i class="fas fa-id-badge"></i></div>
@@ -1182,7 +1182,7 @@
 
       async function startAnalysis(targetId = contextId, targetType = contextType) {
         showLoading(
-          "Analyzing your emails with AI...",
+          "Analyzing your emails...",
           "This may take a moment for large datasets",
         );
         setActiveStep("step-analysis");
@@ -1328,7 +1328,7 @@
           const status = session?.status || "";
 
           if (status === "failed") {
-            throw new Error(session?.error_message || "AI analysis failed");
+            throw new Error(session?.error_message || "Analysis failed");
           }
 
           if (status === "awaiting_answers" && session?.next_questions?.length) {
@@ -1349,7 +1349,7 @@
               ? `${pct}% complete`
               : "Working… (large datasets run in the background)";
           showLoading(
-            "Analyzing your emails with AI...",
+            "Analyzing your emails...",
             `Background analysis in progress. ${progressLine}`,
           );
 
@@ -1443,7 +1443,7 @@
                             <i class="fas fa-brain"></i>
                         </div>
                         <div class="ai-message">
-                            <div class="ai-label">AI Analyst</div>
+                            <div class="ai-label">VeriCase Analyst</div>
                             <div class="question-text">${currentQuestion.question_text}</div>
                             <div class="question-context">${currentQuestion.context}</div>
                         </div>
@@ -1876,7 +1876,7 @@
                             <i class="fas fa-check"></i>
                         </div>
                         <h2 class="summary-title">Your Data Looks Clean!</h2>
-                        <p class="summary-desc">The AI analysis didn't detect any significant issues to address</p>
+                        <p class="summary-desc">The analysis didn't detect any significant issues to address</p>
                     </div>
 
                     <div class="summary-grid">

@@ -302,10 +302,9 @@
         {
           id: "agents",
           label: "Agents",
-          icon: "fa-robot",
+          icon: "fa-bolt",
           url: "vericase-agent.html",
           contexts: ["project", "case"],
-          badge: "AI",
         },
         {
           id: "claims",

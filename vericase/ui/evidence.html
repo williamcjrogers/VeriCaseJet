@@ -2095,7 +2095,7 @@
         </div>
         <button class="dropdown-item" onclick="createChart('confidence-histogram')" style="display: flex; align-items: center; width: 100%; padding: 10px 12px; border: none; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer;">
           <i class="fas fa-brain" style="width: 20px; color: #fbbf24;"></i>
-          <span>AI Confidence Scores</span>
+          <span>Confidence Scores</span>
         </button>
         <button class="dropdown-item" onclick="createChart('stakeholder-network')" style="display: flex; align-items: center; width: 100%; padding: 10px 12px; border: none; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer;">
           <i class="fas fa-project-diagram" style="width: 20px; color: #8b5cf6;"></i>
@@ -4779,7 +4779,7 @@
       });
       
       // Create a popup with chart visualization
-      showChartPopup("AI Classification Confidence", `
+      showChartPopup("Classification Confidence", `
         <div style="padding: 20px;">
           <div style="display: flex; flex-direction: column; gap: 12px;">
             ${Object.entries(confidenceCounts).map(([label, count]) => {
@@ -5000,7 +5000,7 @@
                 </div>
                 <div style="background: rgba(34, 197, 94, 0.1); padding: 12px; border-radius: 8px; text-align: center;">
                   <div style="font-size: 1.5rem; font-weight: 700; color: #22c55e;">${insights.document_stats.ai_analyzed}</div>
-                  <div style="font-size: 0.75rem; color: var(--text-muted);">AI Analyzed</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">Analyzed</div>
                 </div>
                 <div style="background: rgba(139, 92, 246, 0.1); padding: 12px; border-radius: 8px; text-align: center;">
                   <div style="font-size: 1.5rem; font-weight: 700; color: #8b5cf6;">${insights.document_stats.high_confidence}</div>
@@ -6250,7 +6250,7 @@
         suggestionsBody.innerHTML = `
           <div class="suggestions-empty-state">
             <i class="fas fa-lightbulb"></i>
-            <p>Select an evidence item to see AI-powered suggestions</p>
+            <p>Select an evidence item to see suggestions</p>
           </div>
         `;
       }

@@ -5439,7 +5439,7 @@
         openQEl.innerHTML = "";
         const qs = Array.isArray(about?.open_questions) ? about.open_questions : [];
         if (qs.length === 0) {
-          if (openQHint) openQHint.textContent = status === "ready" ? "No gaps detected yet." : "AI will propose gaps once it has documents.";
+          if (openQHint) openQHint.textContent = status === "ready" ? "No gaps detected yet." : "VeriCase will propose gaps once it has documents.";
         } else {
           if (openQHint) openQHint.textContent = "";
           qs.slice(0, 12).forEach((q) => {

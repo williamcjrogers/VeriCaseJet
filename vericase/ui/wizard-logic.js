@@ -1720,9 +1720,9 @@ async function startIntelligentMode() {
 
   // Update header
   document.getElementById("wizardHeaderTitle").innerHTML =
-    '<i class="fas fa-robot"></i> Intelligent Configuration';
+    '<i class="fas fa-sliders-h"></i> Intelligent Configuration';
   document.getElementById("wizardHeaderSubtitle").textContent =
-    "Let AI help you configure your system correctly";
+    "Configure your system with guided assistance";
 
   // Setup chat
   setupChatInput();
@@ -1774,7 +1774,7 @@ function showAIUnavailableMessage() {
   );
 
   document.getElementById("chatInput").placeholder =
-    "AI not configured - enter API key or use manual wizard...";
+    "Not configured - enter API key or use manual wizard...";
 }
 
 function getStoredAIKeys() {
@@ -1929,7 +1929,7 @@ function addBotMessage(text, quickActions = []) {
 
   messageDiv.innerHTML = `
         <div class="message-avatar">
-            <i class="fas fa-robot"></i>
+            <i class="fas fa-comments"></i>
         </div>
         <div class="message-content">
             ${formatChatMessage(text)}
@@ -1978,7 +1978,7 @@ function showTyping() {
 
   typingDiv.innerHTML = `
         <div class="message-avatar">
-            <i class="fas fa-robot"></i>
+            <i class="fas fa-comments"></i>
         </div>
         <div class="message-content">
             <div class="typing-indicator">
@@ -2007,7 +2007,7 @@ async function sendIntelligentMessage() {
   // Warn if AI is not available but let them try
 	  if (!aiAvailable) {
 	    addBotMessage(
-	      "⚠️ AI services are not configured. Please add API keys in Overview → Settings → AI Configuration first.",
+	      "⚠️ Services are not configured. Please add API keys in Overview → Settings → Service Configuration first.",
 	    );
 	    return;
 	  }

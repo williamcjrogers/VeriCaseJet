@@ -725,7 +725,7 @@
 
       function showProjectFilterQuestion(container) {
         container.innerHTML = `
-                <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+                <div class="ai-avatar"><i class="fas fa-comments"></i></div>
                 <div class="question-box">
                     <div class="question-text">
                         I noticed references to ${discoveryData.other_projects?.length || 0} other projects in the emails.
@@ -814,7 +814,7 @@
 
       function showPartyConfirmationQuestion(container) {
         container.innerHTML = `
-                <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+                <div class="ai-avatar"><i class="fas fa-comments"></i></div>
                 <div class="question-box">
                     <div class="question-text">
                         Based on the remaining emails, I've identified the following key parties. Can you confirm these are correct?
@@ -871,7 +871,7 @@
       function showPeopleValidationQuestion(container) {
         const people = discoveryData.people || [];
         container.innerHTML = `
-                <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+                <div class="ai-avatar"><i class="fas fa-comments"></i></div>
                 <div class="question-box">
                     <div class="question-text">
                         I've identified ${people.length} key individuals in the correspondence. Would you like to review them?
@@ -938,7 +938,7 @@
       function showTopicRefinementQuestion(container) {
         const topics = discoveryData.topics || [];
         container.innerHTML = `
-                <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+                <div class="ai-avatar"><i class="fas fa-comments"></i></div>
                 <div class="question-box">
                     <div class="question-text">
                         I've identified ${topics.length} key topics in your correspondence. Which topics are most relevant?

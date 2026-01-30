@@ -1105,7 +1105,7 @@
           <i class="fas fa-microscope"></i>
         </div>
         <h3>VeriCase Analysis</h3>
-        <p>AI-powered deep research &amp; investigation</p>
+        <p>Deep research &amp; investigation</p>
       </div>
 
         <div class="action-card pastel-slate" onclick="viewChronology()">
@@ -1137,7 +1137,7 @@
           <i class="fas fa-magnifying-glass"></i>
         </div>
         <h3>VeriCase Refine</h3>
-        <p>AI-powered spam filtering & deduplication</p>
+        <p>Intelligent spam filtering & deduplication</p>
       </div>
     </div>
 
@@ -1875,8 +1875,8 @@
           const status = await response.json();
           if (!status.any_available) {
             showContextualError(
-              "AI Not Configured",
-              "AI refinement requires AI services to be configured. Please configure at least one AI provider in settings.",
+              "Services Not Configured",
+              "Refinement requires services to be configured. Please configure at least one provider in settings.",
               [
                 { text: "Open Settings", action: () => showSettings("ai") },
                 { text: "Cancel", action: null },
@@ -3363,7 +3363,7 @@
                     <i class="fas fa-sliders-h"></i> General
                 </button>
                 <button class="settings-tab-btn" data-tab="ai" onclick="showSettingsTab('ai')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; border-bottom: 3px solid transparent; transition: all 0.2s;">
-                    <i class="fas fa-robot"></i> AI Configuration
+                    <i class="fas fa-cogs"></i> Service Configuration
                 </button>
             </div>
 
@@ -3381,14 +3381,14 @@
                     </div>
                 </div>
 
-                <!-- AI Configuration Tab -->
+                <!-- Service Configuration Tab -->
                 <div id="aiTab" class="settings-tab-content" style="display: none;">
-                    <h3 style="margin-bottom: 1rem; color: var(--vericase-navy);">AI Service Configuration</h3>
-                    <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Configure API keys for AI-powered features like intelligent configuration, document analysis, and chat assistance.</p>
+                    <h3 style="margin-bottom: 1rem; color: var(--vericase-navy);">Service Configuration</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Configure API keys for advanced features like intelligent configuration, document analysis, and chat assistance.</p>
 
                     <!-- Overall Status -->
                     <div id="aiOverallStatus" style="padding: 1rem; background: var(--info-light); border: 2px solid var(--border-focus); border-radius: 8px; margin-bottom: 2rem;">
-                        <i class="fas fa-spinner fa-spin"></i> Checking AI service status...
+                        <i class="fas fa-spinner fa-spin"></i> Checking service status...
                     </div>
 
                     <!-- API Key Entry Forms -->
@@ -3417,7 +3417,7 @@
                         <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid var(--border-default); border-radius: 12px; background: white;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                                 <div>
-                                    <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-robot"></i> Anthropic (Claude)</h4>
+                                    <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-cloud"></i> Anthropic (Claude)</h4>
                                     <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">For advanced reasoning and analysis</p>
                                 </div>
                                 <span id="anthropicStatus" class="status-indicator status-inactive"></span>

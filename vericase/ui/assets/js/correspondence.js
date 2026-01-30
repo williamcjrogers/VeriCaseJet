@@ -2944,7 +2944,7 @@ window.showFilterAssistantHelp = function () {
         </div>
 
         <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5;">
-          <strong>AI filter</strong> asks Bedrock to generate a column filter model from your prompt (no email content is sent, just the grid schema).
+          <strong>Advanced filter</strong> generates a column filter model from your prompt (no email content is sent, just the grid schema).
         </div>
 
         <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5;">
@@ -2995,8 +2995,8 @@ window.openFilterAssistant = function () {
           <button class="btn btn-primary" id="filterAssistantSmartApply" title="Rule-based smart filter (fast)">
             <i class="fas fa-check"></i> Smart apply
           </button>
-          <button class="btn btn-primary" id="filterAssistantAiApply" title="Bedrock AI filter (flexible)">
-            <i class="fas fa-robot"></i> AI apply
+          <button class="btn btn-primary" id="filterAssistantAiApply" title="Advanced filter (flexible)">
+            <i class="fas fa-wand-magic-sparkles"></i> Advanced apply
           </button>
         </div>
 
@@ -3223,7 +3223,7 @@ window.executeAIQuery = async function() {
         statusEl.textContent = "❌ " + (result.explanation || "Failed");
         statusEl.className = statusEl.id === "filterAssistantStatus" ? "filter-assistant-status error" : "ai-query-status error";
       }
-      toastError(result.explanation || "AI query failed.");
+      toastError(result.explanation || "Query failed.");
       return;
     }
     
@@ -3240,7 +3240,7 @@ window.executeAIQuery = async function() {
       statusEl.textContent = "✓ " + result.explanation;
       statusEl.className = statusEl.id === "filterAssistantStatus" ? "filter-assistant-status success" : "ai-query-status success";
     }
-    toastSuccess("AI filter applied: " + result.explanation);
+    toastSuccess("Filter applied: " + result.explanation);
     
   } catch (err) {
     console.error("AI query failed:", err);
@@ -3248,7 +3248,7 @@ window.executeAIQuery = async function() {
       statusEl.textContent = "❌ " + err.message;
       statusEl.className = statusEl.id === "filterAssistantStatus" ? "filter-assistant-status error" : "ai-query-status error";
     }
-    toastError("AI query failed: " + err.message);
+    toastError("Query failed: " + err.message);
   }
 };
 

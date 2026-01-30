@@ -2687,7 +2687,7 @@
           <div class="ai-chat-panel" id="aiChatPanel">
             <div class="ai-chat-messages" id="aiChatMessages">
               <div class="ai-message">
-                <div class="ai-avatar"><i class="fas fa-robot" aria-hidden="true"></i></div>
+                <div class="ai-avatar"><i class="fas fa-comments" aria-hidden="true"></i></div>
                 <div class="ai-bubble">
                   Hi! I can help you search across projects, find evidence, and answer questions about your cases.
                 </div>
@@ -4802,7 +4802,7 @@
       const typingId = "typing-" + Date.now();
       container.innerHTML += `
         <div class="ai-message" id="${typingId}">
-          <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+          <div class="ai-avatar"><i class="fas fa-comments"></i></div>
           <div class="ai-bubble"><i class="fas fa-spinner fa-spin"></i> Thinking...</div>
         </div>
       `;
@@ -4822,14 +4822,14 @@
           const reply = data.answer || data.response || data.message || "I processed your request.";
           container.innerHTML += `
             <div class="ai-message">
-              <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+              <div class="ai-avatar"><i class="fas fa-comments"></i></div>
               <div class="ai-bubble">${escapeHtml(reply)}</div>
             </div>
           `;
         } else {
           container.innerHTML += `
             <div class="ai-message">
-              <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+              <div class="ai-avatar"><i class="fas fa-comments"></i></div>
               <div class="ai-bubble">I'll search for: "${escapeHtml(message)}"</div>
             </div>
           `;
@@ -4842,7 +4842,7 @@
         document.getElementById(typingId)?.remove();
         container.innerHTML += `
           <div class="ai-message">
-            <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+            <div class="ai-avatar"><i class="fas fa-comments"></i></div>
             <div class="ai-bubble">Sorry, I encountered an error. Please try again.</div>
           </div>
         `;

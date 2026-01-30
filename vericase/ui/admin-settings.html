@@ -743,15 +743,15 @@
         <div class="settings-section">
           <div class="section-title">
             <i class="fas fa-sliders-h" style="color: var(--vericase-blue)"></i>
-            AI Behavior
+            Service Behavior
           </div>
           <p class="section-description">
-            Configure default AI behavior and fallback options
+            Configure default service behavior and fallback options
           </p>
 
           <div class="setting-row">
             <div class="setting-label">
-              Default AI Provider
+              Default Provider
               <small>Used for quick searches and general queries</small>
             </div>
             <select id="ai_default_provider" class="setting-input">
@@ -768,7 +768,7 @@
           <div class="setting-row">
             <div class="setting-label">
               Enable Web Search
-              <small>Allow AI to search the web for information</small>
+              <small>Enable web search for information retrieval</small>
             </div>
             <select id="ai_web_search_enabled" class="setting-input">
               <option value="false">Disabled (Evidence Only)</option>
@@ -815,7 +815,7 @@
         </div>
       </div>
 
-      <!-- AI Providers Tab -->
+      <!-- Service Providers Tab -->
       <div class="tab-content" id="tab-ai-providers">
         <div class="settings-section">
           <div class="section-title">
@@ -823,7 +823,7 @@
             API Keys & Models
           </div>
           <p class="section-description">
-            Configure API keys and select models for each AI provider
+            Configure API keys and select models for each service provider
           </p>
 
           <!-- OpenAI -->
@@ -991,7 +991,7 @@
                   Amazon Bedrock
                 </div>
                 <p class="provider-description">
-                  Enterprise AI via AWS. Uses IAM credentials (no API key needed).
+                  Enterprise services via AWS. Uses IAM credentials (no API key needed).
                   <a href="https://aws.amazon.com/bedrock/" target="_blank">Learn more</a>
                 </p>
               </div>
@@ -1111,7 +1111,7 @@
                   Perplexity
                 </div>
                 <p class="provider-description">
-                  AI with built-in web search and citations.
+                  Service with built-in web search and citations.
                   <a href="https://www.perplexity.ai/settings/api" target="_blank">Get API key</a>
                 </p>
               </div>
@@ -1165,35 +1165,35 @@
         </div>
       </div>
 
-      <!-- AI Functions Tab -->
+      <!-- Service Functions Tab -->
       <div class="tab-content" id="tab-ai-functions">
         <div class="settings-section">
           <div class="section-title">
             <i class="fas fa-cogs" style="color: var(--vericase-teal)"></i>
-            AI Tool Registry
+            Tool Registry
           </div>
           <p class="section-description">
-            Configure AI models and parameters for all VeriCase AI tools
+            Configure models and parameters for all VeriCase tools
           </p>
 
           <!-- Dynamic tool cards container -->
           <div id="ai-tools-container">
             <div class="loading-indicator" style="text-align: center; padding: 2rem;">
-              <i class="fas fa-spinner fa-spin"></i> Loading AI tools...
+              <i class="fas fa-spinner fa-spin"></i> Loading tools...
             </div>
           </div>
         </div>
       </div>
 
-      <!-- AI Optimization Tab -->
+      <!-- Optimization Tab -->
       <div class="tab-content" id="tab-ai-optimization">
         <div class="settings-section">
           <div class="section-title">
             <i class="fas fa-chart-line" style="color: var(--vericase-orange)"></i>
-            AI Optimization Analytics
+            Optimization Analytics
           </div>
           <p class="section-description">
-            Track AI API calls, costs, performance, and quality metrics to optimize your AI usage
+            Track API calls, costs, performance, and quality metrics to optimize your usage
           </p>
 
           <!-- Statistics Cards -->
@@ -1750,13 +1750,13 @@
         <div class="settings-section">
           <div class="section-title">
             <i class="fas fa-heartbeat" style="color: var(--success)"></i>
-            AI Provider Status
+            Provider Status
             <button class="btn btn-secondary" onclick="refreshAllStatus()" style="margin-left: auto">
               <i class="fas fa-sync"></i> Refresh All
             </button>
           </div>
           <p class="section-description">
-            Real-time status of configured AI providers
+            Real-time status of configured service providers
           </p>
 
           <div class="status-grid" id="status-grid">
@@ -1864,13 +1864,13 @@
         openai_model: "OpenAI model to use for analysis",
         anthropic_api_key: "Anthropic API key for Claude models",
         anthropic_model: "Anthropic model to use for narrative construction",
-        gemini_api_key: "Google AI API key for Gemini models",
+        gemini_api_key: "Google API key for Gemini models",
         gemini_model: "Gemini model to use for pattern recognition",
-        bedrock_enabled: "Enable Amazon Bedrock for enterprise AI",
+        bedrock_enabled: "Enable Amazon Bedrock for enterprise services",
         bedrock_region: "AWS region for Bedrock",
         bedrock_model: "Bedrock model to use for analysis",
-        ai_default_provider: "Default AI provider for quick searches",
-        ai_web_search_enabled: "Enable web search in AI queries",
+        ai_default_provider: "Default provider for quick searches",
+        ai_web_search_enabled: "Enable web search capability",
         ai_fallback_enabled: "Enable automatic fallback to other providers on failure",
         bedrock_route_claude: "Route all Claude requests through AWS Bedrock (SOC2/HIPAA)",
         ag_grid_default_row_height: "Default row height for AG Grid tables (in pixels)",
@@ -2272,7 +2272,7 @@
           });
 
           if (!response.ok) {
-            throw new Error(`Failed to load AI optimization data: ${response.status}`);
+            throw new Error(`Failed to load optimization data: ${response.status}`);
           }
 
           const data = await response.json();
@@ -2333,8 +2333,8 @@
           }
 
         } catch (error) {
-          console.error("Error loading AI optimization data:", error);
-          showToast("Failed to load AI optimization data", "error");
+          console.error("Error loading optimization data:", error);
+          showToast("Failed to load optimization data", "error");
         }
       }
 
@@ -2428,7 +2428,7 @@
         document.getElementById("info-bedrock-routing").textContent = bedrockRouting;
       }
 
-      // ====== Load AI Models ======
+      // ====== Load Service Models ======
       async function loadAIModels() {
         try {
           const response = await fetch(`${API_BASE}/api/admin/settings/ai/models`, {
@@ -2436,7 +2436,7 @@
           });
 
           if (!response.ok) {
-            console.error("Failed to load AI models");
+            console.error("Failed to load models");
             return;
           }
 
@@ -2459,7 +2459,7 @@
             setupFunctionModelDropdowns();
           }
         } catch (error) {
-          console.error("Error loading AI models:", error);
+          console.error("Error loading models:", error);
         }
       }
 
@@ -2528,7 +2528,7 @@
       // ====== Load Function Configs ======
       async function loadFunctionConfigs() {
         try {
-          // The function-config UI was removed/replaced by the AI Tool Registry.
+          // The function-config UI was removed/replaced by the Tool Registry.
           // Only attempt to load/apply function configs if the form controls exist.
           if (!document.getElementById("fn_quick_search_provider")) {
             return;
@@ -2617,7 +2617,7 @@
         }
       }
 
-      // ====== AI Tool Registry ======
+      // ====== Tool Registry ======
       const TOOL_ICONS = {
         basic_chat: { icon: "fa-comments", color: "var(--vericase-blue)" },
         vericase_analysis: { icon: "fa-scale-balanced", color: "var(--vericase-teal)" },
@@ -2650,7 +2650,7 @@
           if (!response.ok) {
             container.innerHTML = `<div class="info-box" style="background: #fef2f2; border-color: #fecaca;">
               <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
-              <div>Failed to load AI tools. Status: ${response.status}</div>
+              <div>Failed to load tools. Status: ${response.status}</div>
             </div>`;
             return;
           }
@@ -2670,10 +2670,10 @@
           }
 
         } catch (error) {
-          console.error("Error loading AI tools:", error);
+          console.error("Error loading tools:", error);
           container.innerHTML = `<div class="info-box" style="background: #fef2f2; border-color: #fecaca;">
             <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
-            <div>Error loading AI tools: ${error.message}</div>
+            <div>Error loading tools: ${error.message}</div>
           </div>`;
         }
       }
