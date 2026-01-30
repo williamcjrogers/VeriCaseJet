@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from ..config import settings
 from ..forensic_integrity import sha256_hex_text, normalize_text_for_hash
 from ..evidence.text_extract import tika_url_candidates
-from .email_import_types import ParsedEmail, ParsedAttachment
+from .email_import_types import ParsedEmail
 
 
 _HEADER_ALIASES = {
