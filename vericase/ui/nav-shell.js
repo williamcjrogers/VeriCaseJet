@@ -300,6 +300,14 @@
           contexts: ["project", "case"],
         },
         {
+          id: "agents",
+          label: "Agents",
+          icon: "fa-robot",
+          url: "vericase-agent.html",
+          contexts: ["project", "case"],
+          badge: "AI",
+        },
+        {
           id: "claims",
           label: "Claims & Matters",
           icon: "fa-balance-scale",

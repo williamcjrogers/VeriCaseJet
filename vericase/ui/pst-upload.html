@@ -488,6 +488,10 @@
       color: var(--vericase-teal);
       border: 1px solid rgba(var(--vericase-teal-rgb), 0.3);
     }
+    .whatsapp-badge {
+      color: #25d366;
+      font-weight: 600;
+    }
 
     /* ============================================
        ENHANCED FILE QUEUE
@@ -1711,6 +1715,8 @@
             <span class="file-type-badge">.EML</span>
             <span class="file-type-badge">.MSG</span>
             <span class="file-type-badge">.PDF</span>
+            <span class="file-type-badge">.TXT</span>
+            <span class="file-type-badge">.ZIP</span>
             <span class="file-type-badge">.DOCX</span>
             <span class="file-type-badge">.XLSX</span>
           </div>
@@ -2152,6 +2158,13 @@
       return ext;
     }
 
+    function isWhatsAppCandidate(item) {
+      return (
+        (item.type === "txt" || item.type === "zip") &&
+        /whatsapp/i.test(item.name || "")
+      );
+    }
+
     function getFileIconClass(type) {
       const typeMap = {
         pst: "pst",
@@ -2340,6 +2353,9 @@
                 <div class="file-meta">
                   <span><i class="fas fa-hdd"></i> ${formatSize(item.size)}</span>
                   <span><i class="fas fa-file"></i> ${item.type.toUpperCase()}</span>
+                  ${isWhatsAppCandidate(item)
+                    ? `<span class="whatsapp-badge"><i class="fab fa-whatsapp"></i> WhatsApp</span>`
+                    : ""}
                   ${item.type === "pst"
                     ? `<span class="email-extracted"><i class="fas fa-envelope-open"></i> ${escapeHtml(formatExtractedEmailCount(item.processed_emails || 0, item.total_emails || 0))}</span>`
                     : ""}
@@ -2540,11 +2556,10 @@
 
       // Group files by type for optimal upload strategy
       const pstFiles = pendingFiles.filter((f) => f.type === "pst");
-      const emailFiles = pendingFiles.filter((f) =>
-        ["eml", "msg"].includes(f.type),
-      );
+      const emailTypes = ["eml", "msg", "txt", "zip", "pdf"];
+      const emailFiles = pendingFiles.filter((f) => emailTypes.includes(f.type));
       const otherFiles = pendingFiles.filter(
-        (f) => !["pst", "eml", "msg"].includes(f.type),
+        (f) => !["pst", ...emailTypes].includes(f.type),
       );
 
       try {

@@ -1,0 +1,1488 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeriCase Agent</title>
+  <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+  <link rel="stylesheet" href="brand-styles.css?v=9" />
+  <link rel="stylesheet" href="design-system.css?v=9" />
+  <script src="vericase-ui.js"></script>
+  <script src="nav-shell.js"></script>
+  <style>
+    :root {
+      --agent-ink: #101827;
+      --agent-mist: rgba(15, 118, 110, 0.08);
+      --agent-glow: rgba(47, 134, 200, 0.2);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      color: var(--text-primary);
+      background: var(--bg-primary);
+    }
+
+    .app-content.agent-page {
+      padding: 32px 48px;
+      background:
+        radial-gradient(circle at 8% 12%, rgba(47, 134, 200, 0.12), transparent 42%),
+        radial-gradient(circle at 92% 18%, rgba(15, 118, 110, 0.16), transparent 40%),
+        linear-gradient(180deg, #fbfaf7 0%, #f4efe7 100%);
+      min-height: 100vh;
+      border: none;
+      box-shadow: none;
+      margin: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .app-content.agent-page::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+      background-size: 26px 26px;
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .agent-container {
+      position: relative;
+      z-index: 1;
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .agent-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .hero-copy {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-2xl);
+      padding: 28px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .hero-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--agent-mist);
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.25);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--vericase-teal-dark);
+      width: fit-content;
+    }
+
+    .hero-title {
+      font-family: var(--font-serif);
+      font-size: 2rem;
+      color: var(--agent-ink);
+      margin: 0;
+    }
+
+    .hero-subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      line-height: 1.6;
+      margin: 0;
+      max-width: 72ch;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .hero-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: #fff;
+      border-radius: 999px;
+      border: 1px solid var(--border-default);
+      box-shadow: var(--shadow-xs);
+    }
+
+    .hero-note {
+      padding: 12px 14px;
+      background: rgba(15, 118, 110, 0.08);
+      border: 1px solid rgba(15, 118, 110, 0.18);
+      border-radius: var(--radius-lg);
+      color: var(--vericase-teal-dark);
+      font-size: 0.875rem;
+    }
+
+    .hero-stats {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xl);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--agent-ink);
+      font-family: var(--font-mono);
+    }
+
+    .stat-meta {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stepper {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .step {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xl);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .step::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, rgba(15, 118, 110, 0.06), transparent 65%);
+      opacity: 0;
+      transition: opacity var(--duration-fast) var(--ease-out);
+    }
+
+    .step.active::after,
+    .step.complete::after {
+      opacity: 1;
+    }
+
+    .step-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: rgba(47, 134, 200, 0.12);
+      color: var(--vericase-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .step.complete .step-icon {
+      background: rgba(5, 150, 105, 0.12);
+      color: var(--success-dark);
+    }
+
+    .step-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--agent-ink);
+      margin-bottom: 4px;
+    }
+
+    .step-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.4;
+    }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.95fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .agent-card {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-2xl);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .agent-card h2 {
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+    }
+
+    .agent-card h3 {
+      font-size: 1rem;
+      margin-bottom: 8px;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: #fff;
+      font-size: 0.9rem;
+      color: var(--text-primary);
+      font-family: inherit;
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+    }
+
+    .chip-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      border: 1px solid rgba(15, 118, 110, 0.2);
+      background: rgba(15, 118, 110, 0.08);
+      color: var(--vericase-teal-dark);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+
+    .chip:hover {
+      background: rgba(15, 118, 110, 0.18);
+    }
+
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-default);
+      background: var(--bg-secondary);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .toggle input {
+      display: none;
+    }
+
+    .toggle-slider {
+      width: 36px;
+      height: 20px;
+      background: var(--gray-300);
+      border-radius: 999px;
+      position: relative;
+      transition: background var(--duration-fast) var(--ease-out);
+    }
+
+    .toggle-slider::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform var(--duration-fast) var(--ease-out);
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background: var(--vericase-teal);
+    }
+
+    .toggle input:checked + .toggle-slider::after {
+      transform: translateX(16px);
+    }
+
+    .segment {
+      display: inline-flex;
+      background: var(--gray-100);
+      border: 1px solid var(--border-default);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .segment button {
+      border: none;
+      background: transparent;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .segment button.active {
+      background: #fff;
+      color: var(--vericase-teal-dark);
+      box-shadow: var(--shadow-xs);
+    }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .checkbox input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--vericase-teal);
+    }
+
+    .builder-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .plan-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .plan-state {
+      padding: 12px 14px;
+      border-radius: var(--radius-lg);
+      background: rgba(47, 134, 200, 0.08);
+      border: 1px solid rgba(47, 134, 200, 0.18);
+      font-size: 0.85rem;
+      color: var(--vericase-blue-dark);
+    }
+
+    .plan-card[data-state="ready"] .plan-empty {
+      display: none;
+    }
+
+    .plan-card[data-state="empty"] .plan-ready {
+      display: none;
+    }
+
+    .plan-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .plan-metric {
+      background: var(--gray-50);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .plan-metric span {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .plan-metric strong {
+      font-size: 1rem;
+      color: var(--agent-ink);
+    }
+
+    .phase-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .phase-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      padding: 8px 10px;
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid var(--border-default);
+    }
+
+    .phase-item i {
+      color: var(--vericase-teal);
+    }
+
+    .risk-list {
+      display: grid;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .risk-item {
+      padding: 8px 10px;
+      border-radius: var(--radius-lg);
+      background: rgba(217, 119, 6, 0.08);
+      border: 1px solid rgba(217, 119, 6, 0.2);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .plan-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .queue-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .queue-table {
+      display: grid;
+      gap: 8px;
+    }
+
+    .queue-row {
+      display: grid;
+      grid-template-columns: 1.4fr 1.1fr 0.9fr 0.8fr 0.8fr 0.8fr 0.9fr 0.6fr;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-default);
+      background: rgba(255, 255, 255, 0.9);
+      font-size: 0.82rem;
+    }
+
+    .queue-row.header {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .queue-title {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .queue-title strong {
+      color: var(--agent-ink);
+      font-size: 0.9rem;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-pill.running {
+      background: rgba(47, 134, 200, 0.12);
+      color: var(--vericase-blue-dark);
+    }
+
+    .status-pill.awaiting {
+      background: rgba(217, 119, 6, 0.15);
+      color: var(--warning-dark);
+    }
+
+    .status-pill.completed {
+      background: rgba(5, 150, 105, 0.12);
+      color: var(--success-dark);
+    }
+
+    .status-pill.failed {
+      background: rgba(220, 38, 38, 0.12);
+      color: var(--error-dark);
+    }
+
+    .queue-progress {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--gray-200);
+      overflow: hidden;
+    }
+
+    .queue-progress span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(15, 118, 110, 0.9), rgba(47, 134, 200, 0.9));
+      transition: width var(--duration-slow) var(--ease-out);
+    }
+
+    .queue-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .queue-actions button {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .queue-actions button:hover {
+      color: var(--vericase-teal);
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .artifact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .artifact-card {
+      background: #fff;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: var(--shadow-xs);
+    }
+
+    .artifact-card h4 {
+      font-size: 0.95rem;
+      margin: 0;
+      color: var(--agent-ink);
+    }
+
+    .artifact-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .artifact-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .artifact-actions button {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-default);
+      background: transparent;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .artifact-actions button.primary {
+      background: var(--vericase-teal);
+      color: #fff;
+      border-color: var(--vericase-teal);
+    }
+
+    .result-empty {
+      padding: 18px;
+      border-radius: var(--radius-lg);
+      background: rgba(15, 118, 110, 0.08);
+      border: 1px dashed rgba(15, 118, 110, 0.25);
+      color: var(--vericase-teal-dark);
+      font-size: 0.85rem;
+    }
+
+    .detail-section {
+      display: grid;
+      gap: 12px;
+    }
+
+    .detail-block {
+      padding: 12px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-default);
+      background: rgba(255, 255, 255, 0.85);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .detail-block strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--agent-ink);
+      font-size: 0.85rem;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 0.78rem;
+    }
+
+    .detail-row span {
+      color: var(--text-muted);
+    }
+
+    .badge-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .badge-item {
+      padding: 4px 8px;
+      background: rgba(47, 134, 200, 0.1);
+      color: var(--vericase-blue-dark);
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .agent-footer {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .alert-info {
+      align-items: center;
+    }
+
+    .animate-in {
+      animation: agentFadeUp 0.6s var(--ease-out-expo) both;
+      animation-delay: var(--delay, 0ms);
+    }
+
+    @keyframes agentFadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1200px) {
+      .agent-hero,
+      .agent-grid,
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .queue-row {
+        grid-template-columns: 1.4fr 1fr 1fr 1fr;
+        grid-auto-rows: auto;
+      }
+
+      .queue-row > div:nth-child(n+5) {
+        display: none;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .app-content.agent-page {
+        padding: 24px;
+      }
+
+      .hero-stats {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .agent-footer {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .hero-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .stepper {
+        grid-template-columns: 1fr;
+      }
+
+      .queue-row {
+        grid-template-columns: 1fr;
+      }
+
+      .queue-row.header {
+        display: none;
+      }
+
+      .queue-row > div {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .queue-row > div::before {
+        content: attr(data-label);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+      }
+
+      .queue-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="agent-container">
+    <section class="agent-hero animate-in" style="--delay: 0ms;">
+      <div class="hero-copy">
+        <span class="hero-kicker"><i class="fas fa-robot"></i> Task centric agent runs</span>
+        <h1 class="hero-title">VeriCase Agent</h1>
+        <p class="hero-subtitle">
+          Automate large-scale evidence review with traceable, defensible outputs. Define long-running tasks,
+          approve scope and cost, and return to complete timelines, matrices, and memos with citation coverage.
+        </p>
+        <div class="hero-actions">
+          <button class="btn btn-vericase" id="createTaskBtn"><i class="fas fa-plus"></i> Create agent task</button>
+          <button class="btn btn-outline" id="viewManifestBtn"><i class="fas fa-file-export"></i> View run manifests</button>
+        </div>
+        <div class="hero-meta">
+          <span id="contextBadge"><i class="fas fa-briefcase"></i> Case context</span>
+          <span><i class="fas fa-shield-alt"></i> Evidence locked per run</span>
+          <span><i class="fas fa-wallet"></i> Budget guardrails enforced</span>
+        </div>
+        <div class="hero-note">
+          Agent tasks are comprehensive and may run for hours. Outputs are evidence grounded and ready for review.
+        </div>
+      </div>
+
+      <div class="hero-stats">
+        <div class="stat-card animate-in" style="--delay: 60ms;">
+          <div class="stat-label">Active agents</div>
+          <div class="stat-value" id="statActive">3</div>
+          <div class="stat-meta"><i class="fas fa-circle text-success"></i> 2 running, 1 paused</div>
+        </div>
+        <div class="stat-card animate-in" style="--delay: 90ms;">
+          <div class="stat-label">Queued runs</div>
+          <div class="stat-value" id="statQueued">5</div>
+          <div class="stat-meta"><i class="fas fa-clock"></i> Next ETA 42 min</div>
+        </div>
+        <div class="stat-card animate-in" style="--delay: 120ms;">
+          <div class="stat-label">Estimated spend</div>
+          <div class="stat-value" id="statCost">$1,480</div>
+          <div class="stat-meta"><i class="fas fa-chart-line"></i> +12% vs last run</div>
+        </div>
+        <div class="stat-card animate-in" style="--delay: 150ms;">
+          <div class="stat-label">Completion window</div>
+          <div class="stat-value" id="statETA">2h 15m</div>
+          <div class="stat-meta"><i class="fas fa-stopwatch"></i> Updated 8 min ago</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stepper animate-in" style="--delay: 180ms;">
+      <div class="step active" data-step="draft">
+        <div class="step-icon"><i class="fas fa-pen"></i></div>
+        <div>
+          <div class="step-title">Draft task</div>
+          <p class="step-subtitle">Define scope, outputs, and guardrails.</p>
+        </div>
+      </div>
+      <div class="step" data-step="plan">
+        <div class="step-icon"><i class="fas fa-map"></i></div>
+        <div>
+          <div class="step-title">Plan and approve</div>
+          <p class="step-subtitle">Review evidence set, phases, time and cost.</p>
+        </div>
+      </div>
+      <div class="step" data-step="run">
+        <div class="step-icon"><i class="fas fa-play"></i></div>
+        <div>
+          <div class="step-title">Run and validate</div>
+          <p class="step-subtitle">Track progress, review citations, publish artifacts.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="agent-grid">
+      <div class="agent-card animate-in" style="--delay: 220ms;">
+        <h2>Task builder</h2>
+        <div class="form-grid">
+          <div class="field-group">
+            <label for="taskName">Task name</label>
+            <input class="input" id="taskName" placeholder="Q1 delay chronology" />
+          </div>
+          <div class="field-group">
+            <label for="taskPrompt">What would you like your agent to do?</label>
+            <textarea id="taskPrompt" placeholder="Summarize delay causes by contractor, pull dated evidence, and build a chronology table."></textarea>
+          </div>
+          <div>
+            <div class="section-label">Quick templates</div>
+            <div class="chip-row" id="templateChips">
+              <button class="chip" data-template="Timeline Builder">Timeline Builder</button>
+              <button class="chip" data-template="Issue Matrix">Issue Matrix</button>
+              <button class="chip" data-template="Key Actors">Key Actors</button>
+              <button class="chip" data-template="Email Thread Synthesis">Email Thread Synthesis</button>
+              <button class="chip" data-template="Evidence Index">Evidence Index</button>
+            </div>
+          </div>
+          <div>
+            <div class="section-label">Scope and filters</div>
+            <div class="form-row">
+              <div class="field-group">
+                <label for="scopeSelect">Evidence scope</label>
+                <select id="scopeSelect">
+                  <option>All documents in case</option>
+                  <option>Selected folders only</option>
+                  <option>Custodian set</option>
+                  <option>Tag filters</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="dateRange">Date range</label>
+                <input class="input" id="dateRange" placeholder="Jan 2021 - Dec 2023" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field-group">
+                <label for="tagFilters">Tags / Issues</label>
+                <input class="input" id="tagFilters" placeholder="Delay, Variation, Extension" />
+              </div>
+              <div class="field-group">
+                <label for="languageSelect">Language</label>
+                <select id="languageSelect">
+                  <option>Auto detect</option>
+                  <option>English only</option>
+                  <option>English + Spanish</option>
+                  <option>Multilingual review</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="section-label">Data handling</div>
+            <div class="toggle-grid">
+              <label class="toggle">
+                Dedupe near duplicates
+                <span>
+                  <input type="checkbox" id="dedupeToggle" checked />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+              <label class="toggle">
+                Include attachments
+                <span>
+                  <input type="checkbox" id="attachmentsToggle" checked />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+              <label class="toggle">
+                OCR mode: accurate
+                <span>
+                  <input type="checkbox" id="ocrToggle" />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+              <label class="toggle">
+                Require citations
+                <span>
+                  <input type="checkbox" id="citationToggle" checked />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <div class="section-label">Output formats</div>
+            <div class="checkbox-grid">
+              <label class="checkbox"><input type="checkbox" checked /> Timeline table</label>
+              <label class="checkbox"><input type="checkbox" /> Issue matrix</label>
+              <label class="checkbox"><input type="checkbox" checked /> Executive memo</label>
+              <label class="checkbox"><input type="checkbox" /> CSV / XLSX export</label>
+              <label class="checkbox"><input type="checkbox" /> Relationship graph</label>
+            </div>
+          </div>
+          <div>
+            <div class="section-label">Depth and cost controls</div>
+            <div class="form-row">
+              <div class="field-group">
+                <label>Model tier</label>
+                <div class="segment" id="tierSegment">
+                  <button type="button" data-tier="fast">Fast</button>
+                  <button type="button" data-tier="balanced" class="active">Balanced</button>
+                  <button type="button" data-tier="deep">Deep dive</button>
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="budgetLimit">Budget limit</label>
+                <input class="input" id="budgetLimit" placeholder="$2,000" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field-group">
+                <label for="approvalGate">Approval gating</label>
+                <select id="approvalGate">
+                  <option>Require approval if over $1,500 or 3 hours</option>
+                  <option>Require approval if over $3,000</option>
+                  <option>No approval gating</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="runtimeCap">Runtime cap</label>
+                <input class="input" id="runtimeCap" placeholder="6 hours" />
+              </div>
+            </div>
+          </div>
+          <div class="builder-actions">
+            <button class="btn btn-vericase" type="button" id="generatePlanBtn"><i class="fas fa-magic"></i> Generate plan</button>
+            <button class="btn btn-ghost" type="button" id="saveDraftBtn"><i class="fas fa-save"></i> Save draft</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="agent-card plan-card animate-in" style="--delay: 260ms;" data-state="empty" id="planCard">
+        <h2>Plan preview</h2>
+        <div class="plan-state">Plan -> approve -> run. Generate a plan to review scope, cost, and risk.</div>
+        <div class="plan-empty">
+          <p class="hero-subtitle">
+            No plan generated yet. The plan will summarize evidence counts, retrieval filters, and sampling before you approve.
+          </p>
+        </div>
+        <div class="plan-ready">
+          <div class="section-label">Scope summary</div>
+          <div class="plan-metrics">
+            <div class="plan-metric"><span>Emails</span><strong>18,240</strong></div>
+            <div class="plan-metric"><span>Evidence items</span><strong>9,112</strong></div>
+            <div class="plan-metric"><span>Excluded</span><strong>1,043</strong></div>
+            <div class="plan-metric"><span>Snapshot hash</span><strong>9a4f..b31</strong></div>
+          </div>
+          <div class="section-label">Phases</div>
+          <div class="phase-list">
+            <div class="phase-item"><i class="fas fa-search"></i> Retrieve -> deterministic evidence set</div>
+            <div class="phase-item"><i class="fas fa-database"></i> Extract -> entities, dates, threading</div>
+            <div class="phase-item"><i class="fas fa-layer-group"></i> Cluster -> topic buckets</div>
+            <div class="phase-item"><i class="fas fa-pen-nib"></i> Synthesize -> draft outputs</div>
+            <div class="phase-item"><i class="fas fa-check-double"></i> Validate -> citation coverage report</div>
+          </div>
+          <div class="section-label">Estimates</div>
+          <div class="plan-metrics">
+            <div class="plan-metric"><span>Time range</span><strong>1h 40m - 2h 30m</strong></div>
+            <div class="plan-metric"><span>Cost range</span><strong>$1,200 - $1,650</strong></div>
+          </div>
+          <div class="section-label">Risk notes</div>
+          <div class="risk-list">
+            <div class="risk-item"><i class="fas fa-exclamation-triangle"></i> 620 scanned PDFs need OCR quality boost.</div>
+            <div class="risk-item"><i class="fas fa-language"></i> 9% of messages detected in Spanish.</div>
+          </div>
+          <div class="section-label">Cost drivers</div>
+          <div class="badge-list">
+            <span class="badge-item">OCR heavy PDFs</span>
+            <span class="badge-item">Long email threads</span>
+            <span class="badge-item">High rerank top-k</span>
+          </div>
+          <div class="plan-actions">
+            <button class="btn btn-vericase" id="approvePlanBtn"><i class="fas fa-play"></i> Approve and start</button>
+            <button class="btn btn-outline" id="requestChangesBtn"><i class="fas fa-edit"></i> Request changes</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+    <section class="agent-card queue-card animate-in" style="--delay: 300ms;">
+      <h2>Agent queue</h2>
+      <div class="queue-table">
+        <div class="queue-row header">
+          <div>Name</div>
+          <div>Scope</div>
+          <div>Status</div>
+          <div>ETA</div>
+          <div>Cost so far</div>
+          <div>Model tier</div>
+          <div>Progress</div>
+          <div>Actions</div>
+        </div>
+        <div class="queue-row" id="queueRowActive" data-run="VC-AG-2025-041">
+          <div class="queue-title" data-label="Name">
+            <strong>Delay chronology sweep</strong>
+            <span>2.1m docs | All evidence</span>
+          </div>
+          <div data-label="Scope">Custodian set (12)</div>
+          <div data-label="Status"><span class="status-pill awaiting" id="queueStatus">Awaiting approval</span></div>
+          <div data-label="ETA" id="queueEta">2h 05m</div>
+          <div data-label="Cost" id="queueCost">$0</div>
+          <div data-label="Tier" id="queueTier">Balanced</div>
+          <div data-label="Progress">
+            <div class="queue-progress"><span id="queueProgress"></span></div>
+          </div>
+          <div class="queue-actions" data-label="Actions">
+            <button title="View" class="view-run" data-run="VC-AG-2025-041"><i class="fas fa-eye"></i></button>
+            <button title="Pause"><i class="fas fa-pause"></i></button>
+            <button title="Duplicate"><i class="fas fa-copy"></i></button>
+          </div>
+        </div>
+        <div class="queue-row" data-run="VC-AG-2025-040">
+          <div class="queue-title" data-label="Name">
+            <strong>Email thread synthesis</strong>
+            <span>980 threads | 2022 Q4</span>
+          </div>
+          <div data-label="Scope">Tag filter: Variations</div>
+          <div data-label="Status"><span class="status-pill running">Running</span></div>
+          <div data-label="ETA">38m</div>
+          <div data-label="Cost">$420</div>
+          <div data-label="Tier">Fast</div>
+          <div data-label="Progress">
+            <div class="queue-progress"><span style="width: 62%"></span></div>
+          </div>
+          <div class="queue-actions" data-label="Actions">
+            <button title="View" class="view-run" data-run="VC-AG-2025-040"><i class="fas fa-eye"></i></button>
+            <button title="Pause"><i class="fas fa-pause"></i></button>
+            <button title="Cancel"><i class="fas fa-stop"></i></button>
+          </div>
+        </div>
+        <div class="queue-row" data-run="VC-AG-2025-039">
+          <div class="queue-title" data-label="Name">
+            <strong>Issue matrix - payment dispute</strong>
+            <span>4,122 docs | Q1 2023</span>
+          </div>
+          <div data-label="Scope">Selected folders</div>
+          <div data-label="Status"><span class="status-pill completed">Completed</span></div>
+          <div data-label="ETA">Done</div>
+          <div data-label="Cost">$610</div>
+          <div data-label="Tier">Deep dive</div>
+          <div data-label="Progress">
+            <div class="queue-progress"><span style="width: 100%"></span></div>
+          </div>
+          <div class="queue-actions" data-label="Actions">
+            <button title="View" class="view-run" data-run="VC-AG-2025-039"><i class="fas fa-eye"></i></button>
+            <button title="Export"><i class="fas fa-download"></i></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="results-grid">
+      <div class="agent-card animate-in" style="--delay: 340ms;">
+        <h2>Agent results</h2>
+        <div class="result-empty" id="resultsEmpty">
+          Run outputs will appear here with versions, citations, and review controls. Approve the plan to begin.
+        </div>
+        <div id="resultsReady" class="hidden">
+          <div class="section-label">Artifacts</div>
+          <div class="artifact-grid">
+            <div class="artifact-card">
+              <h4>Timeline table v1</h4>
+              <div class="artifact-meta">108 rows | 92% citation coverage</div>
+              <div class="artifact-actions">
+                <button class="primary">Open</button>
+                <button>Export CSV</button>
+                <button>Publish</button>
+              </div>
+            </div>
+            <div class="artifact-card">
+              <h4>Executive memo</h4>
+              <div class="artifact-meta">6 pages | Confidence: High</div>
+              <div class="artifact-actions">
+                <button class="primary">Open</button>
+                <button>Export PDF</button>
+                <button>Review</button>
+              </div>
+            </div>
+            <div class="artifact-card">
+              <h4>Validation report</h4>
+              <div class="artifact-meta">7 unsupported claims flagged</div>
+              <div class="artifact-actions">
+                <button>Open</button>
+                <button>Export JSON</button>
+              </div>
+            </div>
+            <div class="artifact-card">
+              <h4>Run manifest</h4>
+              <div class="artifact-meta">Evidence hash + prompt registry</div>
+              <div class="artifact-actions">
+                <button>Download</button>
+                <button>Bundle ZIP</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="agent-card animate-in" style="--delay: 380ms;" id="runDetailCard">
+        <h2>Run detail</h2>
+        <div class="detail-section">
+          <div class="detail-block">
+            <strong>Overview</strong>
+            <div class="detail-row"><span>Run ID</span><div id="detailRunId">VC-AG-2025-041</div></div>
+            <div class="detail-row"><span>Task ID</span><div id="detailTaskId">TASK-072</div></div>
+            <div class="detail-row"><span>Status</span><div id="detailStatus">Awaiting approval</div></div>
+            <div class="detail-row"><span>Initiated by</span><div>Alex Chen</div></div>
+          </div>
+          <div class="detail-block">
+            <strong>Evidence snapshot</strong>
+            <div class="detail-row"><span>Filters</span><div>Custodian set, Jan 2021 - Dec 2023</div></div>
+            <div class="detail-row"><span>Docs scanned</span><div>27,352</div></div>
+            <div class="detail-row"><span>Snapshot hash</span><div>9a4f..b31</div></div>
+          </div>
+          <div class="detail-block">
+            <strong>Phase timeline</strong>
+            <div class="detail-grid">
+              <div class="detail-row"><span>Plan</span><div>Ready</div></div>
+              <div class="detail-row"><span>Retrieve</span><div>Pending</div></div>
+              <div class="detail-row"><span>Extract</span><div>Pending</div></div>
+              <div class="detail-row"><span>Synthesize</span><div>Pending</div></div>
+            </div>
+          </div>
+          <div class="detail-block">
+            <strong>Cost breakdown</strong>
+            <div class="detail-row"><span>Retrieval</span><div>$210</div></div>
+            <div class="detail-row"><span>OCR + extraction</span><div>$520</div></div>
+            <div class="detail-row"><span>Synthesis</span><div>$760</div></div>
+            <div class="detail-row"><span>Validation</span><div>$120</div></div>
+          </div>
+          <div class="detail-block">
+            <strong>Artifacts</strong>
+            <div class="badge-list">
+              <span class="badge-item">Timeline table</span>
+              <span class="badge-item">Memo</span>
+              <span class="badge-item">CSV export</span>
+              <span class="badge-item">Manifest</span>
+            </div>
+          </div>
+          <div class="plan-actions">
+            <button class="btn btn-outline" id="exportManifestBtn"><i class="fas fa-file-code"></i> Export manifest</button>
+            <button class="btn btn-vericase" id="exportBundleBtn"><i class="fas fa-box"></i> Export bundle</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+    <section class="agent-footer animate-in" style="--delay: 420ms;">
+      <div class="alert alert-info">
+        <div class="alert-icon"><i class="fas fa-info-circle"></i></div>
+        <div>
+          <strong>Expectation management</strong>
+          <div>Agent tasks run across large evidence sets and deliver partial outputs as each phase completes.</div>
+        </div>
+      </div>
+      <div class="alert alert-info">
+        <div class="alert-icon"><i class="fas fa-shield-alt"></i></div>
+        <div>
+          <strong>Defensibility by design</strong>
+          <div>Every run stores model versions, prompts, retrieval sets, and citations without saving chain-of-thought.</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    function toast(message, type) {
+      if (window.VericaseUI && window.VericaseUI.Toast) {
+        window.VericaseUI.Toast.show(message, { type: type || "info" });
+      } else {
+        alert(message);
+      }
+    }
+
+    function updateStepper(stage) {
+      const steps = document.querySelectorAll(".step");
+      steps.forEach((step) => {
+        const stepName = step.getAttribute("data-step");
+        step.classList.remove("active", "complete");
+        if (stage === "draft") {
+          if (stepName === "draft") step.classList.add("active");
+        } else if (stage === "plan") {
+          if (stepName === "draft") step.classList.add("complete");
+          if (stepName === "plan") step.classList.add("active");
+        } else if (stage === "run") {
+          if (stepName === "draft" || stepName === "plan") step.classList.add("complete");
+          if (stepName === "run") step.classList.add("active");
+        }
+      });
+    }
+
+    function updateQueue(status, progress, eta, cost) {
+      const statusEl = document.getElementById("queueStatus");
+      const progressEl = document.getElementById("queueProgress");
+      const etaEl = document.getElementById("queueEta");
+      const costEl = document.getElementById("queueCost");
+      const detailStatus = document.getElementById("detailStatus");
+
+      statusEl.textContent = status;
+      statusEl.className = "status-pill " + (status === "Running" ? "running" : status === "Completed" ? "completed" : "awaiting");
+      progressEl.style.width = progress + "%";
+      etaEl.textContent = eta;
+      costEl.textContent = cost;
+      detailStatus.textContent = status;
+    }
+
+    function showResults() {
+      document.getElementById("resultsEmpty").classList.add("hidden");
+      document.getElementById("resultsReady").classList.remove("hidden");
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const planCard = document.getElementById("planCard");
+      const generatePlanBtn = document.getElementById("generatePlanBtn");
+      const approvePlanBtn = document.getElementById("approvePlanBtn");
+      const saveDraftBtn = document.getElementById("saveDraftBtn");
+      const templateChips = document.querySelectorAll("#templateChips .chip");
+      const tierButtons = document.querySelectorAll("#tierSegment button");
+
+      templateChips.forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const template = chip.getAttribute("data-template");
+          document.getElementById("taskName").value = template + " run";
+          document.getElementById("taskPrompt").value = "Generate a " + template.toLowerCase() + " with citations and confidence notes.";
+          toast("Template applied: " + template, "success");
+        });
+      });
+
+      tierButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          tierButtons.forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById("queueTier").textContent = btn.textContent;
+        });
+      });
+
+      generatePlanBtn.addEventListener("click", () => {
+        planCard.setAttribute("data-state", "ready");
+        updateStepper("plan");
+        updateQueue("Awaiting approval", 12, "2h 05m", "$0");
+        toast("Plan generated. Review scope and approve to start.", "info");
+      });
+
+      approvePlanBtn.addEventListener("click", () => {
+        updateStepper("run");
+        updateQueue("Running", 32, "1h 48m", "$320");
+        showResults();
+        toast("Run started. Streaming outputs as phases complete.", "success");
+
+        setTimeout(() => {
+          updateQueue("Completed", 100, "Done", "$1,420");
+          document.getElementById("detailStatus").textContent = "Completed";
+        }, 3000);
+      });
+
+      saveDraftBtn.addEventListener("click", () => {
+        toast("Draft saved. You can resume later.", "success");
+      });
+
+      document.querySelectorAll(".view-run").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const runId = btn.getAttribute("data-run");
+          document.getElementById("detailRunId").textContent = runId;
+          document.getElementById("detailTaskId").textContent = "TASK-" + runId.split("-").slice(-1)[0];
+          toast("Loaded run " + runId + " details.", "info");
+        });
+      });
+
+      const ctxBadge = document.getElementById("contextBadge");
+      if (window.VericaseShell && typeof window.VericaseShell.getContext === "function") {
+        const ctx = window.VericaseShell.getContext();
+        if (ctx?.type === "project") {
+          ctxBadge.innerHTML = '<i class="fas fa-diagram-project"></i> Project context';
+        } else if (ctx?.type === "case") {
+          ctxBadge.innerHTML = '<i class="fas fa-briefcase"></i> Case context';
+        }
+      }
+
+      document.getElementById("createTaskBtn").addEventListener("click", () => {
+        document.getElementById("taskName").focus();
+        toast("Start by naming your agent task.", "info");
+      });
+
+      document.getElementById("viewManifestBtn").addEventListener("click", () => {
+        toast("Manifests list coming soon. Export from run detail for now.", "info");
+      });
+
+      document.getElementById("exportManifestBtn").addEventListener("click", () => {
+        toast("Manifest export queued.", "success");
+      });
+
+      document.getElementById("exportBundleBtn").addEventListener("click", () => {
+        toast("Bundle export queued.", "success");
+      });
+
+      document.getElementById("requestChangesBtn").addEventListener("click", () => {
+        toast("Feedback sent to update the plan.", "info");
+      });
+
+      updateStepper("draft");
+    });
+
+    (function initShell() {
+      if (typeof VericaseShell === "undefined" || !VericaseShell.inject) {
+        setTimeout(initShell, 50);
+        return;
+      }
+
+      const ctx =
+        typeof VericaseShell.getContext === "function"
+          ? VericaseShell.getContext()
+          : { type: "project", id: VericaseShell.getProjectId?.() };
+      const ctxType = ctx?.type || "project";
+      const ctxLabel = ctxType === "case" ? "Case Overview" : "Project Overview";
+      const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+      const ctxId = ctx?.id ? String(ctx.id) : "";
+      const ctxUrl = ctxId
+        ? `projectdashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+        : "projectdashboard.html";
+
+      VericaseShell.inject({
+        title: "VeriCase Agent",
+        breadcrumbs: [
+          { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+          { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
+          { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+          { label: "Agents", icon: "fa-robot" },
+        ],
+        headerActions: '<button class="btn btn-ghost" onclick="window.location.href=\'copilot.html\'">AI Assistant</button>',
+        contentClass: "agent-page",
+      });
+    })();
+  </script>
+</body>
+</html>
