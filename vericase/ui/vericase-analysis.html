@@ -2308,7 +2308,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           if (!response.ok) throw new Error("Failed to get status");
 
           const data = await response.json();
-          updateUI(data);
+          await updateUI(data);
 
           // Return false (stop polling) if completed, failed, or cancelled
           if (["completed", "failed", "cancelled"].includes(data.status)) {
@@ -2322,7 +2322,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         }
       }
 
-      function updateUI(data) {
+      async function updateUI(data) {
         // Update status badge
         statusBadge.textContent = data.status.replace("_", " ");
         statusBadge.className = `status-badge ${data.status}`;

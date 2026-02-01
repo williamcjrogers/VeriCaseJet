@@ -62,7 +62,12 @@ from .utils import (
     AutoCategorizeResponse,
 )
 
-router = APIRouter(prefix="/api/evidence", tags=["evidence-repository"])
+router = APIRouter(
+    prefix="/api/evidence",
+    tags=["evidence-repository"],
+    # Require authentication for all evidence repository endpoints.
+    dependencies=[Depends(current_user)],
+)
 
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(current_user)]
@@ -72,6 +77,7 @@ CurrentUser = Annotated[User, Depends(current_user)]
 async def init_evidence_upload(
     request: EvidenceUploadInitRequest,
     db: DbSession,
+    user: CurrentUser,  # noqa: ARG001 - auth enforced via dependency
 ):
     return await init_evidence_upload_service(request, db)
 
@@ -80,14 +86,16 @@ async def init_evidence_upload(
 async def complete_evidence_upload(
     request: EvidenceItemCreate,
     db: DbSession,
+    user: CurrentUser,
 ):
-    return await complete_evidence_upload_service(request, db)
+    return await complete_evidence_upload_service(request, db, user)
 
 
 @router.post("/upload/direct")
 async def direct_upload_evidence(
     file: Annotated[UploadFile, File(...)],
     db: DbSession,
+    user: CurrentUser,
     case_id: Annotated[str | None, Form()] = None,
     project_id: Annotated[str | None, Form()] = None,
     collection_id: Annotated[str | None, Form()] = None,
@@ -98,6 +106,7 @@ async def direct_upload_evidence(
     return await direct_upload_evidence_service(
         file,
         db,
+        user,
         case_id,
         project_id,
         collection_id,
@@ -204,29 +213,32 @@ async def get_evidence_download_url(evidence_id: str, db: DbSession) -> dict[str
 async def get_evidence_full(
     evidence_id: str,
     db: DbSession,
+    user: CurrentUser,
 ) -> dict[str, Any]:
-    return await get_evidence_full_service(evidence_id, db)
+    return await get_evidence_full_service(evidence_id, db, user)
 
 
 @router.get("/items/{evidence_id}")
 async def get_evidence_detail_endpoint(
     evidence_id: str,
     db: DbSession,
+    user: CurrentUser,
 ):
-    return await get_evidence_detail_service(evidence_id, db)
+    return await get_evidence_detail_service(evidence_id, db, user)
 
 
 @router.patch("/items/{evidence_id}")
 async def update_evidence_endpoint(
-    evidence_id: str, updates: EvidenceItemUpdate, db: DbSession
+    evidence_id: str, updates: EvidenceItemUpdate, db: DbSession, user: CurrentUser
 ):
-    return await update_evidence_service(evidence_id, updates, db)
+    return await update_evidence_service(evidence_id, updates, db, user)
 
 
 @router.post("/items/auto-categorize", response_model=AutoCategorizeResponse)
 async def auto_categorize_evidence_endpoint(
     request: AutoCategorizeRequest,
     db: DbSession,
+    user: CurrentUser,
     project_id: str | None = Query(None),
     case_id: str | None = Query(None),
     include_hidden: bool = Query(
@@ -236,6 +248,7 @@ async def auto_categorize_evidence_endpoint(
     return await auto_categorize_evidence_service(
         request,
         db,
+        user,
         project_id=project_id,
         case_id=case_id,
         include_hidden=include_hidden,
@@ -243,20 +256,20 @@ async def auto_categorize_evidence_endpoint(
 
 
 @router.delete("/items/{evidence_id}")
-async def delete_evidence_endpoint(evidence_id: str, db: DbSession):
-    return await delete_evidence_service(evidence_id, db)
+async def delete_evidence_endpoint(evidence_id: str, db: DbSession, user: CurrentUser):
+    return await delete_evidence_service(evidence_id, db, user)
 
 
 @router.post("/items/{evidence_id}/assign")
 async def assign_evidence_endpoint(
-    evidence_id: str, assignment: AssignRequest, db: DbSession
+    evidence_id: str, assignment: AssignRequest, db: DbSession, user: CurrentUser
 ):
-    return await assign_evidence_service(evidence_id, assignment, db)
+    return await assign_evidence_service(evidence_id, assignment, db, user)
 
 
 @router.post("/items/{evidence_id}/star")
-async def toggle_star_endpoint(evidence_id: str, db: DbSession):
-    return await toggle_star_service(evidence_id, db)
+async def toggle_star_endpoint(evidence_id: str, db: DbSession, user: CurrentUser):
+    return await toggle_star_service(evidence_id, db, user)
 
 
 @router.get("/items/{evidence_id}/correspondence")
@@ -268,9 +281,12 @@ async def get_evidence_correspondence(
 
 @router.post("/items/{evidence_id}/link-email")
 async def link_evidence_to_email(
-    evidence_id: str, link_request: CorrespondenceLinkCreate, db: DbSession
+    evidence_id: str,
+    link_request: CorrespondenceLinkCreate,
+    db: DbSession,
+    user: CurrentUser,
 ):
-    return await link_evidence_to_email_service(evidence_id, link_request, db)
+    return await link_evidence_to_email_service(evidence_id, link_request, db, user)
 
 
 @router.delete("/correspondence-links/{link_id}")
@@ -289,34 +305,34 @@ async def list_collections(
 
 
 @router.post("/collections")
-async def create_collection(collection: CollectionCreate, db: DbSession):
-    return await create_collection_service(collection, db)
+async def create_collection(collection: CollectionCreate, db: DbSession, user: CurrentUser):
+    return await create_collection_service(collection, db, user)
 
 
 @router.patch("/collections/{collection_id}")
 async def update_collection_endpoint(
-    collection_id: str, updates: CollectionUpdate, db: DbSession
+    collection_id: str, updates: CollectionUpdate, db: DbSession, user: CurrentUser
 ):
-    return await update_collection_service(collection_id, updates, db)
+    return await update_collection_service(collection_id, updates, db, user)
 
 
 @router.delete("/collections/{collection_id}")
-async def delete_collection_endpoint(collection_id: str, db: DbSession):
-    return await delete_collection_service(collection_id, db)
+async def delete_collection_endpoint(collection_id: str, db: DbSession, user: CurrentUser):
+    return await delete_collection_service(collection_id, db, user)
 
 
 @router.post("/collections/{collection_id}/items/{evidence_id}")
 async def add_to_collection_endpoint(
-    collection_id: str, evidence_id: str, db: DbSession
+    collection_id: str, evidence_id: str, db: DbSession, user: CurrentUser
 ):
-    return await add_to_collection_service(collection_id, evidence_id, db)
+    return await add_to_collection_service(collection_id, evidence_id, db, user)
 
 
 @router.delete("/collections/{collection_id}/items/{evidence_id}")
 async def remove_from_collection_endpoint(
-    collection_id: str, evidence_id: str, db: DbSession
+    collection_id: str, evidence_id: str, db: DbSession, user: CurrentUser
 ):
-    return await remove_from_collection_service(collection_id, evidence_id, db)
+    return await remove_from_collection_service(collection_id, evidence_id, db, user)
 
 
 @router.get("/stats")

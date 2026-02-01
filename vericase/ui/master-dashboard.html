@@ -1141,6 +1141,78 @@
       margin-bottom: 20px;
     }
 
+    /* === ACTIVITY FEED === */
+    .activity-section {
+      background: white;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-default);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .activity-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-top: 16px;
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      background: var(--gray-100);
+      color: var(--text-muted);
+    }
+
+    .activity-icon.evidence { background: rgba(0, 128, 128, 0.1); color: var(--vericase-teal); }
+    .activity-icon.comment  { background: rgba(181, 155, 106, 0.1); color: var(--vericase-gold); }
+    .activity-icon.project  { background: rgba(26, 54, 93, 0.1); color: var(--vericase-navy); }
+
+    .activity-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .activity-desc {
+      font-size: 0.8125rem;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+
+    .activity-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .activity-workspace {
+      background: var(--gray-100);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.6875rem;
+    }
+
     /* === SIDEBAR === */
     .dashboard-sidebar {
       display: flex;
@@ -3478,6 +3550,62 @@
       }
     }
 
+    function timeAgo(dateStr) {
+      const now = new Date();
+      const date = new Date(dateStr);
+      const seconds = Math.floor((now - date) / 1000);
+      if (seconds < 60) return "just now";
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      if (days < 7) return `${days}d ago`;
+      return date.toLocaleDateString();
+    }
+
+    function getActivityIcon(resourceType, action) {
+      if (resourceType === "evidence") return { icon: "fa-file-alt", cls: "evidence" };
+      if (resourceType === "comment" || action.includes("comment")) return { icon: "fa-comment", cls: "comment" };
+      if (resourceType === "project" || resourceType === "workspace") return { icon: "fa-folder", cls: "project" };
+      return { icon: "fa-circle-dot", cls: "" };
+    }
+
+    async function loadRecentActivity() {
+      const container = document.getElementById("activityContent");
+      if (!container) return;
+
+      try {
+        const headers = getAuthHeaders();
+        const response = await fetch("/api/dashboard/control-centre-stats", { headers });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const activities = [
+          ...(data.my_activity || []),
+          ...(data.team_activity || [])
+        ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 10);
+
+        if (activities.length === 0) return;
+
+        container.innerHTML = activities.map(item => {
+          const { icon, cls } = getActivityIcon(item.resource_type, item.action);
+          const workspace = item.workspace ? `<span class="activity-workspace">${item.workspace}</span>` : "";
+          const user = item.user_name ? `${item.user_name} &middot; ` : "";
+          return `
+            <div class="activity-item">
+              <div class="activity-icon ${cls}"><i class="fas ${icon}"></i></div>
+              <div class="activity-body">
+                <div class="activity-desc">${item.description}</div>
+                <div class="activity-meta">${user}${timeAgo(item.timestamp)} ${workspace}</div>
+              </div>
+            </div>`;
+        }).join("");
+      } catch (e) {
+        console.debug("Recent activity load failed", e);
+      }
+    }
+
     async function loadDashboard() {
       try {
         const headers = getAuthHeaders();
@@ -3619,8 +3747,8 @@
         renderWorkspaces(workspacesData);
         console.log("[FLOW] MasterDashboard loaded:", workspacesData.length, "workspaces, context:", getContextSummary());
         
-        // Activity and KPIs sections are always visible
-        // Data will be populated when backend APIs are ready
+        // Load recent activity feed
+        loadRecentActivity();
       } catch (error) {
         console.error("Dashboard load failed", error);
         document.getElementById("workspaceGrid").innerHTML = `

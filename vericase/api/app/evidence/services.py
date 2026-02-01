@@ -40,7 +40,6 @@ from .utils import (
     log_activity,
     _apply_ag_filters,
     _apply_ag_sorting,
-    get_default_user,
     EvidenceUploadInitResponse,
     EvidenceListResponse,
     ServerSideEvidenceResponse,
@@ -327,10 +326,11 @@ async def init_evidence_upload_service(request, db):
     )
 
 
-async def complete_evidence_upload_service(request, db):
+async def complete_evidence_upload_service(request, db, user: User | None = None):
     from ..evidence_metadata import extract_evidence_metadata
 
-    user = get_default_user(db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     s3_bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
     existing = (
         db.query(EvidenceItem)
@@ -477,6 +477,7 @@ async def complete_evidence_upload_service(request, db):
 async def direct_upload_evidence_service(
     file,
     db,
+    user: User,
     case_id,
     project_id,
     collection_id,
@@ -486,7 +487,6 @@ async def direct_upload_evidence_service(
 ):
     from ..evidence_metadata import extract_evidence_metadata
 
-    user = get_default_user(db)
     if not file.filename:
         raise HTTPException(400, "Missing filename")
     content = await file.read()
@@ -1380,7 +1380,7 @@ async def get_evidence_download_url_service(evidence_id, db):
     return {"evidence_id": evidence_id, "download_url": url}
 
 
-async def get_evidence_full_service(evidence_id, db):
+async def get_evidence_full_service(evidence_id, db, user: User | None = None):  # noqa: ARG001
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1593,7 +1593,9 @@ async def get_evidence_full_service(evidence_id, db):
     }
 
 
-async def get_evidence_detail_service(evidence_id, db):
+async def get_evidence_detail_service(evidence_id, db, user: User | None = None):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1684,7 +1686,6 @@ async def get_evidence_detail_service(evidence_id, db):
         bucket=item.s3_bucket,
         response_disposition=f'attachment; filename="{item.filename}"',
     )
-    user = get_default_user(db)
     log_activity(db, "view", user.id, evidence_item_id=item.id)
     db.commit()
     return EvidenceItemDetail(
@@ -1733,7 +1734,9 @@ async def get_evidence_detail_service(evidence_id, db):
     )
 
 
-async def update_evidence_service(evidence_id, updates, db):
+async def update_evidence_service(evidence_id, updates, db, user: User | None = None):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1747,7 +1750,6 @@ async def update_evidence_service(evidence_id, updates, db):
         if field in ["case_id", "project_id", "collection_id"] and typed_value:
             typed_value = uuid.UUID(str(typed_value))
         setattr(item, field, typed_value)
-    user = get_default_user(db)
     log_activity(
         db,
         "update",
@@ -1760,7 +1762,9 @@ async def update_evidence_service(evidence_id, updates, db):
     return {"id": str(item.id), "message": "Evidence updated successfully"}
 
 
-async def delete_evidence_service(evidence_id, db):
+async def delete_evidence_service(evidence_id, db, user: User | None = None):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1768,7 +1772,6 @@ async def delete_evidence_service(evidence_id, db):
     item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
     if not item:
         raise HTTPException(404, "Evidence item not found")
-    user = get_default_user(db)
     log_activity(
         db,
         "delete",
@@ -1786,7 +1789,9 @@ async def delete_evidence_service(evidence_id, db):
     return {"message": "Evidence deleted successfully"}
 
 
-async def assign_evidence_service(evidence_id, assignment, db):
+async def assign_evidence_service(evidence_id, assignment, db, user: User | None = None):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1808,7 +1813,6 @@ async def assign_evidence_service(evidence_id, assignment, db):
         if not project:
             raise HTTPException(404, "Project not found")
         item.project_id = project.id
-    user = get_default_user(db)
     log_activity(
         db,
         "assign",
@@ -1825,7 +1829,9 @@ async def assign_evidence_service(evidence_id, assignment, db):
     }
 
 
-async def toggle_star_service(evidence_id, db):
+async def toggle_star_service(evidence_id, db, user: User | None = None):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1834,6 +1840,12 @@ async def toggle_star_service(evidence_id, db):
     if not item:
         raise HTTPException(404, "Evidence item not found")
     item.is_starred = not item.is_starred
+    log_activity(
+        db,
+        "star" if item.is_starred else "unstar",
+        user.id,
+        evidence_item_id=item.id,
+    )
     db.commit()
     return {"id": str(item.id), "is_starred": item.is_starred}
 
@@ -1895,7 +1907,11 @@ async def get_evidence_correspondence_service(evidence_id, db):
     return {"evidence_id": evidence_id, "links": result, "total": len(result)}
 
 
-async def link_evidence_to_email_service(evidence_id, link_request, db):
+async def link_evidence_to_email_service(
+    evidence_id, link_request, db, user: User | None = None
+):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1925,7 +1941,6 @@ async def link_evidence_to_email_service(evidence_id, link_request, db):
         )
         if existing:
             raise HTTPException(409, "Link already exists")
-    user = get_default_user(db)
     link = EvidenceCorrespondenceLink(
         evidence_item_id=evidence_uuid,
         email_message_id=email_message_id,
@@ -2048,6 +2063,7 @@ async def list_collections_service(db, include_system, case_id, project_id):
 async def auto_categorize_evidence_service(
     request: AutoCategorizeRequest,
     db,
+    user: User | None = None,
     project_id: str | None = None,
     case_id: str | None = None,
     include_hidden: bool = False,
@@ -2057,6 +2073,9 @@ async def auto_categorize_evidence_service(
     This avoids hundreds of per-item PATCH requests from the browser and keeps
     categorization consistent across clients.
     """
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
     project_uuid: uuid.UUID | None = None
     case_uuid: uuid.UUID | None = None
@@ -2173,7 +2192,6 @@ async def auto_categorize_evidence_service(
             category_to_collection_id[(col.name or "").lower()] = col.id
 
         if request.create_collections and not request.dry_run:
-            user = get_default_user(db)
             for cat in category_counts.keys():
                 key = cat.lower()
                 if key in category_to_collection_id:
@@ -2221,7 +2239,6 @@ async def auto_categorize_evidence_service(
                 if row[0] is not None and row[1] is not None
             }
 
-        user = get_default_user(db)
         for item, cat in inferred:
             col_id = category_to_collection_id.get(cat.lower())
             if not col_id:
@@ -2246,7 +2263,6 @@ async def auto_categorize_evidence_service(
         for item, cat in inferred:
             item.document_category = cat
             categorized += 1
-        user = get_default_user(db)
         log_activity(
             db,
             "auto_categorize",
@@ -2270,8 +2286,9 @@ async def auto_categorize_evidence_service(
     )
 
 
-async def create_collection_service(collection, db):
-    user = get_default_user(db)
+async def create_collection_service(collection, db, user: User | None = None):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     path = f"/{collection.name}"
     depth = 0
     if collection.parent_id:
@@ -2315,7 +2332,9 @@ async def create_collection_service(collection, db):
     }
 
 
-async def update_collection_service(collection_id, updates, db):
+async def update_collection_service(collection_id, updates, db, user: User | None = None):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         collection_uuid = uuid.UUID(collection_id)
     except ValueError:
@@ -2332,12 +2351,21 @@ async def update_collection_service(collection_id, updates, db):
     update_data = updates.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(collection, field, value)
+    log_activity(
+        db,
+        "update_collection",
+        user.id,
+        collection_id=collection.id,
+        details={"updated_fields": list(update_data.keys())},
+    )
     db.commit()
     db.refresh(collection)
     return {"id": str(collection.id), "message": "Collection updated successfully"}
 
 
-async def delete_collection_service(collection_id, db):
+async def delete_collection_service(collection_id, db, user: User | None = None):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         collection_uuid = uuid.UUID(collection_id)
     except ValueError:
@@ -2351,12 +2379,23 @@ async def delete_collection_service(collection_id, db):
         raise HTTPException(404, "Collection not found")
     if collection.is_system:
         raise HTTPException(403, "Cannot delete system collections")
+    log_activity(
+        db,
+        "delete_collection",
+        user.id,
+        collection_id=collection.id,
+        details={"name": collection.name},
+    )
     db.delete(collection)
     db.commit()
     return {"message": "Collection deleted successfully"}
 
 
-async def add_to_collection_service(collection_id, evidence_id, db):
+async def add_to_collection_service(
+    collection_id, evidence_id, db, user: User | None = None
+):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         collection_uuid = uuid.UUID(collection_id)
         evidence_uuid = uuid.UUID(evidence_id)
@@ -2384,7 +2423,6 @@ async def add_to_collection_service(collection_id, evidence_id, db):
     )
     if existing:
         raise HTTPException(409, "Item already in collection")
-    user = get_default_user(db)
     collection_item = EvidenceCollectionItem(
         collection_id=collection_uuid,
         evidence_item_id=evidence_uuid,
@@ -2392,11 +2430,22 @@ async def add_to_collection_service(collection_id, evidence_id, db):
         added_by=user.id,
     )
     db.add(collection_item)
+    log_activity(
+        db,
+        "add_to_collection",
+        user.id,
+        evidence_item_id=evidence_uuid,
+        collection_id=collection_uuid,
+    )
     db.commit()
     return {"message": "Item added to collection"}
 
 
-async def remove_from_collection_service(collection_id, evidence_id, db):
+async def remove_from_collection_service(
+    collection_id, evidence_id, db, user: User | None = None
+):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
         collection_uuid = uuid.UUID(collection_id)
         evidence_uuid = uuid.UUID(evidence_id)
@@ -2414,6 +2463,13 @@ async def remove_from_collection_service(collection_id, evidence_id, db):
     )
     if not item:
         raise HTTPException(404, "Item not in collection")
+    log_activity(
+        db,
+        "remove_from_collection",
+        user.id,
+        evidence_item_id=evidence_uuid,
+        collection_id=collection_uuid,
+    )
     db.delete(item)
     db.commit()
     return {"message": "Item removed from collection"}

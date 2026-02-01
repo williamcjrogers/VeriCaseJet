@@ -12,8 +12,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, or_
 
 from ..models import EvidenceItem, User, EvidenceActivityLog
-from ..security import hash_password
-from ..models import UserRole
 
 
 def _safe_dict_list(value: list[Any] | None) -> list[dict[str, Any]]:
@@ -341,20 +339,24 @@ def _apply_ag_sorting(query: Any, sort_model: list[dict[str, Any]]) -> Any:
 
 
 def get_default_user(db: Session) -> User:
-    """Get or create default admin user"""
-    user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    """Get the default admin user (no auto-creation).
+
+    IMPORTANT:
+    - This function MUST NOT create users or set passwords. Auto-creating an
+      admin account is unsafe and can compromise the entire system.
+    - Prefer the canonical admin identity `admin@veri-case.com` (dash) to avoid
+      breaking existing data ownership links.
+    """
+    user = (
+        db.query(User)
+        .filter(User.email.in_(["admin@veri-case.com", "admin@vericase.com"]))
+        .order_by(User.created_at.desc())
+        .first()
+    )
     if not user:
-        user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("VeriCase1234?!"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator",
+        raise RuntimeError(
+            "Default admin user not found. Create an admin via the normal auth/admin flow."
         )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
     return user
 
 

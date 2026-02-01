@@ -240,12 +240,15 @@ class S3AccessError(Exception):
 def ensure_cors(*, bucket: str | None = None) -> None:
     """Configure CORS for an S3/MinIO bucket."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    origins_raw = (getattr(settings, "CORS_ORIGINS", "") or "").strip()
+    origins = [o.strip() for o in origins_raw.split(",") if o.strip()]
+    allowed_origins = ["*"] if (not origins or "*" in origins) else origins
     cfg = {
         "CORSRules": [
             {
                 "AllowedHeaders": ["*"],
                 "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
-                "AllowedOrigins": ["*"],
+                "AllowedOrigins": allowed_origins,
                 "ExposeHeaders": ["ETag"],
                 "MaxAgeSeconds": 3600,
             }

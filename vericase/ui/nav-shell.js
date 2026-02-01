@@ -538,12 +538,8 @@
     const page = getUrlPage(url).split("?")[0];
     const workspaceId = getWorkspaceId();
 
-    // Preserve workspace context when navigating back to the hub.
+    // Sidebar "Workspaces" link should always open the hub listing, not a specific workspace.
     if (page === "workspace-hub.html") {
-      const currentWorkspaceId = VericaseContext.get("workspaceId");
-      if (currentWorkspaceId) {
-        return `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
-      }
       return "workspace-hub.html";
     }
 
@@ -612,11 +608,7 @@
     const isMasterDashboard = currentPage === "master-dashboard.html";
     const ctx = isCommandCenter || isMasterDashboard ? { type: "", id: "" } : rawCtx;
     const hasContext = !!(ctx && ctx.id);
-    const workspaceIdFromUrl = getWorkspaceIdFromUrl();
     const isWorkspaceHub = currentPage === "workspace-hub.html";
-    const isWorkspaceHubWorkspaceView = isWorkspaceHub && !!workspaceIdFromUrl;
-    const allowContextNavOnWorkspaceHub = isWorkspaceHubWorkspaceView && hasContext;
-    const shouldHighlightContextNav = allowContextNavOnWorkspaceHub;
 
     let navHtml = "";
     NAV_ITEMS.forEach((section) => {
@@ -627,13 +619,7 @@
 
       // Some sections (workspace nav, tools) should never appear on the Command Center or Master Dashboard.
       if (Array.isArray(section.hideOn) && section.hideOn.includes(currentPage)) {
-        const isWorkspaceOrTools =
-          section.section === "WORKSPACE" || section.section === "TOOLS";
-        // Exception: on a workspace's hub view, once a project/case is selected, show the relevant pages
-        // so the user can navigate immediately without leaving the hub.
-        if (!(allowContextNavOnWorkspaceHub && isWorkspaceOrTools)) {
-          return;
-        }
+        return;
       }
       
       // Also hide WORKSPACE and TOOLS sections on master dashboard
@@ -661,9 +647,6 @@
 
       if (!visibleItems.length) return;
 
-      const isWorkspaceOrToolsSection =
-        section.section === "WORKSPACE" || section.section === "TOOLS";
-
       navHtml += `<div class="${sectionClass}">`;
       navHtml += `<div class="nav-section-title">${sectionTitle}</div>`;
 
@@ -674,12 +657,10 @@
         const isActive = currentPage === itemPage || isDashboardAlias;
         const isDisabled = (needsContext && !hasContext) || (item.requiresContext && !hasContext);
         const itemLabel = resolveNavLabel(item.label, ctx);
-        const isContextHighlight =
-          shouldHighlightContextNav && isWorkspaceOrToolsSection && !isActive && !isDisabled;
 
         navHtml += `
                     <a href="${isDisabled ? "#" : buildNavUrl(item.url)}" data-base-url="${item.url}" class="nav-item ${isActive ? "active" : ""
-          } ${isContextHighlight ? "context-highlight" : ""} ${isDisabled ? "disabled" : ""}" data-nav="${item.id}"${isActive ? ' aria-current="page"' : ""
+          } ${isDisabled ? "disabled" : ""}" data-nav="${item.id}"${isActive ? ' aria-current="page"' : ""
           }${isDisabled ? ' aria-disabled="true" tabindex="-1"' : ""}">
                         <i class="fas ${item.icon} ${item.iconClass || ""}"></i>
                         <span>${itemLabel}</span>
@@ -696,7 +677,7 @@
 
     // Add context indicator (hide it on Command Center and Master Dashboard to reduce confusion)
     let projectContext = "";
-    if (!isCommandCenter && !isMasterDashboard) {
+    if (!isCommandCenter && !isMasterDashboard && !isWorkspaceHub) {
       const contextType =
         ctx?.type || (VericaseContext.get("profileType") || "project");
       const contextId = ctx?.id || "";
@@ -768,8 +749,7 @@
 
   function renderHeader(title = "", actions = "", breadcrumbs = null) {
     const breadcrumbHtml = breadcrumbs ? renderBreadcrumbs(breadcrumbs) : "";
-    const hasDivider =
-      breadcrumbHtml && (String(title || "").trim() || String(actions || "").trim());
+    const hasDivider = breadcrumbHtml && String(title || "").trim();
     return `
 	            <header class="app-header">
 	                <button class="btn btn-icon btn-ghost" id="sidebarToggle" style="display: none;" title="Collapse sidebar" aria-label="Collapse sidebar" type="button">
@@ -1239,8 +1219,7 @@
       }
 
       const hasDivider =
-        shouldShowBreadcrumb &&
-        (String(title || "").trim() || String(resolvedHeaderActions || "").trim());
+        shouldShowBreadcrumb && String(title || "").trim();
 
       let divider = header.querySelector(".app-header-divider");
       if (hasDivider && !divider) {

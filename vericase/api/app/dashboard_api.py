@@ -582,8 +582,8 @@ def get_user_activity(
 
     for activity in evidence_activities:
         workspace_name = None
-        if activity.details and isinstance(activity.details, dict):
-            ws_id = activity.details.get("workspace_id")
+        if activity.action_details and isinstance(activity.action_details, dict):
+            ws_id = activity.action_details.get("workspace_id")
             if ws_id:
                 workspace_name = workspace_names.get(str(ws_id))
 

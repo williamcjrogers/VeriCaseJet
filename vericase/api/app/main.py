@@ -363,10 +363,14 @@ app.include_router(chronology_builder_router)  # Chronology Builder
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 if origins:
+    wildcard = "*" in origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
+        allow_origins=["*"] if wildcard else origins,
+        # Credentials cannot be used with wildcard origins. Most UI calls use
+        # Authorization headers, not cookies, so disabling credentials here
+        # preserves functionality while avoiding an insecure CORS config.
+        allow_credentials=False if wildcard else True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -478,9 +482,23 @@ async def health_check():
 
 
 @app.get("/debug/ui")
-async def debug_ui():
+async def debug_ui(user: User = Depends(current_user)):
     """Debug endpoint to check UI mount status"""
     import os
+
+    # Never expose debug endpoints publicly in production.
+    if (
+        os.getenv("ENVIRONMENT", "").lower() == "production"
+        and os.getenv("ENABLE_DEBUG_ENDPOINTS", "").lower()
+        not in {"1", "true", "yes", "on"}
+    ):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if user.role != UserRole.ADMIN and user.email not in {
+        "admin@veri-case.com",
+        "admin@vericase.com",
+    }:
+        raise HTTPException(status_code=403, detail="Admin access required")
 
     # Get all mounted apps
     mounted_apps = []
@@ -514,8 +532,24 @@ async def debug_ui():
 
 
 @app.get("/debug/auth")
-async def debug_auth(db: Session = Depends(get_db)):
+async def debug_auth(db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Debug endpoint to check auth setup"""
+    import os
+
+    # Never expose debug endpoints publicly in production.
+    if (
+        os.getenv("ENVIRONMENT", "").lower() == "production"
+        and os.getenv("ENABLE_DEBUG_ENDPOINTS", "").lower()
+        not in {"1", "true", "yes", "on"}
+    ):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if user.role != UserRole.ADMIN and user.email not in {
+        "admin@veri-case.com",
+        "admin@vericase.com",
+    }:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     try:
         # Check for new admin account first, fall back to old
         admin = db.query(User).filter(User.email == "admin@veri-case.com").first()
@@ -1410,8 +1444,11 @@ def admin_trigger_pst(
         s3_key: str - The S3 key of the PST file
         project_id: str - The project ID to associate emails with
     """
-    # Check if user is admin (simple check - email ends with @vericase.com)
-    if not user.email.endswith("@vericase.com"):
+    # Require true admin role (do not use email heuristics).
+    if user.role != UserRole.ADMIN and user.email not in {
+        "admin@veri-case.com",
+        "admin@vericase.com",
+    }:
         raise HTTPException(status_code=403, detail="Admin access required")
 
     s3_key = body.get("s3_key")
@@ -1496,8 +1533,11 @@ def admin_cleanup_pst(
       candidates_count, selected_count, summary counts.
     """
 
-    # Simple admin check (same as trigger endpoint)
-    if not user.email.endswith("@vericase.com"):
+    # Require true admin role (do not use email heuristics).
+    if user.role != UserRole.ADMIN and user.email not in {
+        "admin@veri-case.com",
+        "admin@vericase.com",
+    }:
         raise HTTPException(status_code=403, detail="Admin access required")
 
     from datetime import timedelta

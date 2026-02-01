@@ -3884,20 +3884,7 @@
     // Initialize page
     document.addEventListener("DOMContentLoaded", async () => {
       if (window.VericaseShell?.inject) {
-        let cachedWorkspaceName = VericaseContext.get("workspaceName") || "Workspace";
-        try {
-          const storedId = (VericaseContext.get("workspaceId") || "").trim();
-          if (storedId && storedId === String(workspaceId || "").trim() && cachedWorkspaceName) {
-            // Keep cachedWorkspaceName as-is
-          }
-        } catch { /* ignore */ }
-        const breadcrumbs = isDirectoryMode
-          ? VericaseShell.buildHierarchicalBreadcrumbs({ includeHome: true })
-          : VericaseShell.buildHierarchicalBreadcrumbs({
-              includeHome: true,
-              workspaceId: workspaceId,
-              workspaceName: cachedWorkspaceName,
-            });
+        const breadcrumbs = VericaseShell.buildHierarchicalBreadcrumbs({ includeHome: true });
         VericaseShell.inject({
           title: "",
           breadcrumbs,
@@ -4332,14 +4319,13 @@
 
         if (window.VericaseShell?.inject) {
           VericaseShell.inject({
-            title: workspaceName,
-            breadcrumbs: VericaseShell.buildHierarchicalBreadcrumbs({
-              includeHome: true,
-              workspaceId: workspaceId,
-              workspaceName: workspaceName,
-            }),
+            title: "",
+            breadcrumbs: VericaseShell.buildHierarchicalBreadcrumbs({ includeHome: true }),
             headerActions: "",
           });
+          try {
+            document.title = `VeriCase - ${workspaceName}`;
+          } catch { /* ignore */ }
         }
 
         // Load AI context ("About" tab) in the background (deep by default)
