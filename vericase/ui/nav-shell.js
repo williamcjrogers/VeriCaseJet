@@ -390,7 +390,6 @@
           label: "VeriCase Assistant",
           icon: "fa-balance-scale",
           url: "copilot.html",
-          badge: "AI",
         },
       ],
     },
