@@ -70,12 +70,49 @@ COMMON_PASSWORDS = {
 
 bearer = HTTPBearer(auto_error=True)
 
-# Rate limiting storage (in production, use Redis)
+# Rate limiting — uses Redis sorted sets when available, falls back to in-memory.
 _rate_limit_storage: defaultdict[str, list[float]] = defaultdict(list)
 
 
-def clean_old_attempts(attempts: list[float], window: int = 3600) -> list[float]:
-    """Remove attempts older than window seconds"""
+def _get_rate_limit_redis():  # type: ignore[return]
+    """Lazy import to avoid circular dependency with cache module."""
+    try:
+        from .cache import get_redis
+
+        return get_redis()
+    except Exception:
+        return None
+
+
+def _check_rate_limit_redis(key: str, max_attempts: int, window: int) -> bool:
+    """Check and record a rate-limit hit using a Redis sorted set.
+
+    Returns True if the request should be BLOCKED (limit exceeded).
+    """
+    redis = _get_rate_limit_redis()
+    if redis is None:
+        return False  # signal caller to fall back to in-memory
+
+    redis_key = f"ratelimit:{key}"
+    now = time()
+    cutoff = now - window
+
+    try:
+        pipe = redis.pipeline(transaction=True)
+        pipe.zremrangebyscore(redis_key, "-inf", cutoff)
+        pipe.zcard(redis_key)
+        pipe.zadd(redis_key, {str(now): now})
+        pipe.expire(redis_key, window)
+        results = pipe.execute()
+        current_count = results[1]  # zcard result (before the new zadd)
+        return current_count >= max_attempts
+    except Exception as exc:
+        logger.debug("Redis rate-limit check failed, using in-memory fallback: %s", exc)
+        return False  # fall back to in-memory
+
+
+def _clean_old_attempts(attempts: list[float], window: int = 3600) -> list[float]:
+    """Remove attempts older than *window* seconds (in-memory fallback)."""
     cutoff = time() - window
     return [t for t in attempts if t > cutoff]
 
@@ -84,30 +121,42 @@ def rate_limit(max_attempts: int = 10, window: int = 3600) -> Callable[
     [Callable[Concatenate[Request, P], Awaitable[T]]],
     Callable[Concatenate[Request, P], Awaitable[T]],
 ]:
-    """Rate limiting decorator"""
+    """Sliding-window rate limiting decorator.
+
+    Uses Redis sorted sets when available; degrades to in-memory ``defaultdict``
+    so development environments without Redis still work.
+    """
 
     def decorator(
         func: Callable[Concatenate[Request, P], Awaitable[T]],
     ) -> Callable[Concatenate[Request, P], Awaitable[T]]:
         @wraps(func)
         async def wrapper(request: Request, *args: P.args, **kwargs: P.kwargs) -> T:
-            # Get client IP
             client_ip = request.client.host if request.client else "unknown"
             key = f"{func.__name__}:{client_ip}"
 
-            # Clean old attempts
-            _rate_limit_storage[key] = clean_old_attempts(
-                _rate_limit_storage[key], window
-            )
-
-            # Check rate limit
-            if len(_rate_limit_storage[key]) >= max_attempts:
+            # Try Redis first
+            redis_blocked = _check_rate_limit_redis(key, max_attempts, window)
+            if redis_blocked:
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail="Too many requests. Try again later.",
                 )
 
-            # Record attempt
+            # If Redis handled it (_get_rate_limit_redis() returned a client),
+            # we're done — the zadd already recorded the attempt.
+            if _get_rate_limit_redis() is not None:
+                return await func(request, *args, **kwargs)
+
+            # In-memory fallback (no Redis)
+            _rate_limit_storage[key] = _clean_old_attempts(
+                _rate_limit_storage[key], window
+            )
+            if len(_rate_limit_storage[key]) >= max_attempts:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Too many requests. Try again later.",
+                )
             _rate_limit_storage[key].append(time())
 
             return await func(request, *args, **kwargs)

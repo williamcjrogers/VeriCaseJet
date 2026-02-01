@@ -19,6 +19,7 @@ from ..contract_intelligence.models import (
 from ..contract_intelligence.upload_service import contract_upload_service
 from ..contract_intelligence.vector_store import vector_store
 from ..db import get_db
+from ..security import optional_current_user
 
 router = APIRouter(prefix="/contract-intelligence", tags=["contract-intelligence"])
 
@@ -166,6 +167,7 @@ def list_contract_types_grouped(db: Session = Depends(get_db)):
 async def init_contract_upload(
     request: ContractUploadInitRequest,
     db: Session = Depends(get_db),
+    user=Depends(optional_current_user),
 ):
     """Initialize contract upload - returns presigned URL for S3 upload"""
     try:
@@ -176,7 +178,7 @@ async def init_contract_upload(
             contract_type_id=request.contract_type_id,
             project_id=request.project_id,
             case_id=request.case_id,
-            user_id=None,  # TODO: Get from auth context
+            user_id=str(user.id) if user else None,
         )
         return ContractUploadInitResponse(**result)
     except ValueError as e:

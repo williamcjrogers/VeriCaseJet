@@ -386,6 +386,15 @@
           adminOnly: true,
         },
         {
+          id: "rebuttal",
+          label: "VeriCase Rebuttal",
+          icon: "fa-gavel",
+          url: "vericase-rebuttal.html",
+          badge: "NEW",
+          contexts: ["project", "case"],
+          adminOnly: true,
+        },
+        {
           id: "copilot",
           label: "VeriCase Assistant",
           icon: "fa-balance-scale",
@@ -918,6 +927,10 @@
     "vericase-analysis.html": [
       { icon: "fa-microscope", pos: "wm-mr", rotate: -8, size: 290 },
       { icon: "fa-landmark", pos: "wm-bl", rotate: 12, size: 255 },
+    ],
+    "vericase-rebuttal.html": [
+      { icon: "fa-gavel", pos: "wm-mr", rotate: -8, size: 290 },
+      { icon: "fa-scale-balanced", pos: "wm-bl", rotate: 12, size: 255 },
     ],
     "copilot.html": [
       { icon: "fa-scale-balanced", pos: "wm-tr", rotate: -10, size: 285 },

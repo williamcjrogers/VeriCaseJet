@@ -152,12 +152,44 @@ def backfill_emails(
 
 
 def main():
-    """CLI entry point"""
-    logger.info("Starting semantic backfill...")
+    """CLI entry point with argument parsing."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Backfill semantic index for emails")
+    parser.add_argument("--project-id", help="Only process emails from this project")
+    parser.add_argument("--case-id", help="Only process emails from this case")
+    parser.add_argument("--batch-size", type=int, default=100, help="Batch size (default: 100)")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Count emails that would be processed without actually indexing",
+    )
+    args = parser.parse_args()
 
     db = SessionLocal()
     try:
-        stats = backfill_emails(db)
+        if args.dry_run:
+            query = db.query(EmailMessage)
+            if args.project_id:
+                query = query.filter(EmailMessage.project_id == args.project_id)
+            if args.case_id:
+                query = query.filter(EmailMessage.case_id == args.case_id)
+            total = query.count()
+            with_body = query.filter(
+                EmailMessage.body_text_clean.isnot(None)
+                | EmailMessage.body_text.isnot(None)
+                | EmailMessage.body_preview.isnot(None)
+            ).count()
+            print(f"[DRY RUN] {total} emails found, {with_body} have body text to index")
+            return
+
+        logger.info("Starting semantic backfill...")
+        stats = backfill_emails(
+            db,
+            batch_size=args.batch_size,
+            project_id=args.project_id,
+            case_id=args.case_id,
+        )
 
         print("\n" + "=" * 50)
         print("SEMANTIC BACKFILL COMPLETE")

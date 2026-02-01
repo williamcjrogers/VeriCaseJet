@@ -422,7 +422,18 @@ def create_invitation(
     db.commit()
     db.refresh(invitation)
 
-    # TODO: Send invitation email
+    # Send invitation email
+    try:
+        from .email_service import email_service
+
+        invited_by_name = actor.display_name or actor.email
+        email_service.send_invitation_email(
+            to_email=email_lower,
+            invited_by_name=invited_by_name,
+        )
+    except Exception as exc:
+        logger.warning(f"Failed to send invitation email: {exc}")
+
     # Sanitize emails for logging to prevent log injection
     safe_email = str(data.email).replace("\n", "").replace("\r", "")
     safe_actor_email = actor.email.replace("\n", "").replace("\r", "")

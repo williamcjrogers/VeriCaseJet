@@ -5,6 +5,8 @@ Loads AI API keys and configuration from AWS Secrets Manager
 
 import json
 import logging
+import threading
+from time import monotonic
 from typing import Any
 import boto3
 from botocore.exceptions import ClientError
@@ -15,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 _secrets_cache: dict[str, Any] = {}
 _cache_valid = False
+_cache_lock = threading.Lock()
+_cache_timestamp: float = 0.0
+_CACHE_TTL_SECONDS: float = 3600.0  # 1 hour
 
 
 class AWSSecretsManager:
@@ -31,18 +36,25 @@ class AWSSecretsManager:
 
     def get_secret(self) -> dict[str, Any]:
         """Fetch secrets from AWS Secrets Manager with caching"""
-        global _secrets_cache, _cache_valid
+        global _secrets_cache, _cache_valid, _cache_timestamp
 
-        if _cache_valid and _secrets_cache:
-            return _secrets_cache
+        with _cache_lock:
+            if (
+                _cache_valid
+                and _secrets_cache
+                and (monotonic() - _cache_timestamp) < _CACHE_TTL_SECONDS
+            ):
+                return _secrets_cache
 
         try:
             response = self.client.get_secret_value(SecretId=self.secret_name)
             secret_string = response.get("SecretString")
 
             if secret_string:
-                _secrets_cache = json.loads(secret_string)
-                _cache_valid = True
+                with _cache_lock:
+                    _secrets_cache = json.loads(secret_string)
+                    _cache_valid = True
+                    _cache_timestamp = monotonic()
                 logger.info(
                     f"Loaded AI keys from AWS Secrets Manager: {self.secret_name}"
                 )
@@ -90,7 +102,8 @@ class AWSSecretsManager:
     def invalidate_cache(cls):
         """Invalidate the secrets cache to force refresh"""
         global _cache_valid
-        _cache_valid = False
+        with _cache_lock:
+            _cache_valid = False
 
     @classmethod
     def get_providers_status(cls) -> dict[str, bool]:

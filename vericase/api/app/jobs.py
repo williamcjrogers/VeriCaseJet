@@ -118,6 +118,26 @@ def get_job_status(
     return JobStatusResponse(**payload)
 
 
+@router.post("/{job_id}/cancel")
+def cancel_job(
+    job_id: str,
+    workspace_id: str = Query(..., description="Workspace scope for access control"),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict[str, str]:
+    """Revoke a running or pending Celery job."""
+    _ = _require_workspace_access(db, workspace_id, user)
+
+    ar = AsyncResult(job_id, app=celery_app)
+    _, meta_ws = _serialize_job(ar)
+
+    if meta_ws and str(meta_ws) != str(_parse_uuid(workspace_id, "workspace_id")):
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    ar.revoke(terminate=True)
+    return {"id": job_id, "status": "cancelled"}
+
+
 @router.get("/{job_id}/events")
 async def stream_job_events(
     request: Request,

@@ -210,6 +210,66 @@ class AISettings:
             },
         },
         # ------------------------------------------------------------------
+        # VERICASE REBUTTAL - Multi-agent opposing document rebuttal
+        # ------------------------------------------------------------------
+        "vericase_rebuttal": {
+            "enabled": True,
+            "display_name": "VeriCase Rebuttal",
+            "description": "Multi-agent rebuttal system for opposing party documents. "
+            "Parses documents, cross-references all evidence, and generates "
+            "comprehensive point-by-point rebuttals with evidence packs.",
+            "category": "flagship",
+            "provider": "anthropic",
+            "model": "claude-opus-4.5-20251201",
+            "max_tokens": 8000,
+            "temperature": 0.2,
+            "max_duration_seconds": 900,
+            "fallback_chain": [
+                ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-5.2-thinking"),
+            ],
+            "agents": {
+                "document_analyzer": {
+                    "provider": "anthropic",
+                    "model": "claude-opus-4.5-20251201",
+                    "description": "Forensic parsing of opposing documents",
+                },
+                "stakeholder_detector": {
+                    "provider": "bedrock",
+                    "model": "amazon.nova-micro-v1:0",
+                    "description": "Fast stakeholder identification",
+                },
+                "evidence_hunter": {
+                    "provider": "bedrock",
+                    "model": "amazon.nova-micro-v1:0",
+                    "description": "Semantic search across all case evidence",
+                },
+                "strategist": {
+                    "provider": "anthropic",
+                    "model": "claude-opus-4.5-20251201",
+                    "description": "Rebuttal strategy and prioritisation",
+                },
+                "writer": {
+                    "provider": "anthropic",
+                    "model": "claude-opus-4.5-20251201",
+                    "description": "Comprehensive rebuttal document generation",
+                },
+                "validator": {
+                    "provider": "openai",
+                    "model": "gpt-5.2-thinking",
+                    "description": "Quality assurance and hallucination detection",
+                },
+            },
+            "features": {
+                "document_upload": True,
+                "stakeholder_detection": True,
+                "evidence_cross_reference": True,
+                "point_by_point_rebuttal": True,
+                "evidence_pack_download": True,
+            },
+        },
+        # ------------------------------------------------------------------
         # DEEP RESEARCH - DAG-structured multi-agent investigation (legacy)
         # ------------------------------------------------------------------
         "deep_research": {

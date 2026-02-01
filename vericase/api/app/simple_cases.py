@@ -178,27 +178,20 @@ JWT_SECRET = os.getenv(
 JWT_ISSUER = os.getenv("JWT_ISSUER", "vericase-docs")
 
 _optional_bearer = HTTPBearer(auto_error=False)
+_required_bearer = HTTPBearer(auto_error=True)
 OptionalBearerCreds = Annotated[
     HTTPAuthorizationCredentials | None, Depends(_optional_bearer)
 ]
+RequiredBearerCreds = Annotated[
+    HTTPAuthorizationCredentials, Depends(_required_bearer)
+]
 
 
-def get_optional_current_user(creds: OptionalBearerCreds, db: DbDep) -> User | None:
-    """Best-effort auth for the "simple" endpoints.
-
-    If a Bearer token is present and valid, return the corresponding active user.
-    Otherwise return None.
-
-    This keeps the no-auth testing endpoints usable, while letting logged-in UI
-    flows correctly attribute created/returned data to the current user.
-    """
-
-    if not creds or not creds.credentials:
-        return None
-
+def _decode_user(token: str, db: Session) -> User | None:
+    """Decode a JWT and return the corresponding active user, or None."""
     try:
         payload = jwt.decode(
-            creds.credentials,
+            token,
             JWT_SECRET,
             algorithms=["HS256"],
             issuer=JWT_ISSUER,
@@ -214,6 +207,34 @@ def get_optional_current_user(creds: OptionalBearerCreds, db: DbDep) -> User | N
         return None
     except Exception:
         return None
+
+
+def get_optional_current_user(creds: OptionalBearerCreds, db: DbDep) -> User | None:
+    """Best-effort auth for the "simple" endpoints.
+
+    If a Bearer token is present and valid, return the corresponding active user.
+    Otherwise return None.
+
+    This keeps the no-auth testing endpoints usable, while letting logged-in UI
+    flows correctly attribute created/returned data to the current user.
+    """
+
+    if not creds or not creds.credentials:
+        return None
+    return _decode_user(creds.credentials, db)
+
+
+def get_required_current_user(creds: RequiredBearerCreds, db: DbDep) -> User:
+    """Mandatory auth dependency.
+
+    Requires a valid Bearer token and returns the authenticated user.
+    Raises 401 if token is missing, invalid, or the user is inactive.
+    """
+
+    user = _decode_user(creds.credentials, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
 
 
 def _parse_uuid(value: str | None, field: str) -> uuid.UUID:
@@ -3059,9 +3080,9 @@ def create_case_from_project(
     project_id: str,
     payload: CaseFromProjectRequest,
     db: DbDep,
-    current_user: User | None = Depends(get_optional_current_user),
+    current_user: User = Depends(get_required_current_user),
 ) -> dict[str, str]:
-    """Create a case from an existing project, optionally copying configuration."""
+    """Create a case from an existing project, optionally copying configuration. Requires authentication."""
     try:
         project_uuid = uuid.UUID(project_id)
     except ValueError:
@@ -3071,7 +3092,7 @@ def create_case_from_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    owner_user_id = current_user.id if current_user else _get_default_owner_user_id(db)
+    owner_user_id = current_user.id
     company_id = _get_or_create_company_id_for_user(db, owner_user_id)
 
     case_number = (payload.case_number or "").strip()
@@ -3209,13 +3230,11 @@ def create_case_from_project(
 def create_case(
     case_data: CaseCreate,
     db: DbDep,
-    current_user: User | None = Depends(get_optional_current_user),
+    current_user: User = Depends(get_required_current_user),
 ) -> dict[str, str]:
     """Create a case.
 
-    This endpoint intentionally works without auth (for dev/testing), but if a
-    valid Bearer token is present we attribute ownership to that user so
-    logged-in UI flows behave correctly.
+    Requires authentication. The authenticated user is assigned as the case owner.
     """
     # #region agent log
     try:
@@ -3232,9 +3251,7 @@ def create_case(
     # #endregion
 
     try:
-        owner_user_id = (
-            current_user.id if current_user else _get_default_owner_user_id(db)
-        )
+        owner_user_id = current_user.id
         company_id = _get_or_create_company_id_for_user(db, owner_user_id)
 
         workspace_uuid: uuid.UUID | None = None
@@ -3377,24 +3394,23 @@ def create_case(
 def delete_case(
     case_id: str,
     db: DbDep,
-    current_user: User | None = Depends(get_optional_current_user),
+    current_user: User = Depends(get_required_current_user),
 ) -> dict[str, str]:
-    """Delete a case and all associated data"""
+    """Delete a case and all associated data. Requires authentication."""
     try:
         # Find the case
         case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
         if not case:
             raise HTTPException(status_code=404, detail="Case not found")
 
-        if current_user:
-            role_val = (
-                current_user.role.value
-                if hasattr(current_user.role, "value")
-                else str(current_user.role)
-            )
-            is_admin = str(role_val).upper() == "ADMIN"
-            if not is_admin and getattr(case, "owner_id", None) != current_user.id:
-                raise HTTPException(status_code=403, detail="Access denied")
+        role_val = (
+            current_user.role.value
+            if hasattr(current_user.role, "value")
+            else str(current_user.role)
+        )
+        is_admin = str(role_val).upper() == "ADMIN"
+        if not is_admin and getattr(case, "owner_id", None) != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
 
         # Delete associated keywords
         _ = db.query(Keyword).filter(Keyword.case_id == uuid.UUID(case_id)).delete()

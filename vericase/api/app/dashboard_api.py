@@ -1044,49 +1044,79 @@ async def get_system_health(
     db: DbDep,
     user: Annotated[User, Depends(current_user)],
 ) -> dict[str, Any]:
-    """Get real-time system health from AWS where available."""
-    if get_aws_services is None:
-        raise HTTPException(
-            status_code=503, detail="AWS services not configured in this deployment"
-        )
+    """Get real-time system health.  Works with or without AWS services."""
+    # -- EKS / RDS / S3 from AWS (best-effort) --------------------------
+    eks_data: dict[str, Any] = {"status": "N/A", "node_count": 0, "pod_count": "N/A"}
+    rds_data: dict[str, Any] = {"cpu_percent": 0, "connections": 0, "storage_used_percent": 0}
+    s3_data: dict[str, Any] = {"size_gb": 0, "object_count": 0, "estimated_monthly_cost_usd": 0}
+    errors_data: dict[str, Any] = {"count": 0, "recent": []}
 
-    aws = get_aws_services()
+    if get_aws_services is not None:
+        try:
+            aws = get_aws_services()
 
-    eks_health = await aws.get_eks_cluster_health()
-    rds_instance = settings.RDS_INSTANCE_ID or "vericase-prod"
-    db_metrics = await aws.get_rds_metrics(
-        db_instance=rds_instance,
-        metrics=["CPUUtilization", "DatabaseConnections", "FreeableMemory"],
-    )
-    s3_bytes = await aws.get_s3_bucket_size(settings.S3_BUCKET)
-    log_group = settings.CLOUDWATCH_LOG_GROUP or "/aws/eks/vericase/api"
-    recent_errors = await aws.get_cloudwatch_logs(
-        log_group=log_group, filter_pattern="ERROR", hours=1
-    )
+            eks_health = await aws.get_eks_cluster_health()
+            eks_data = {
+                "status": eks_health.get("status", "N/A") if isinstance(eks_health, dict) else "N/A",
+                "node_count": eks_health.get("node_count", 0) if isinstance(eks_health, dict) else 0,
+                "pod_count": eks_health.get("pod_count", "N/A") if isinstance(eks_health, dict) else "N/A",
+            }
+
+            rds_instance = settings.RDS_INSTANCE_ID or "vericase-prod"
+            db_metrics = await aws.get_rds_metrics(
+                db_instance=rds_instance,
+                metrics=["CPUUtilization", "DatabaseConnections", "FreeableMemory"],
+            )
+            rds_data = {
+                "cpu_percent": round(db_metrics.get("CPUUtilization", 0) or 0, 1),
+                "connections": db_metrics.get("DatabaseConnections", 0) or 0,
+                "storage_used_percent": 0,
+            }
+
+            s3_bytes = await aws.get_s3_bucket_size(settings.S3_BUCKET)
+            s3_data = {
+                "size_gb": round(s3_bytes / (1024**3), 2) if s3_bytes else 0,
+                "object_count": 0,
+                "estimated_monthly_cost_usd": 0,
+            }
+
+            log_group = settings.CLOUDWATCH_LOG_GROUP or "/aws/eks/vericase/api"
+            recent_errors = await aws.get_cloudwatch_logs(
+                log_group=log_group, filter_pattern="ERROR", hours=1
+            )
+            errors_data = {"count": len(recent_errors), "recent": recent_errors[:5]}
+        except Exception as exc:
+            logger.warning("AWS health check partially failed: %s", exc)
+
+    # -- Application-level stats (always available) ----------------------
     processing_stats = await _get_processing_stats()
-
     evidence_count = db.query(func.count(EvidenceItem.id)).scalar() or 0
+    case_count = db.query(func.count(Case.id)).scalar() or 0
+
+    # -- Derive overall status -------------------------------------------
+    overall = "healthy"
+    if rds_data["cpu_percent"] > 80 or errors_data["count"] > 10:
+        overall = "danger"
+    elif rds_data["cpu_percent"] > 60 or errors_data["count"] > 0:
+        overall = "warning"
 
     return {
         "timestamp": datetime.now(timezone.utc),
-        "eks": eks_health,
-        "database": {
-            "instance": rds_instance,
-            "cpu": db_metrics.get("CPUUtilization"),
-            "connections": db_metrics.get("DatabaseConnections"),
-            "freeable_memory": db_metrics.get("FreeableMemory"),
-        },
-        "storage": {
-            "bucket": settings.S3_BUCKET,
-            "size_gb": (s3_bytes / (1024**3)) if s3_bytes else None,
-            "evidence_count": evidence_count,
+        "status": overall,
+        "eks": eks_data,
+        "rds": rds_data,
+        "s3": s3_data,
+        "application": {
+            "documents": {
+                "total": evidence_count,
+                "processing": processing_stats.get("queue_length") or 0,
+            },
+            "cases": {
+                "active": case_count,
+            },
         },
         "processing": processing_stats,
-        "errors": {
-            "count": len(recent_errors),
-            "recent": recent_errors[:5],
-            "log_group": log_group,
-        },
+        "errors": errors_data,
     }
 
 

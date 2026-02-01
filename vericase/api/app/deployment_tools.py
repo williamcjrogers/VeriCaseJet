@@ -3,10 +3,13 @@ from __future__ import annotations
 """
 SSH-based deployment management.
 Allows admins to deploy to staging/production and view server status.
+
+SECURITY: Guarded behind ENABLE_SSH_DEPLOYMENT env var. Disabled by default.
 """
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
@@ -21,9 +24,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["deployment-tools"])
 
+_SSH_DEPLOYMENT_ENABLED = os.getenv("ENABLE_SSH_DEPLOYMENT", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
 
 def _require_admin(user: Annotated[User, Depends(current_user)]) -> User:
-    """Ensure user is an admin."""
+    """Ensure user is an admin and SSH deployment is enabled."""
+    if not _SSH_DEPLOYMENT_ENABLED:
+        raise HTTPException(
+            status_code=404,
+            detail="Not found",
+        )
     if user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user

@@ -1,108 +1,60 @@
 # pyright: reportArgumentType=false
+"""
+Unified security re-export module.
+
+All authentication primitives live in ``security_enhanced`` (password
+hashing, JWT signing, rate-limiting, session management) and ``db``
+(database session helpers).  This module re-exports every public name
+so that existing ``from .security import ...`` statements across the
+codebase continue to work without modification.
+"""
+
+from __future__ import annotations
+
 import logging
 import uuid
-
-from collections.abc import Generator
-from datetime import datetime, timedelta, timezone
 from typing import Annotated, cast
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import jwt, JWTError
-from passlib.hash import pbkdf2_sha256 as hasher
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .db import SessionLocal
+from .db import SessionLocal, get_db  # noqa: F401 – re-export
 from .models import User
+
+# ---------------------------------------------------------------------------
+# Re-exports from security_enhanced
+# ---------------------------------------------------------------------------
+from .security_enhanced import (  # noqa: F401 – re-export
+    bearer,
+    check_password_history,
+    clean_old_attempts,
+    current_user,
+    current_user_enhanced,
+    generate_token,
+    get_current_user,
+    handle_failed_login,
+    handle_successful_login,
+    hash_password,
+    is_account_locked,
+    rate_limit,
+    record_login_attempt,
+    sign_jwt_token,
+    sign_token,
+    validate_password_strength,
+    verify_password,
+    verify_token,
+)
 
 logger = logging.getLogger(__name__)
 
-bearer = HTTPBearer(auto_error=True)  # Require auth header
+# ---------------------------------------------------------------------------
+# Type aliases kept for backward compatibility
+# ---------------------------------------------------------------------------
 BearerCreds = Annotated[HTTPAuthorizationCredentials, Depends(bearer)]
-
-
-def hash_password(p: str) -> str:
-    return hasher.hash(p)
-
-
-def verify_password(p: str, h: str) -> bool:
-    return hasher.verify(p, h)
-
-
-def sign_token(user_id: str, email: str) -> str:
-    now = datetime.now(timezone.utc)
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "iss": settings.JWT_ISSUER,
-        "iat": now,
-        "exp": now + timedelta(minutes=settings.JWT_EXPIRE_MIN),
-    }
-    return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
-
-
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 DBSessionDep = Annotated[Session, Depends(get_db)]
-
-
-def current_user(creds: BearerCreds, db: DBSessionDep) -> User:
-    """
-    Validate JWT token and return the authenticated user.
-    Raises HTTPException 401 if authentication fails.
-    """
-    token = creds.credentials
-    try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET,
-            algorithms=["HS256"],
-            issuer=settings.JWT_ISSUER,
-        )
-        user_id_str = cast(str, payload["sub"])
-        user = db.query(User).filter(User.id == uuid.UUID(user_id_str)).first()
-        if user:
-            if not user.is_active:
-                raise HTTPException(
-                    status_code=401,
-                    detail="User account is disabled",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            return user
-        else:
-            logger.warning(f"User not found for token sub: {user_id_str}")
-            raise HTTPException(
-                status_code=401,
-                detail="User not found",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except JWTError as e:
-        logger.warning(f"JWT validation failed: {e}")
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error during authentication: {e}")
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication failed",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
-# Alias for compatibility with cases.py
-get_current_user = current_user
 
 # Optional bearer for endpoints that can work with or without authentication
 OptionalBearerCreds = Annotated[
@@ -110,6 +62,9 @@ OptionalBearerCreds = Annotated[
 ]
 
 
+# ---------------------------------------------------------------------------
+# Functions that have no equivalent in security_enhanced
+# ---------------------------------------------------------------------------
 def optional_current_user(creds: OptionalBearerCreds, db: DBSessionDep) -> User | None:
     """
     Returns user if valid token provided, None otherwise.
@@ -135,3 +90,12 @@ def optional_current_user(creds: OptionalBearerCreds, db: DBSessionDep) -> User 
     except Exception as e:
         logger.debug(f"Optional auth: Unexpected error: {e}")
         return None
+
+
+def get_current_user_email(
+    creds: Annotated[HTTPAuthorizationCredentials, Depends(bearer)],
+    db: Annotated[Session, Depends(get_db)],
+) -> str:
+    """Get current user's email from token (moved from auth.py)."""
+    user = current_user(creds, db)
+    return user.email

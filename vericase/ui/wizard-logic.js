@@ -184,10 +184,6 @@ function setupEventListeners() {
 }
 
 function checkAuthentication() {
-  // TEMPORARY: Auth disabled until admin user creation is fixed
-  return true;
-
-  /*
   const token = localStorage.getItem("token") || localStorage.getItem("jwt");
 
   if (!token) {
@@ -204,7 +200,6 @@ function checkAuthentication() {
   }
 
   return true;
-  */
 }
 
 function showDraftRecoveryBanner() {
@@ -1523,7 +1518,7 @@ async function submitWizard() {
           : keywordsData.contractType;
 
       requestData = {
-        case_name: identification.projectName || "Untitled Case",
+        case_name: identification.caseName || identification.projectName || "Untitled Case",
         case_number: identification.projectCode || null,
         contract_type: normalizedContractType || null,
         stakeholders: (stakeholdersData.stakeholders || []).map((s) => ({

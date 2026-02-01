@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeriCase Rebuttal</title>
+    <link
+      rel="stylesheet"
+      href="./assets/fontawesome/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- VeriCase Design System -->
+    <link rel="stylesheet" href="brand-styles.css?v=10" />
+    <link rel="stylesheet" href="design-system.css?v=10" />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
+    <script src="config.js"></script>
+    <script src="app-state.js"></script>
+    <style>
+      :root {
+        --vc-teal: var(--vericase-teal);
+        --vc-teal-dark: var(--vericase-teal-dark);
+        --vc-teal-light: var(--vericase-teal-light);
+        --vc-navy: var(--vericase-navy);
+        --vc-navy-dark: var(--vericase-navy-light);
+        --vc-gold: var(--vericase-gold);
+        --vc-gold-light: var(--vericase-gold-light);
+
+        --bg-card: var(--bg-white);
+        --text-inverse: var(--text-inverted);
+        --accent-primary: var(--vericase-teal);
+        --accent-secondary: var(--vericase-gold);
+        --accent-success: var(--success);
+        --accent-warning: var(--warning);
+        --accent-danger: var(--error);
+        --border-color: var(--border-default);
+        --border-subtle: rgba(15, 23, 42, 0.08);
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: var(--font-sans);
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      .bg-pattern {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+        background: linear-gradient(135deg, rgba(var(--vericase-teal-rgb), 0.03) 0%, transparent 50%),
+                    linear-gradient(225deg, rgba(139, 115, 85, 0.03) 0%, transparent 50%);
+        pointer-events: none;
+      }
+
+      /* Layout */
+      .main-layout {
+        display: grid;
+        grid-template-columns: 1fr 280px;
+        gap: 1.5rem;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1.5rem;
+      }
+      @media (max-width: 900px) {
+        .main-layout { grid-template-columns: 1fr; }
+      }
+
+      /* Cards */
+      .card {
+        background: var(--bg-card);
+        border-radius: 16px;
+        border: 1px solid var(--border-subtle);
+        padding: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      }
+      .card-header {
+        font-family: var(--font-serif);
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--vc-navy);
+        margin-bottom: 1rem;
+      }
+      .card-subtitle {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        margin-bottom: 1.5rem;
+      }
+
+      /* Upload zone */
+      .upload-zone {
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 2.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: rgba(var(--vericase-teal-rgb), 0.02);
+      }
+      .upload-zone:hover, .upload-zone.drag-over {
+        border-color: var(--vc-teal);
+        background: rgba(var(--vericase-teal-rgb), 0.06);
+      }
+      .upload-zone .icon {
+        font-size: 2.5rem;
+        color: var(--vc-teal);
+        margin-bottom: 0.75rem;
+      }
+      .upload-zone .title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+      }
+      .upload-zone .hint {
+        font-size: 0.813rem;
+        color: var(--text-muted);
+      }
+      .upload-zone input[type="file"] { display: none; }
+
+      /* File preview */
+      .file-preview {
+        display: none;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: rgba(var(--vericase-teal-rgb), 0.06);
+        border: 1px solid rgba(var(--vericase-teal-rgb), 0.15);
+        border-radius: 8px;
+        margin-top: 1rem;
+      }
+      .file-preview.active { display: flex; }
+      .file-preview .file-icon { font-size: 1.25rem; color: var(--vc-teal); }
+      .file-preview .file-info { flex: 1; }
+      .file-preview .file-name { font-weight: 500; font-size: 0.875rem; }
+      .file-preview .file-size { font-size: 0.75rem; color: var(--text-muted); }
+      .file-preview .remove-btn {
+        background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem;
+      }
+
+      /* Form fields */
+      .form-group { margin-bottom: 1rem; }
+      .form-label {
+        display: block;
+        font-size: 0.813rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0.375rem;
+        letter-spacing: 0.02em;
+      }
+      .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-family: var(--font-sans);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        background: var(--bg-white);
+        transition: border-color 0.2s;
+      }
+      .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: var(--vc-teal);
+        box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.1);
+      }
+      .form-textarea { resize: vertical; min-height: 80px; }
+      .form-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+      /* Radio group */
+      .radio-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      .radio-pill {
+        display: flex; align-items: center; gap: 0.375rem;
+        padding: 0.5rem 1rem; border-radius: 20px;
+        border: 1px solid var(--border-color); cursor: pointer;
+        font-size: 0.813rem; transition: all 0.2s;
+      }
+      .radio-pill:hover { border-color: var(--vc-teal); }
+      .radio-pill.active {
+        border-color: var(--vc-teal); background: rgba(var(--vericase-teal-rgb), 0.08);
+        color: var(--vc-teal-dark); font-weight: 500;
+      }
+      .radio-pill input { display: none; }
+
+      /* Buttons */
+      .btn-primary {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        padding: 0.75rem 1.5rem; border-radius: 10px; border: none;
+        background: linear-gradient(135deg, var(--vc-teal), var(--vc-teal-dark));
+        color: white; font-weight: 600; font-size: 0.875rem; cursor: pointer;
+        transition: all 0.2s; font-family: var(--font-sans);
+      }
+      .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(var(--vericase-teal-rgb), 0.3); }
+      .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+      .btn-secondary {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        padding: 0.625rem 1.25rem; border-radius: 10px;
+        border: 1px solid var(--border-color); background: var(--bg-white);
+        color: var(--text-secondary); font-weight: 500; font-size: 0.813rem;
+        cursor: pointer; transition: all 0.2s; font-family: var(--font-sans);
+      }
+      .btn-secondary:hover { border-color: var(--vc-teal); color: var(--vc-teal-dark); }
+      .btn-danger {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        padding: 0.625rem 1.25rem; border-radius: 10px; border: none;
+        background: var(--accent-danger); color: white; font-weight: 500;
+        font-size: 0.813rem; cursor: pointer; font-family: var(--font-sans);
+      }
+
+      /* Status badges */
+      .status-badge {
+        display: inline-flex; align-items: center; gap: 0.375rem;
+        padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+      }
+      .status-pending { background: rgba(var(--vericase-gold-rgb, 180,160,80), 0.12); color: var(--vc-gold); }
+      .status-processing { background: rgba(var(--vericase-teal-rgb), 0.12); color: var(--vc-teal); }
+      .status-completed { background: rgba(22,163,74,0.1); color: #16a34a; }
+      .status-failed { background: rgba(220,38,38,0.1); color: #dc2626; }
+
+      /* Progress */
+      .progress-container { margin: 1.5rem 0; }
+      .progress-bar { height: 6px; background: var(--bg-secondary); border-radius: 3px; overflow: hidden; }
+      .progress-fill { height: 100%; background: linear-gradient(90deg, var(--vc-teal), var(--vc-gold)); border-radius: 3px; transition: width 0.5s ease; width: 0%; }
+      .progress-text { font-size: 0.813rem; color: var(--text-muted); margin-top: 0.375rem; }
+
+      /* Step pipeline */
+      .step-pipeline { display: flex; flex-direction: column; gap: 0.5rem; margin: 1.5rem 0; }
+      .step-item {
+        display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem;
+        border-radius: 10px; border: 1px solid var(--border-subtle);
+      }
+      .step-item.active { border-color: var(--vc-teal); background: rgba(var(--vericase-teal-rgb), 0.04); }
+      .step-item.completed { border-color: #16a34a; background: rgba(22,163,74,0.04); }
+      .step-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; }
+      .step-icon.pending { background: var(--bg-secondary); color: var(--text-muted); }
+      .step-icon.active { background: rgba(var(--vericase-teal-rgb), 0.15); color: var(--vc-teal); }
+      .step-icon.completed { background: rgba(22,163,74,0.15); color: #16a34a; }
+      .step-label { font-size: 0.875rem; font-weight: 500; }
+      .step-detail { font-size: 0.75rem; color: var(--text-muted); margin-left: auto; }
+
+      /* Assertions list */
+      .assertion-card {
+        padding: 1rem; border-radius: 10px; border: 1px solid var(--border-subtle);
+        margin-bottom: 0.75rem; transition: all 0.2s;
+      }
+      .assertion-card:hover { border-color: var(--vc-teal); }
+      .assertion-header {
+        display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;
+      }
+      .assertion-number {
+        width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: 0.688rem; font-weight: 700; background: var(--vc-navy); color: white;
+      }
+      .assertion-type {
+        font-size: 0.688rem; padding: 0.125rem 0.5rem; border-radius: 10px; font-weight: 600; text-transform: uppercase;
+      }
+      .type-factual_claim { background: rgba(var(--vericase-teal-rgb), 0.1); color: var(--vc-teal-dark); }
+      .type-legal_argument { background: rgba(59,130,246,0.1); color: #2563eb; }
+      .type-causation_claim { background: rgba(220,38,38,0.1); color: #dc2626; }
+      .type-opinion { background: rgba(var(--vericase-gold-rgb, 180,160,80), 0.12); color: var(--vc-gold); }
+      .type-date_reference, .type-amount_reference { background: rgba(107,114,128,0.1); color: #6b7280; }
+      .assertion-priority {
+        font-size: 0.688rem; padding: 0.125rem 0.5rem; border-radius: 10px; font-weight: 600; margin-left: auto;
+      }
+      .priority-high { background: rgba(220,38,38,0.1); color: #dc2626; }
+      .priority-medium { background: rgba(var(--vericase-gold-rgb, 180,160,80), 0.12); color: #b45309; }
+      .priority-low { background: rgba(107,114,128,0.1); color: #6b7280; }
+      .assertion-text { font-size: 0.875rem; line-height: 1.5; color: var(--text-primary); }
+      .assertion-checkbox { display: flex; align-items: center; gap: 0.375rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
+      .assertion-checkbox input { accent-color: var(--vc-teal); }
+
+      /* Rebuttal points */
+      .rebuttal-point {
+        border-radius: 12px; border: 1px solid var(--border-subtle); overflow: hidden;
+        margin-bottom: 1rem;
+      }
+      .rebuttal-point-header {
+        display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem;
+        background: var(--bg-secondary); border-bottom: 1px solid var(--border-subtle);
+      }
+      .strength-indicator {
+        width: 10px; height: 10px; border-radius: 50%;
+      }
+      .strength-strong { background: #16a34a; }
+      .strength-moderate { background: #f59e0b; }
+      .strength-weak { background: #dc2626; }
+      .strength-no_rebuttal { background: #9ca3af; }
+      .rebuttal-category-label {
+        font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);
+      }
+      .rebuttal-point-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+      .opposing-side, .our-side { padding: 1rem; }
+      .opposing-side {
+        background: rgba(220,38,38,0.03); border-right: 1px solid var(--border-subtle);
+      }
+      .our-side { background: rgba(22,163,74,0.03); }
+      .side-label {
+        font-size: 0.688rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+      }
+      .opposing-side .side-label { color: #dc2626; }
+      .our-side .side-label { color: #16a34a; }
+      .side-text { font-size: 0.875rem; line-height: 1.6; color: var(--text-primary); }
+
+      /* Evidence appendix */
+      .evidence-appendix { margin-top: 2rem; }
+      .citation-item {
+        display: flex; gap: 0.75rem; padding: 0.75rem; border-radius: 8px;
+        border: 1px solid var(--border-subtle); margin-bottom: 0.5rem;
+      }
+      .citation-number {
+        width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.75rem; font-weight: 700; background: var(--vc-teal); color: white;
+      }
+      .citation-info { flex: 1; }
+      .citation-title { font-weight: 600; font-size: 0.875rem; color: var(--text-primary); }
+      .citation-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.125rem; }
+      .citation-excerpt {
+        font-size: 0.813rem; color: var(--text-secondary); margin-top: 0.375rem;
+        font-style: italic; border-left: 2px solid var(--vc-teal); padding-left: 0.5rem;
+      }
+
+      /* Download bar */
+      .download-bar {
+        display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem;
+        padding: 1.25rem; border-radius: 12px; background: rgba(var(--vericase-teal-rgb), 0.04);
+        border: 1px solid rgba(var(--vericase-teal-rgb), 0.12);
+      }
+
+      /* Stakeholder card */
+      .stakeholder-card {
+        display: flex; align-items: center; gap: 0.75rem; padding: 1rem;
+        border-radius: 10px; border: 1px solid rgba(var(--vericase-teal-rgb), 0.2);
+        background: rgba(var(--vericase-teal-rgb), 0.04); margin-bottom: 1rem;
+      }
+      .stakeholder-avatar {
+        width: 40px; height: 40px; border-radius: 50%;
+        background: var(--vc-navy); color: white; display: flex;
+        align-items: center; justify-content: center; font-size: 1rem;
+      }
+      .stakeholder-info { flex: 1; }
+      .stakeholder-name { font-weight: 600; color: var(--text-primary); }
+      .stakeholder-role { font-size: 0.813rem; color: var(--text-muted); }
+      .confidence-badge {
+        font-size: 0.688rem; font-weight: 600; padding: 0.125rem 0.5rem;
+        border-radius: 10px;
+      }
+      .confidence-high { background: rgba(22,163,74,0.1); color: #16a34a; }
+      .confidence-medium { background: rgba(var(--vericase-gold-rgb, 180,160,80), 0.12); color: #b45309; }
+      .confidence-low { background: rgba(220,38,38,0.1); color: #dc2626; }
+
+      /* History sidebar */
+      .history-panel { position: sticky; top: 1.5rem; }
+      .history-item {
+        display: flex; align-items: center; gap: 0.5rem;
+        padding: 0.625rem 0.75rem; border-radius: 8px; cursor: pointer;
+        transition: background 0.15s; margin-bottom: 0.25rem;
+      }
+      .history-item:hover { background: var(--bg-secondary); }
+      .history-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.688rem; background: rgba(var(--vericase-teal-rgb), 0.1); color: var(--vc-teal); flex-shrink: 0; }
+      .history-content { flex: 1; min-width: 0; }
+      .history-topic { font-size: 0.813rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+      .history-date { font-size: 0.688rem; color: var(--text-muted); }
+
+      /* Sections that hide/show */
+      .section-hidden { display: none; }
+
+      /* Markdown-rendered content */
+      .markdown-content h1 { font-family: var(--font-serif); font-size: 1.5rem; color: var(--vc-navy); margin-bottom: 0.75rem; }
+      .markdown-content h2 { font-family: var(--font-serif); font-size: 1.25rem; color: var(--vc-navy); margin: 1.25rem 0 0.5rem; padding-bottom: 0.375rem; border-bottom: 1px solid var(--border-subtle); }
+      .markdown-content h3 { font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 1rem 0 0.375rem; }
+      .markdown-content p { margin-bottom: 0.75rem; line-height: 1.7; }
+      .markdown-content ul, .markdown-content ol { margin: 0.5rem 0 1rem 1.25rem; }
+      .markdown-content li { margin-bottom: 0.375rem; line-height: 1.6; }
+      .markdown-content blockquote { border-left: 3px solid var(--vc-teal); padding-left: 1rem; margin: 0.75rem 0; font-style: italic; color: var(--text-secondary); }
+      .markdown-content strong { color: var(--text-primary); }
+      .markdown-content sup { color: var(--vc-teal); font-weight: 700; cursor: pointer; }
+
+      /* Key contradictions box */
+      .contradictions-box {
+        padding: 1.25rem; border-radius: 12px; margin-bottom: 1.5rem;
+        background: rgba(22,163,74,0.04); border: 1px solid rgba(22,163,74,0.15);
+      }
+      .contradictions-box h3 {
+        color: #16a34a; font-size: 0.875rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.75rem;
+      }
+      .contradictions-box li { font-size: 0.875rem; color: var(--text-primary); }
+    </style>
+  </head>
+  <body>
+    <div class="bg-pattern"></div>
+
+    <div class="main-layout">
+      <!-- Main Column -->
+      <div class="main-column">
+        <!-- Phase 1: Upload Form -->
+        <div id="uploadForm" class="card">
+          <div class="card-header">
+            <i class="fas fa-gavel" style="color: var(--vc-teal); margin-right: 0.5rem;"></i>
+            VeriCase Rebuttal
+          </div>
+          <div class="card-subtitle">
+            Upload an opposing party document and VeriCase will forensically analyse it,
+            cross-reference all evidence, and produce a comprehensive point-by-point rebuttal
+            with a downloadable evidence pack.
+          </div>
+
+          <!-- Upload Zone -->
+          <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+            <div class="title">Drop opposing document here</div>
+            <div class="hint">PDF, DOCX, DOC, TXT, RTF (max 50MB)</div>
+            <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.rtf,.md" />
+          </div>
+
+          <div class="file-preview" id="filePreview">
+            <div class="file-icon"><i class="fas fa-file-alt"></i></div>
+            <div class="file-info">
+              <div class="file-name" id="fileName"></div>
+              <div class="file-size" id="fileSize"></div>
+            </div>
+            <button class="remove-btn" onclick="removeFile()" title="Remove file">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <!-- Optional Fields -->
+          <div style="margin-top: 1.5rem;">
+            <div class="form-group">
+              <label class="form-label">Who is this from? <span style="font-weight: 400; color: var(--text-muted);">(auto-detected if left blank)</span></label>
+              <input type="text" class="form-input" id="documentFrom" placeholder="e.g. Smith & Partners, John Doe">
+              <div class="form-hint">Leave blank for automatic stakeholder detection from your correspondence data</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Document Type</label>
+              <select class="form-select" id="documentType">
+                <option value="">Auto-detect</option>
+                <option value="claim">Claim</option>
+                <option value="defence">Defence</option>
+                <option value="expert_report">Expert Report</option>
+                <option value="witness_statement">Witness Statement</option>
+                <option value="letter">Letter</option>
+                <option value="submission">Submission</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Areas to Focus On <span style="font-weight: 400; color: var(--text-muted);">(optional)</span></label>
+              <textarea class="form-textarea" id="focusAreas" placeholder="e.g. Focus on the delay claims in sections 3-5, challenge the quantum figures..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Rebuttal Tone</label>
+              <div class="radio-group">
+                <label class="radio-pill active" data-tone="formal" onclick="selectTone(this)">
+                  <input type="radio" name="tone" value="formal" checked />
+                  <i class="fas fa-balance-scale" style="font-size: 0.75rem;"></i> Formal
+                </label>
+                <label class="radio-pill" data-tone="balanced" onclick="selectTone(this)">
+                  <input type="radio" name="tone" value="balanced" />
+                  <i class="fas fa-handshake" style="font-size: 0.75rem;"></i> Balanced
+                </label>
+                <label class="radio-pill" data-tone="aggressive" onclick="selectTone(this)">
+                  <input type="radio" name="tone" value="aggressive" />
+                  <i class="fas fa-bolt" style="font-size: 0.75rem;"></i> Aggressive
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem; align-items: center;">
+            <button class="btn-primary" id="startBtn" onclick="startRebuttal()" disabled>
+              <i class="fas fa-gavel"></i> Start Rebuttal
+            </button>
+            <span style="font-size: 0.75rem; color: var(--text-muted);" id="contextLabel"></span>
+          </div>
+        </div>
+
+        <!-- Phase 2: Analysis Progress -->
+        <div id="progressPanel" class="card section-hidden">
+          <div class="card-header">
+            <i class="fas fa-cog fa-spin" style="color: var(--vc-teal); margin-right: 0.5rem;" id="progressSpinner"></i>
+            Analysing Document
+          </div>
+          <div id="statusBadge" class="status-badge status-processing" style="margin-bottom: 1rem;">
+            <i class="fas fa-circle-notch fa-spin"></i> <span id="statusText">Processing...</span>
+          </div>
+
+          <div class="step-pipeline" id="stepPipeline">
+            <div class="step-item" id="step-upload" data-step="uploading">
+              <div class="step-icon pending"><i class="fas fa-upload"></i></div>
+              <span class="step-label">Uploading document</span>
+              <span class="step-detail" id="step-upload-detail"></span>
+            </div>
+            <div class="step-item" id="step-parse" data-step="parsing_document">
+              <div class="step-icon pending"><i class="fas fa-file-lines"></i></div>
+              <span class="step-label">Parsing and analysing document</span>
+              <span class="step-detail" id="step-parse-detail"></span>
+            </div>
+            <div class="step-item" id="step-stakeholder" data-step="detecting_stakeholder">
+              <div class="step-icon pending"><i class="fas fa-user-tie"></i></div>
+              <span class="step-label">Detecting stakeholder</span>
+              <span class="step-detail" id="step-stakeholder-detail"></span>
+            </div>
+            <div class="step-item" id="step-assertions" data-step="extracting_assertions">
+              <div class="step-icon pending"><i class="fas fa-list-check"></i></div>
+              <span class="step-label">Extracting assertions</span>
+              <span class="step-detail" id="step-assertions-detail"></span>
+            </div>
+            <div class="step-item" id="step-evidence" data-step="hunting_evidence">
+              <div class="step-icon pending"><i class="fas fa-magnifying-glass"></i></div>
+              <span class="step-label">Hunting evidence</span>
+              <span class="step-detail" id="step-evidence-detail"></span>
+            </div>
+            <div class="step-item" id="step-strategy" data-step="strategizing">
+              <div class="step-icon pending"><i class="fas fa-chess"></i></div>
+              <span class="step-label">Formulating strategy</span>
+            </div>
+            <div class="step-item" id="step-drafting" data-step="drafting_rebuttal">
+              <div class="step-icon pending"><i class="fas fa-pen-nib"></i></div>
+              <span class="step-label">Drafting rebuttal</span>
+            </div>
+            <div class="step-item" id="step-validating" data-step="validating">
+              <div class="step-icon pending"><i class="fas fa-shield-check"></i></div>
+              <span class="step-label">Validating quality</span>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="progress-text" id="progressText">Initialising...</div>
+          </div>
+        </div>
+
+        <!-- Phase 3: Plan Approval -->
+        <div id="planApproval" class="card section-hidden">
+          <div class="card-header">
+            <i class="fas fa-clipboard-check" style="color: var(--vc-teal); margin-right: 0.5rem;"></i>
+            Review Extracted Assertions
+          </div>
+          <div class="card-subtitle">
+            Review the assertions extracted from the opposing document. Uncheck any you want to exclude from the rebuttal.
+          </div>
+
+          <!-- Stakeholder Detection -->
+          <div id="stakeholderCard" class="stakeholder-card" style="display: none;">
+            <div class="stakeholder-avatar"><i class="fas fa-user-tie"></i></div>
+            <div class="stakeholder-info">
+              <div class="stakeholder-name" id="stakeholderName">Unknown</div>
+              <div class="stakeholder-role" id="stakeholderRole"></div>
+            </div>
+            <span class="confidence-badge" id="stakeholderConfidence"></span>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <label class="form-label">Override detected stakeholder (optional)</label>
+            <input type="text" class="form-input" id="stakeholderOverride" placeholder="Leave blank to keep auto-detected">
+          </div>
+
+          <!-- Assertions list -->
+          <div id="assertionsList" style="max-height: 500px; overflow-y: auto; padding-right: 0.5rem;"></div>
+
+          <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+            <label class="form-label" style="margin: 0;">Document summary:</label>
+          </div>
+          <div id="documentSummary" style="font-size: 0.875rem; color: var(--text-secondary); padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px; margin-top: 0.5rem;"></div>
+
+          <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
+            <button class="btn-primary" onclick="approvePlan(true)">
+              <i class="fas fa-check"></i> Approve & Start Rebuttal
+            </button>
+            <button class="btn-secondary" onclick="approvePlan(false)">
+              <i class="fas fa-pen"></i> Modify & Re-analyse
+            </button>
+          </div>
+        </div>
+
+        <!-- Phase 5: Rebuttal Display -->
+        <div id="rebuttalDisplay" class="card section-hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.5rem;">
+            <div class="card-header" style="margin-bottom: 0;">
+              <i class="fas fa-gavel" style="color: var(--vc-teal); margin-right: 0.5rem;"></i>
+              Rebuttal Complete
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn-secondary" onclick="copyReport()"><i class="fas fa-copy"></i> Copy</button>
+              <button class="btn-secondary" onclick="downloadReport()"><i class="fas fa-download"></i> Download</button>
+              <button class="btn-secondary" onclick="startNew()"><i class="fas fa-plus"></i> New Rebuttal</button>
+            </div>
+          </div>
+
+          <!-- Executive Summary -->
+          <div id="execSummary" class="markdown-content" style="margin-bottom: 1.5rem;"></div>
+
+          <!-- Key Contradictions -->
+          <div id="keyContradictions" class="contradictions-box" style="display: none;"></div>
+
+          <!-- Point-by-Point -->
+          <div id="pointByPoint" style="margin-bottom: 1.5rem;"></div>
+
+          <!-- Full Report -->
+          <div id="reportContent" class="markdown-content"></div>
+
+          <!-- Evidence Appendix -->
+          <div id="evidenceAppendix" class="evidence-appendix" style="display: none;">
+            <h2 style="font-family: var(--font-serif); font-size: 1.25rem; color: var(--vc-navy); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-subtle);">
+              <i class="fas fa-bookmark" style="color: var(--vc-teal); margin-right: 0.5rem;"></i>
+              Evidence Appendix
+            </h2>
+            <div id="citationsList"></div>
+          </div>
+
+          <!-- Download Bar -->
+          <div class="download-bar">
+            <button class="btn-primary" onclick="downloadReport()">
+              <i class="fas fa-file-alt"></i> Download Full Rebuttal
+            </button>
+            <button class="btn-secondary" onclick="downloadEvidencePack()">
+              <i class="fas fa-box-archive"></i> Download Evidence Pack
+            </button>
+          </div>
+        </div>
+
+        <!-- Error Display -->
+        <div id="errorDisplay" class="card section-hidden" style="border-color: rgba(220,38,38,0.3);">
+          <div class="card-header" style="color: #dc2626;">
+            <i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i>
+            Rebuttal Failed
+          </div>
+          <p id="errorMessage" style="color: var(--text-secondary);"></p>
+          <button class="btn-secondary" style="margin-top: 1rem;" onclick="startNew()">
+            <i class="fas fa-redo"></i> Try Again
+          </button>
+        </div>
+      </div>
+
+      <!-- History Sidebar -->
+      <div class="history-panel">
+        <div class="card" style="padding: 1.25rem;">
+          <h3 style="font-family: var(--font-serif); font-size: 1rem; color: var(--vc-navy); margin-bottom: 0.75rem;">
+            <i class="fas fa-history" style="color: var(--vc-teal); margin-right: 0.375rem;"></i>
+            Previous Rebuttals
+          </h3>
+          <div id="historyList">
+            <p style="font-size: 0.875rem; color: var(--text-muted);">Loading...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /* ================================================================
+         VeriCase Rebuttal - Client-Side Logic
+         ================================================================ */
+
+      let currentSessionId = null;
+      let pollTimer = null;
+      let selectedFile = null;
+      let selectedTone = "formal";
+
+      // ── Initialisation ──────────────────────────────────────────────
+
+      document.addEventListener("DOMContentLoaded", () => {
+        VericaseShell.inject({ title: "VeriCase Rebuttal" });
+        setupDragDrop();
+        loadContext();
+        loadHistory();
+      });
+
+      function loadContext() {
+        const ctx = VericaseShell.getContext();
+        const label = document.getElementById("contextLabel");
+        if (ctx.caseId) {
+          label.textContent = `Case: ${ctx.caseName || ctx.caseId}`;
+        } else if (ctx.projectId) {
+          label.textContent = `Project: ${ctx.projectName || ctx.projectId}`;
+        }
+      }
+
+      // ── File Upload ──────────────────────────────────────────────────
+
+      function setupDragDrop() {
+        const zone = document.getElementById("dropZone");
+        const input = document.getElementById("fileInput");
+
+        zone.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          zone.classList.add("drag-over");
+        });
+        zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+        zone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          zone.classList.remove("drag-over");
+          if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        input.addEventListener("change", () => {
+          if (input.files.length) handleFile(input.files[0]);
+        });
+      }
+
+      function handleFile(file) {
+        const allowed = [".pdf", ".docx", ".doc", ".txt", ".rtf", ".md"];
+        const ext = "." + file.name.split(".").pop().toLowerCase();
+        if (!allowed.includes(ext)) {
+          alert("Unsupported file type. Please use PDF, DOCX, DOC, TXT, RTF, or MD.");
+          return;
+        }
+
+        selectedFile = file;
+        document.getElementById("fileName").textContent = file.name;
+        document.getElementById("fileSize").textContent = formatSize(file.size);
+        document.getElementById("filePreview").classList.add("active");
+        document.getElementById("startBtn").disabled = false;
+      }
+
+      function removeFile() {
+        selectedFile = null;
+        document.getElementById("filePreview").classList.remove("active");
+        document.getElementById("fileInput").value = "";
+        document.getElementById("startBtn").disabled = true;
+      }
+
+      function formatSize(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+        return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+      }
+
+      function selectTone(el) {
+        document.querySelectorAll(".radio-pill").forEach((p) => p.classList.remove("active"));
+        el.classList.add("active");
+        selectedTone = el.dataset.tone;
+      }
+
+      // ── Start Rebuttal ───────────────────────────────────────────────
+
+      async function startRebuttal() {
+        if (!selectedFile) return;
+
+        const ctx = VericaseShell.getContext();
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        if (ctx.projectId) formData.append("project_id", ctx.projectId);
+        if (ctx.caseId) formData.append("case_id", ctx.caseId);
+
+        const docType = document.getElementById("documentType").value;
+        if (docType) formData.append("document_type", docType);
+
+        const docFrom = document.getElementById("documentFrom").value.trim();
+        if (docFrom) formData.append("document_from", docFrom);
+
+        const focus = document.getElementById("focusAreas").value.trim();
+        if (focus) formData.append("focus_areas", focus);
+
+        formData.append("rebuttal_tone", selectedTone);
+
+        document.getElementById("startBtn").disabled = true;
+
+        try {
+          const response = await secureApiFetch("/api/vericase-rebuttal/start", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(`Server error (${response.status}): ${detail}`);
+          }
+
+          const data = await response.json();
+          currentSessionId = data.session_id;
+
+          showPanel("progressPanel");
+          startPolling();
+
+        } catch (error) {
+          console.error("Error starting rebuttal:", error);
+          alert("Failed to start rebuttal: " + error.message);
+          document.getElementById("startBtn").disabled = false;
+        }
+      }
+
+      // ── Polling ──────────────────────────────────────────────────────
+
+      function startPolling() {
+        stopPolling();
+        pollStatus();
+        pollTimer = setInterval(pollStatus, 2000);
+      }
+
+      function stopPolling() {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }
+
+      async function pollStatus() {
+        if (!currentSessionId) return;
+
+        try {
+          const response = await secureApiFetch(`/api/vericase-rebuttal/status/${currentSessionId}`);
+          if (!response.ok) return;
+          const data = await response.json();
+          updateUI(data);
+        } catch (error) {
+          console.error("Polling error:", error);
+        }
+      }
+
+      // ── UI Update ────────────────────────────────────────────────────
+
+      function updateUI(data) {
+        const status = data.status;
+
+        // Update step pipeline
+        updateStepPipeline(data);
+
+        // Update progress
+        if (data.progress) {
+          const { total_assertions, assertions_hunted } = data.progress;
+          if (total_assertions > 0 && status === "hunting_evidence") {
+            const pct = Math.round((assertions_hunted / total_assertions) * 100);
+            document.getElementById("progressFill").style.width = pct + "%";
+            document.getElementById("progressText").textContent =
+              `Searching evidence for assertion ${assertions_hunted} of ${total_assertions}`;
+            document.getElementById("step-evidence-detail").textContent =
+              `${assertions_hunted}/${total_assertions}`;
+          }
+        }
+
+        switch (status) {
+          case "pending":
+          case "uploading":
+          case "parsing_document":
+          case "detecting_stakeholders":
+          case "extracting_assertions":
+            showPanel("progressPanel");
+            updateStatusBadge("processing", getStatusLabel(status));
+            break;
+
+          case "awaiting_approval":
+            stopPolling();
+            showPanel("planApproval");
+            renderPlanApproval(data);
+            break;
+
+          case "hunting_evidence":
+          case "strategizing":
+          case "drafting_rebuttal":
+          case "validating":
+            showPanel("progressPanel");
+            updateStatusBadge("processing", getStatusLabel(status));
+            break;
+
+          case "completed":
+            stopPolling();
+            showPanel("rebuttalDisplay");
+            renderRebuttal(data);
+            loadHistory();
+            break;
+
+          case "failed":
+          case "cancelled":
+            stopPolling();
+            showPanel("errorDisplay");
+            document.getElementById("errorMessage").textContent =
+              data.error_message || "An unknown error occurred.";
+            break;
+        }
+      }
+
+      function getStatusLabel(status) {
+        const labels = {
+          pending: "Initialising...",
+          uploading: "Uploading document...",
+          parsing_document: "Analysing document...",
+          detecting_stakeholders: "Detecting stakeholder...",
+          extracting_assertions: "Extracting assertions...",
+          awaiting_approval: "Awaiting your approval",
+          hunting_evidence: "Searching evidence...",
+          strategizing: "Formulating strategy...",
+          drafting_rebuttal: "Drafting rebuttal...",
+          validating: "Validating quality...",
+          completed: "Complete",
+          failed: "Failed",
+          cancelled: "Cancelled",
+        };
+        return labels[status] || status;
+      }
+
+      function updateStatusBadge(type, text) {
+        const badge = document.getElementById("statusBadge");
+        badge.className = `status-badge status-${type}`;
+        document.getElementById("statusText").textContent = text;
+      }
+
+      const STEP_ORDER = ["uploading", "parsing_document", "detecting_stakeholder", "extracting_assertions", "hunting_evidence", "strategizing", "drafting_rebuttal", "validating"];
+
+      function updateStepPipeline(data) {
+        const currentStep = data.processing_step || data.status;
+        const stepMap = {
+          uploading: "step-upload",
+          parsing_document: "step-parse",
+          extracting_text: "step-parse",
+          detecting_stakeholder: "step-stakeholder",
+          detecting_stakeholders: "step-stakeholder",
+          extracting_assertions: "step-assertions",
+          hunting_evidence: "step-evidence",
+          strategizing: "step-strategy",
+          drafting_rebuttal: "step-drafting",
+          validating: "step-validating",
+        };
+
+        const currentEl = stepMap[currentStep];
+        let found = false;
+
+        document.querySelectorAll(".step-item").forEach((el) => {
+          const icon = el.querySelector(".step-icon");
+          if (el.id === currentEl) {
+            found = true;
+            el.classList.add("active");
+            el.classList.remove("completed");
+            icon.className = "step-icon active";
+          } else if (!found) {
+            el.classList.remove("active");
+            el.classList.add("completed");
+            icon.className = "step-icon completed";
+            const iconEl = icon.querySelector("i");
+            if (iconEl) {
+              iconEl.className = "fas fa-check";
+            }
+          } else {
+            el.classList.remove("active", "completed");
+            icon.className = "step-icon pending";
+          }
+        });
+
+        // Show assertion count when available
+        if (data.plan && data.plan.assertion_count) {
+          document.getElementById("step-assertions-detail").textContent =
+            `${data.plan.assertion_count} found`;
+        }
+
+        // Show stakeholder when detected
+        if (data.plan && data.plan.detected_stakeholder) {
+          const sh = data.plan.detected_stakeholder;
+          document.getElementById("step-stakeholder-detail").textContent =
+            sh.name || "Unknown";
+        }
+      }
+
+      // ── Plan Approval ────────────────────────────────────────────────
+
+      function renderPlanApproval(data) {
+        if (!data.plan) return;
+        const plan = data.plan;
+
+        // Stakeholder card
+        if (plan.detected_stakeholder) {
+          const sh = plan.detected_stakeholder;
+          document.getElementById("stakeholderCard").style.display = "flex";
+          document.getElementById("stakeholderName").textContent = sh.name || "Unknown";
+          document.getElementById("stakeholderRole").textContent =
+            [sh.role, sh.organisation].filter(Boolean).join(" - ") || "";
+
+          const confBadge = document.getElementById("stakeholderConfidence");
+          const conf = sh.confidence || 0;
+          confBadge.textContent = Math.round(conf * 100) + "% confidence";
+          confBadge.className = "confidence-badge " +
+            (conf >= 0.8 ? "confidence-high" : conf >= 0.5 ? "confidence-medium" : "confidence-low");
+        }
+
+        // Document summary
+        document.getElementById("documentSummary").textContent = plan.document_summary || "No summary available";
+
+        // Assertions list
+        const list = document.getElementById("assertionsList");
+        if (!plan.assertions || plan.assertions.length === 0) {
+          list.innerHTML = '<p style="color: var(--text-muted);">No assertions could be extracted.</p>';
+          return;
+        }
+
+        list.innerHTML = plan.assertions.map((a, i) => `
+          <div class="assertion-card">
+            <div class="assertion-header">
+              <span class="assertion-number">${i + 1}</span>
+              <span class="assertion-type type-${a.assertion_type}">${a.assertion_type.replace(/_/g, " ")}</span>
+              <span class="assertion-priority priority-${a.priority}">${a.priority}</span>
+            </div>
+            <div class="assertion-text">${escapeHtml(a.assertion_text)}</div>
+            ${a.section ? `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Source: ${escapeHtml(a.section)}</div>` : ""}
+            <div class="assertion-checkbox">
+              <input type="checkbox" checked data-assertion-id="${a.id}" class="assertion-toggle" />
+              Include in rebuttal
+            </div>
+          </div>
+        `).join("");
+      }
+
+      async function approvePlan(approved) {
+        if (!currentSessionId) return;
+
+        const excludedIds = [];
+        document.querySelectorAll(".assertion-toggle").forEach((cb) => {
+          if (!cb.checked) excludedIds.push(cb.dataset.assertionId);
+        });
+
+        const payload = {
+          session_id: currentSessionId,
+          approved: approved,
+          excluded_assertion_ids: excludedIds,
+        };
+
+        const overrideName = document.getElementById("stakeholderOverride").value.trim();
+        if (overrideName) payload.stakeholder_override = overrideName;
+
+        if (!approved) {
+          const mods = prompt("What changes would you like? (or leave blank to just re-analyse)");
+          if (mods === null) return; // Cancelled
+          payload.modifications = mods;
+        }
+
+        try {
+          const response = await secureApiFetch("/api/vericase-rebuttal/approve-plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(`Failed (${response.status}): ${detail}`);
+          }
+
+          showPanel("progressPanel");
+          startPolling();
+
+        } catch (error) {
+          console.error("Error approving plan:", error);
+          alert("Failed to approve plan: " + error.message);
+        }
+      }
+
+      // ── Render Rebuttal ──────────────────────────────────────────────
+
+      async function renderRebuttal(data) {
+        // Load full report
+        try {
+          const response = await secureApiFetch(`/api/vericase-rebuttal/report/${currentSessionId}`);
+          if (!response.ok) throw new Error("Failed to load report");
+          const report = await response.json();
+
+          // Executive summary
+          document.getElementById("execSummary").innerHTML =
+            report.executive_summary ? renderMarkdown(report.executive_summary) : "";
+
+          // Key contradictions
+          if (report.key_contradictions && report.key_contradictions.length > 0) {
+            const box = document.getElementById("keyContradictions");
+            box.style.display = "block";
+            box.innerHTML = `
+              <h3><i class="fas fa-crosshairs" style="margin-right: 0.375rem;"></i> Key Contradictions</h3>
+              <ul>${report.key_contradictions.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul>
+            `;
+          }
+
+          // Point-by-point
+          if (report.point_by_point && report.point_by_point.length > 0) {
+            document.getElementById("pointByPoint").innerHTML = report.point_by_point.map((p) => `
+              <div class="rebuttal-point">
+                <div class="rebuttal-point-header">
+                  <span class="strength-indicator strength-${p.rebuttal_strength || 'moderate'}"></span>
+                  <span class="rebuttal-category-label">${(p.rebuttal_category || "unclassified").replace(/_/g, " ")}</span>
+                  <span style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);">
+                    ${p.contradicting_evidence_count || 0} contradicting &middot;
+                    ${p.contextual_evidence_count || 0} contextual
+                  </span>
+                </div>
+                <div class="rebuttal-point-body">
+                  <div class="opposing-side">
+                    <div class="side-label"><i class="fas fa-exclamation-circle" style="margin-right: 0.25rem;"></i> Opposing Claim</div>
+                    <div class="side-text">${escapeHtml(p.assertion_text)}</div>
+                    ${p.section ? `<div style="font-size: 0.688rem; color: var(--text-muted); margin-top: 0.375rem;">${escapeHtml(p.section)}</div>` : ""}
+                  </div>
+                  <div class="our-side">
+                    <div class="side-label"><i class="fas fa-shield-check" style="margin-right: 0.25rem;"></i> Our Response</div>
+                    <div class="side-text">
+                      <span class="status-badge" style="margin-bottom: 0.375rem; ${
+                        p.rebuttal_strength === "strong" ? "background: rgba(22,163,74,0.1); color: #16a34a;" :
+                        p.rebuttal_strength === "moderate" ? "background: rgba(245,158,11,0.1); color: #b45309;" :
+                        "background: rgba(220,38,38,0.1); color: #dc2626;"
+                      }">${(p.rebuttal_strength || "moderate").toUpperCase()}</span>
+                      <br />
+                      Evidence: ${p.contradicting_evidence_count || 0} items found
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `).join("");
+          }
+
+          // Full report
+          document.getElementById("reportContent").innerHTML =
+            report.final_rebuttal ? renderMarkdown(report.final_rebuttal) : "";
+
+          // Evidence appendix
+          if (report.cited_evidence && report.cited_evidence.length > 0) {
+            document.getElementById("evidenceAppendix").style.display = "block";
+            document.getElementById("citationsList").innerHTML = report.cited_evidence.map((c) => `
+              <div class="citation-item">
+                <div class="citation-number">${c.citation_number}</div>
+                <div class="citation-info">
+                  <div class="citation-title">${escapeHtml(c.title)}</div>
+                  <div class="citation-meta">
+                    <span style="text-transform: uppercase; font-weight: 600;">${c.evidence_type}</span>
+                    ${c.date ? ` &middot; ${c.date}` : ""}
+                  </div>
+                  ${c.excerpt ? `<div class="citation-excerpt">${escapeHtml(c.excerpt.substring(0, 250))}${c.excerpt.length > 250 ? "..." : ""}</div>` : ""}
+                </div>
+                <button class="btn-secondary" style="flex-shrink: 0;" onclick="downloadEvidence(${c.citation_number})">
+                  <i class="fas fa-download"></i>
+                </button>
+              </div>
+            `).join("");
+          }
+
+        } catch (error) {
+          console.error("Error loading report:", error);
+          document.getElementById("reportContent").innerHTML =
+            data.final_rebuttal ? renderMarkdown(data.final_rebuttal) : "<p>Failed to load full report.</p>";
+        }
+      }
+
+      // ── Downloads ────────────────────────────────────────────────────
+
+      function copyReport() {
+        const content = document.getElementById("reportContent").innerText;
+        navigator.clipboard.writeText(content);
+        alert("Rebuttal copied to clipboard");
+      }
+
+      function downloadReport() {
+        const content = document.getElementById("reportContent").innerText;
+        const blob = new Blob([content], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `rebuttal-${currentSessionId}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      async function downloadEvidence(citationNumber) {
+        try {
+          const response = await secureApiFetch(
+            `/api/vericase-rebuttal/${currentSessionId}/evidence/${citationNumber}?download=true`
+          );
+          if (!response.ok) throw new Error("Failed to get evidence");
+          const data = await response.json();
+          if (data.download_url) {
+            window.open(data.download_url, "_blank");
+          } else {
+            alert("This evidence item is not available for download.");
+          }
+        } catch (error) {
+          console.error("Download error:", error);
+          alert("Failed to download evidence: " + error.message);
+        }
+      }
+
+      async function downloadEvidencePack() {
+        try {
+          const response = await secureApiFetch(
+            `/api/vericase-rebuttal/${currentSessionId}/evidence-bundle`
+          );
+          if (!response.ok) throw new Error("Failed to get evidence bundle");
+          const data = await response.json();
+
+          if (!data.items || data.items.length === 0) {
+            alert("No evidence items available for download.");
+            return;
+          }
+
+          const downloadable = data.items.filter((i) => i.can_download);
+          if (downloadable.length === 0) {
+            alert("No downloadable evidence items found.");
+            return;
+          }
+
+          // Open each downloadable item
+          for (const item of downloadable) {
+            window.open(item.download_url, "_blank");
+          }
+
+          alert(`Opening ${downloadable.length} evidence file(s) for download.`);
+        } catch (error) {
+          console.error("Evidence pack error:", error);
+          alert("Failed to download evidence pack: " + error.message);
+        }
+      }
+
+      // ── History ──────────────────────────────────────────────────────
+
+      async function loadHistory() {
+        try {
+          const response = await secureApiFetch("/api/vericase-rebuttal/sessions");
+          if (!response.ok) return;
+          const data = await response.json();
+          const list = document.getElementById("historyList");
+
+          if (!data.sessions || data.sessions.length === 0) {
+            list.innerHTML = '<p style="font-size: 0.875rem; color: var(--text-muted);">No previous rebuttals.</p>';
+            return;
+          }
+
+          list.innerHTML = data.sessions.map((s) => `
+            <div class="history-item" onclick="loadSession('${s.id}')">
+              <div class="history-icon">
+                <i class="fas fa-${s.has_report ? "file-alt" : "gavel"}"></i>
+              </div>
+              <div class="history-content">
+                <div class="history-topic">${escapeHtml(s.document_filename || "Unknown document")}</div>
+                <div class="history-date">
+                  ${new Date(s.created_at).toLocaleDateString()}
+                  ${s.detected_stakeholder ? ` &middot; ${escapeHtml(s.detected_stakeholder)}` : ""}
+                </div>
+              </div>
+            </div>
+          `).join("");
+        } catch (error) {
+          console.error("Error loading history:", error);
+        }
+      }
+
+      async function loadSession(sessionId) {
+        currentSessionId = sessionId;
+        showPanel("progressPanel");
+        await pollStatus();
+
+        const response = await secureApiFetch(`/api/vericase-rebuttal/status/${sessionId}`);
+        const data = await response.json();
+        if (!["completed", "failed", "cancelled"].includes(data.status)) {
+          startPolling();
+        }
+      }
+
+      // ── Utilities ────────────────────────────────────────────────────
+
+      function showPanel(id) {
+        ["uploadForm", "progressPanel", "planApproval", "rebuttalDisplay", "errorDisplay"].forEach((p) => {
+          document.getElementById(p).classList.toggle("section-hidden", p !== id);
+        });
+      }
+
+      function startNew() {
+        stopPolling();
+        currentSessionId = null;
+        selectedFile = null;
+        removeFile();
+        document.getElementById("documentFrom").value = "";
+        document.getElementById("documentType").value = "";
+        document.getElementById("focusAreas").value = "";
+        document.getElementById("stakeholderOverride").value = "";
+        document.querySelectorAll(".radio-pill").forEach((p) => p.classList.remove("active"));
+        document.querySelector('.radio-pill[data-tone="formal"]').classList.add("active");
+        selectedTone = "formal";
+
+        // Reset progress
+        document.getElementById("progressFill").style.width = "0%";
+        document.getElementById("progressText").textContent = "Initialising...";
+        document.querySelectorAll(".step-item").forEach((el) => {
+          el.classList.remove("active", "completed");
+          el.querySelector(".step-icon").className = "step-icon pending";
+        });
+
+        showPanel("uploadForm");
+      }
+
+      function escapeHtml(text) {
+        if (!text) return "";
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function renderMarkdown(text) {
+        if (!text) return "";
+        // Simple markdown rendering
+        let html = escapeHtml(text);
+
+        // Headers
+        html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+        html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+        // Bold and italic
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+        // Superscript citations
+        html = html.replace(/\u00b9/g, '<sup>1</sup>');
+        html = html.replace(/\u00b2/g, '<sup>2</sup>');
+        html = html.replace(/\u00b3/g, '<sup>3</sup>');
+        html = html.replace(/\u2074/g, '<sup>4</sup>');
+        html = html.replace(/\u2075/g, '<sup>5</sup>');
+        html = html.replace(/\u2076/g, '<sup>6</sup>');
+        html = html.replace(/\u2077/g, '<sup>7</sup>');
+        html = html.replace(/\u2078/g, '<sup>8</sup>');
+        html = html.replace(/\u2079/g, '<sup>9</sup>');
+
+        // Bullet lists
+        html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+        // Blockquotes
+        html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+        // Paragraphs (double newlines)
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = '<p>' + html + '</p>';
+
+        // Clean up empty paragraphs
+        html = html.replace(/<p>\s*<\/p>/g, '');
+        html = html.replace(/<p>\s*(<h[123]>)/g, '$1');
+        html = html.replace(/(<\/h[123]>)\s*<\/p>/g, '$1');
+        html = html.replace(/<p>\s*(<ul>)/g, '$1');
+        html = html.replace(/(<\/ul>)\s*<\/p>/g, '$1');
+
+        return html;
+      }
+    </script>
+  </body>
+</html>

@@ -258,6 +258,50 @@ If you didn't request this, please ignore this email. Your password won't be cha
 
         self._send_email(to_email, subject, html_body, body_text)
 
+    def send_approval_notification(
+        self,
+        admin_email: str,
+        new_user_email: str,
+        new_user_name: str,
+        company: str = "Unknown",
+    ) -> None:
+        """Notify admin that a new user has registered and needs approval."""
+        subject = f"New VeriCase User Pending Approval: {new_user_email}"
+
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #667eea;">New User Registration</h2>
+                <p>A new user has registered and is awaiting your approval:</p>
+                <div style="background: #f7fafc; border: 1px solid #e2e8f0;
+                            border-radius: 5px; padding: 20px; margin: 20px 0;">
+                    <p style="margin: 0;"><strong>Name:</strong> {new_user_name or 'Not provided'}</p>
+                    <p style="margin: 10px 0 0;"><strong>Email:</strong> {new_user_email}</p>
+                    <p style="margin: 10px 0 0;"><strong>Company:</strong> {company}</p>
+                </div>
+                <p>Please review this registration in the
+                   <a href="{self.frontend_url}/ui/admin-approvals.html">Admin Approvals</a> page.</p>
+                <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
+                <p style="color: #666; font-size: 12px;">
+                    This is an automated notification from VeriCase.
+                </p>
+            </body>
+        </html>
+        """
+
+        text_content = f"""New VeriCase User Registration
+
+A new user has registered and is awaiting your approval:
+
+Name: {new_user_name or 'Not provided'}
+Email: {new_user_email}
+Company: {company}
+
+Please review this registration in the Admin Approvals page.
+"""
+
+        self._send_email(admin_email, subject, html_content, text_content)
+
     def send_security_alert(
         self,
         to_email: str,
@@ -312,6 +356,72 @@ If you didn't request this, please ignore this email. Your password won't be cha
             """
 
         self._send_email(to_email, subject, html_content)
+
+    def send_invitation_email(
+        self,
+        to_email: str,
+        invited_by_name: str,
+        workspace_name: str = "",
+        custom_message: str = "",
+    ) -> None:
+        """Send an invitation email to a prospective user."""
+        register_link = f"{self.frontend_url}/ui/register.html"
+        subject = "You've been invited to VeriCase"
+
+        workspace_line = ""
+        if workspace_name:
+            workspace_line = f" to the <strong>{workspace_name}</strong> workspace"
+
+        custom_block_html = ""
+        custom_block_text = ""
+        if custom_message:
+            custom_block_html = (
+                '<div style="background: #f7fafc; border: 1px solid #e2e8f0; '
+                'border-radius: 5px; padding: 16px; margin: 16px 0;">'
+                f"<p style=\"margin: 0;\"><em>{custom_message}</em></p></div>"
+            )
+            custom_block_text = f'\nMessage from {invited_by_name}:\n"{custom_message}"\n'
+
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #667eea;">You're Invited to VeriCase</h2>
+                <p>Hi,</p>
+                <p><strong>{invited_by_name}</strong> has invited you{workspace_line} to join VeriCase,
+                   a collaborative case-management platform.</p>
+                {custom_block_html}
+                <p style="margin: 30px 0;">
+                    <a href="{register_link}"
+                       style="background: #667eea; color: white; padding: 12px 30px;
+                              text-decoration: none; border-radius: 5px; display: inline-block;">
+                        Create Your Account
+                    </a>
+                </p>
+                <p>Or copy this link: {register_link}</p>
+                <p>This invitation will expire in 7 days.</p>
+                <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
+                <p style="color: #666; font-size: 12px;">
+                    If you weren't expecting this invitation, you can safely ignore this email.
+                </p>
+            </body>
+        </html>
+        """
+
+        text_content = f"""You're Invited to VeriCase
+
+Hi,
+
+{invited_by_name} has invited you to join VeriCase, a collaborative case-management platform.
+{custom_block_text}
+Create your account by visiting the link below:
+{register_link}
+
+This invitation will expire in 7 days.
+
+If you weren't expecting this invitation, you can safely ignore this email.
+"""
+
+        self._send_email(to_email, subject, html_content, text_content)
 
     def send_account_locked(
         self, to_email: str, user_name: str, locked_until: datetime, attempts: int

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 
-from .auth import get_current_user_email
+from .security import get_current_user_email
 from .models import AppSetting
 from .db import get_db
 from .ai_models_2025 import (

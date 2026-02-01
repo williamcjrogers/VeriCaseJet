@@ -52,6 +52,7 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_time_limit=3600,  # 1 hour max per task
+    result_expires=86400,  # Auto-expire job results after 24 hours
     # Declare queues so workers started without `-Q` will consume both.
     task_default_queue=settings.CELERY_QUEUE,
     task_create_missing_queues=True,
@@ -151,6 +152,171 @@ def cascade_spam_to_evidence(db, entity_id: str, entity_type: str) -> dict[str, 
     return stats
 
 
+def _index_emails_semantic(
+    task_self,
+    entity_type: str,
+    entity_id: str,
+    batch_size: int = 50,
+) -> dict[str, Any]:
+    """
+    Shared implementation for semantic indexing of emails.
+
+    Indexes all visible emails for a given project or case into OpenSearch
+    using the SemanticIngestionService.
+
+    Args:
+        task_self: The bound Celery task instance (for progress updates).
+        entity_type: Either "project" or "case".
+        entity_id: UUID string of the project or case.
+        batch_size: Number of emails to process per batch.
+
+    Returns:
+        Dict with indexing statistics.
+    """
+    from .db import SessionLocal
+    from .models import EmailMessage
+    from .visibility import build_email_visibility_filter
+    from sqlalchemy import func
+    import uuid
+
+    logger.info(f"Starting semantic indexing for {entity_type} {entity_id}")
+
+    db = SessionLocal()
+    stats = {
+        "total_emails": 0,
+        "indexed": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+
+    try:
+        # Initialize semantic service
+        try:
+            from .semantic_engine import SemanticIngestionService
+            from .opensearch_client import get_opensearch_client
+
+            opensearch_client = get_opensearch_client()
+            if not opensearch_client:
+                logger.warning("OpenSearch not available, skipping semantic indexing")
+                return {"status": "skipped", "reason": "OpenSearch not configured"}
+
+            semantic_service = SemanticIngestionService(opensearch_client)
+        except ImportError:
+            logger.warning("Semantic service not available, skipping indexing")
+            return {"status": "skipped", "reason": "Semantic service not installed"}
+
+        visibility_filter = build_email_visibility_filter(EmailMessage)
+
+        # Build the entity filter based on type
+        if entity_type == "project":
+            entity_filter = EmailMessage.project_id == uuid.UUID(entity_id)
+        else:
+            entity_filter = EmailMessage.case_id == uuid.UUID(entity_id)
+
+        # Get total count
+        total_count = (
+            db.query(func.count(EmailMessage.id))
+            .filter(entity_filter)
+            .filter(visibility_filter)
+            .scalar()
+        ) or 0
+
+        stats["total_emails"] = total_count
+        logger.info(f"Found {total_count} emails to index")
+
+        # Process in batches
+        offset = 0
+        while offset < total_count:
+            emails = (
+                db.query(EmailMessage)
+                .filter(entity_filter)
+                .filter(visibility_filter)
+                .order_by(EmailMessage.created_at)
+                .offset(offset)
+                .limit(batch_size)
+                .all()
+            )
+
+            if not emails:
+                break
+
+            for email in emails:
+                try:
+                    if (email.subject or "").startswith("IPM."):
+                        stats["skipped"] += 1
+                        continue
+
+                    # Index this email
+                    body_text = email.body_text_clean or email.body_text or ""
+
+                    # Extract attachment info for multi-vector indexing
+                    attachment_names: list[str] = []
+                    attachment_types: list[str] = []
+                    if hasattr(email, "attachments") and email.attachments:
+                        for att in email.attachments:
+                            if hasattr(att, "filename") and att.filename:
+                                attachment_names.append(att.filename)
+                                # Extract file extension
+                                if "." in att.filename:
+                                    ext = att.filename.rsplit(".", 1)[-1].lower()
+                                    attachment_types.append(ext)
+
+                    semantic_service.process_email(
+                        email_id=str(email.id),
+                        subject=email.subject or "",
+                        body_text=body_text,
+                        sender=email.sender_email or "",
+                        recipients=email.recipients_to or [],
+                        case_id=str(email.case_id) if email.case_id else None,
+                        project_id=str(email.project_id) if email.project_id else None,
+                        sent_date=(
+                            email.sent_date if hasattr(email, "sent_date") else None
+                        ),
+                        attachment_names=attachment_names,
+                        attachment_types=attachment_types,
+                    )
+
+                    stats["indexed"] += 1
+
+                except Exception as e:
+                    logger.warning(f"Failed to index email {email.id}: {e}")
+                    stats["errors"] += 1
+
+            offset += batch_size
+
+            # Update task progress
+            progress = int((offset / total_count) * 100)
+            task_self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": offset,
+                    "total": total_count,
+                    "percent": progress,
+                    "indexed": stats["indexed"],
+                },
+            )
+
+        logger.info(
+            f"Semantic indexing complete for {entity_type} {entity_id}: "
+            f"{stats['indexed']} indexed, {stats['errors']} errors"
+        )
+
+        return {
+            "status": "completed",
+            "stats": stats,
+        }
+
+    except Exception as e:
+        logger.exception(f"Semantic indexing failed for {entity_type} {entity_id}: {e}")
+        return {
+            "status": "failed",
+            "error": str(e),
+            "stats": stats,
+        }
+    finally:
+        db.close()
+
+
 @celery_app.task(bind=True, name="index_project_emails_semantic")
 def index_project_emails_semantic(
     self, project_id: str, batch_size: int = 50
@@ -168,142 +334,7 @@ def index_project_emails_semantic(
     Returns:
         Dict with indexing statistics
     """
-    from .db import SessionLocal
-    from .models import EmailMessage
-    from .visibility import build_email_visibility_filter
-    from sqlalchemy import func
-    import uuid
-
-    logger.info(f"Starting semantic indexing for project {project_id}")
-
-    db = SessionLocal()
-    stats = {
-        "total_emails": 0,
-        "indexed": 0,
-        "skipped": 0,
-        "errors": 0,
-    }
-
-    try:
-        # Initialize semantic service
-        try:
-            from .semantic_engine import SemanticIngestionService
-            from .opensearch_client import get_opensearch_client
-
-            opensearch_client = get_opensearch_client()
-            if not opensearch_client:
-                logger.warning("OpenSearch not available, skipping semantic indexing")
-                return {"status": "skipped", "reason": "OpenSearch not configured"}
-
-            semantic_service = SemanticIngestionService(opensearch_client)
-        except ImportError:
-            logger.warning("Semantic service not available, skipping indexing")
-            return {"status": "skipped", "reason": "Semantic service not installed"}
-
-        visibility_filter = build_email_visibility_filter(EmailMessage)
-
-        # Get total count
-        total_count = (
-            db.query(func.count(EmailMessage.id))
-            .filter(EmailMessage.project_id == uuid.UUID(project_id))
-            .filter(visibility_filter)
-            .scalar()
-        ) or 0
-
-        stats["total_emails"] = total_count
-        logger.info(f"Found {total_count} emails to index")
-
-        # Process in batches
-        offset = 0
-        while offset < total_count:
-            emails = (
-                db.query(EmailMessage)
-                .filter(EmailMessage.project_id == uuid.UUID(project_id))
-                .filter(visibility_filter)
-                .order_by(EmailMessage.created_at)
-                .offset(offset)
-                .limit(batch_size)
-                .all()
-            )
-
-            if not emails:
-                break
-
-            for email in emails:
-                try:
-                    if (email.subject or "").startswith("IPM."):
-                        stats["skipped"] += 1
-                        continue
-
-                    # Index this email
-                    body_text = email.body_text_clean or email.body_text or ""
-
-                    # Extract attachment info for multi-vector indexing
-                    attachment_names: list[str] = []
-                    attachment_types: list[str] = []
-                    if hasattr(email, "attachments") and email.attachments:
-                        for att in email.attachments:
-                            if hasattr(att, "filename") and att.filename:
-                                attachment_names.append(att.filename)
-                                # Extract file extension
-                                if "." in att.filename:
-                                    ext = att.filename.rsplit(".", 1)[-1].lower()
-                                    attachment_types.append(ext)
-
-                    semantic_service.process_email(
-                        email_id=str(email.id),
-                        subject=email.subject or "",
-                        body_text=body_text,
-                        sender=email.sender_email or "",
-                        recipients=email.recipients_to or [],
-                        case_id=str(email.case_id) if email.case_id else None,
-                        project_id=str(email.project_id) if email.project_id else None,
-                        sent_date=(
-                            email.sent_date if hasattr(email, "sent_date") else None
-                        ),
-                        attachment_names=attachment_names,
-                        attachment_types=attachment_types,
-                    )
-
-                    stats["indexed"] += 1
-
-                except Exception as e:
-                    logger.warning(f"Failed to index email {email.id}: {e}")
-                    stats["errors"] += 1
-
-            offset += batch_size
-
-            # Update task progress
-            progress = int((offset / total_count) * 100)
-            self.update_state(
-                state="PROGRESS",
-                meta={
-                    "current": offset,
-                    "total": total_count,
-                    "percent": progress,
-                    "indexed": stats["indexed"],
-                },
-            )
-
-        logger.info(
-            f"Semantic indexing complete for project {project_id}: "
-            f"{stats['indexed']} indexed, {stats['errors']} errors"
-        )
-
-        return {
-            "status": "completed",
-            "stats": stats,
-        }
-
-    except Exception as e:
-        logger.exception(f"Semantic indexing failed for project {project_id}: {e}")
-        return {
-            "status": "failed",
-            "error": str(e),
-            "stats": stats,
-        }
-    finally:
-        db.close()
+    return _index_emails_semantic(self, "project", project_id, batch_size)
 
 
 @celery_app.task(bind=True, name="index_case_emails_semantic")
@@ -320,142 +351,7 @@ def index_case_emails_semantic(
     Returns:
         Dict with indexing statistics
     """
-    from .db import SessionLocal
-    from .models import EmailMessage
-    from .visibility import build_email_visibility_filter
-    from sqlalchemy import func
-    import uuid
-
-    logger.info(f"Starting semantic indexing for case {case_id}")
-
-    db = SessionLocal()
-    stats = {
-        "total_emails": 0,
-        "indexed": 0,
-        "skipped": 0,
-        "errors": 0,
-    }
-
-    try:
-        # Initialize semantic service
-        try:
-            from .semantic_engine import SemanticIngestionService
-            from .opensearch_client import get_opensearch_client
-
-            opensearch_client = get_opensearch_client()
-            if not opensearch_client:
-                logger.warning("OpenSearch not available, skipping semantic indexing")
-                return {"status": "skipped", "reason": "OpenSearch not configured"}
-
-            semantic_service = SemanticIngestionService(opensearch_client)
-        except ImportError:
-            logger.warning("Semantic service not available, skipping indexing")
-            return {"status": "skipped", "reason": "Semantic service not installed"}
-
-        visibility_filter = build_email_visibility_filter(EmailMessage)
-
-        # Get total count
-        total_count = (
-            db.query(func.count(EmailMessage.id))
-            .filter(EmailMessage.case_id == uuid.UUID(case_id))
-            .filter(visibility_filter)
-            .scalar()
-        ) or 0
-
-        stats["total_emails"] = total_count
-        logger.info(f"Found {total_count} emails to index")
-
-        # Process in batches
-        offset = 0
-        while offset < total_count:
-            emails = (
-                db.query(EmailMessage)
-                .filter(EmailMessage.case_id == uuid.UUID(case_id))
-                .filter(visibility_filter)
-                .order_by(EmailMessage.created_at)
-                .offset(offset)
-                .limit(batch_size)
-                .all()
-            )
-
-            if not emails:
-                break
-
-            for email in emails:
-                try:
-                    if (email.subject or "").startswith("IPM."):
-                        stats["skipped"] += 1
-                        continue
-
-                    # Index this email
-                    body_text = email.body_text_clean or email.body_text or ""
-
-                    # Extract attachment info for multi-vector indexing
-                    attachment_names: list[str] = []
-                    attachment_types: list[str] = []
-                    if hasattr(email, "attachments") and email.attachments:
-                        for att in email.attachments:
-                            if hasattr(att, "filename") and att.filename:
-                                attachment_names.append(att.filename)
-                                # Extract file extension
-                                if "." in att.filename:
-                                    ext = att.filename.rsplit(".", 1)[-1].lower()
-                                    attachment_types.append(ext)
-
-                    semantic_service.process_email(
-                        email_id=str(email.id),
-                        subject=email.subject or "",
-                        body_text=body_text,
-                        sender=email.sender_email or "",
-                        recipients=email.recipients_to or [],
-                        case_id=str(email.case_id) if email.case_id else None,
-                        project_id=str(email.project_id) if email.project_id else None,
-                        sent_date=(
-                            email.sent_date if hasattr(email, "sent_date") else None
-                        ),
-                        attachment_names=attachment_names,
-                        attachment_types=attachment_types,
-                    )
-
-                    stats["indexed"] += 1
-
-                except Exception as e:
-                    logger.warning(f"Failed to index email {email.id}: {e}")
-                    stats["errors"] += 1
-
-            offset += batch_size
-
-            # Update task progress
-            progress = int((offset / total_count) * 100)
-            self.update_state(
-                state="PROGRESS",
-                meta={
-                    "current": offset,
-                    "total": total_count,
-                    "percent": progress,
-                    "indexed": stats["indexed"],
-                },
-            )
-
-        logger.info(
-            f"Semantic indexing complete for case {case_id}: "
-            f"{stats['indexed']} indexed, {stats['errors']} errors"
-        )
-
-        return {
-            "status": "completed",
-            "stats": stats,
-        }
-
-    except Exception as e:
-        logger.exception(f"Semantic indexing failed for case {case_id}: {e}")
-        return {
-            "status": "failed",
-            "error": str(e),
-            "stats": stats,
-        }
-    finally:
-        db.close()
+    return _index_emails_semantic(self, "case", case_id, batch_size)
 
 
 @celery_app.task(bind=True, name="apply_spam_filter_batch")

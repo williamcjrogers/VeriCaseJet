@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from .db import get_db
-from .auth import current_user
+from .security import current_user
 from .models import User, OcrCorrection
 
 router = APIRouter(prefix="/api/ocr", tags=["OCR Feedback"])
