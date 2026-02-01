@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="design-system.css?v=6" />
   <script src="config.js"></script>
   <script src="vericase-ui.js"></script>
+  <script src="security.js"></script>
   <script src="nav-shell.js"></script>
 
   <style>
@@ -2471,12 +2472,14 @@
     // Load AG Grid configuration from admin settings
     async function loadGridConfig() {
       try {
-        const token = localStorage.getItem("token");
+        const token =
+          localStorage.getItem("vericase_token") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("jwt") ||
+          localStorage.getItem("access_token");
         if (!token) return {}; // Return empty config if not logged in
 
-        const response = await fetch(`${apiUrl}/api/admin/settings`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await secureApiFetch(`${apiUrl}/api/admin/settings`);
 
         if (!response.ok) return {}; // Return empty config if fetch fails
 
@@ -2584,7 +2587,8 @@
         const response = await VeriCaseConfig.apiCall(
           `/api/claims/comments/evidence/${selectedEvidence.id}?lane=${encodeURIComponent(evidenceLane)}`
         );
-        const items = Array.isArray(response) ? response : (response.items || []);
+        const data = await response.json().catch(() => []);
+        const items = Array.isArray(data) ? data : (data.items || []);
         const directComments = items.filter(c => !c.item_claim_link_id);
         const linkedComments = items.filter(c => c.item_claim_link_id);
 
@@ -2941,7 +2945,7 @@
           if (caseId) query.append("case_id", caseId);
           const qs = query.toString();
 
-          const serverResp = await fetch(
+          const serverResp = await secureApiFetch(
             `${apiUrl}/api/evidence/items/auto-categorize${qs ? `?${qs}` : ""}`,
             {
               method: "POST",
@@ -2996,7 +3000,7 @@
         if (projectId) query.append("project_id", projectId);
         if (caseId) query.append("case_id", caseId);
 
-        const response = await fetch(
+        const response = await secureApiFetch(
           `${apiUrl}/api/evidence/items/server-side?${query.toString()}`,
           {
             method: "POST",
@@ -3040,7 +3044,7 @@
         colParams.append("include_system", "false");
         if (projectId) colParams.append("project_id", projectId);
         if (caseId) colParams.append("case_id", caseId);
-        const collectionsResponse = await fetch(`${apiUrl}/api/evidence/collections?${colParams.toString()}`);
+        const collectionsResponse = await secureApiFetch(`${apiUrl}/api/evidence/collections?${colParams.toString()}`);
         let existingCollections = [];
         if (collectionsResponse.ok) {
           const colData = await collectionsResponse.json();
@@ -3058,7 +3062,7 @@
           const lowerName = categoryName.toLowerCase();
           if (!existingNames.has(lowerName)) {
             try {
-              const createResponse = await fetch(`${apiUrl}/api/evidence/collections`, {
+              const createResponse = await secureApiFetch(`${apiUrl}/api/evidence/collections`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -3090,7 +3094,7 @@
           for (const item of itemsList) {
             try {
               // Update the document_category field
-              const updateResponse = await fetch(`${apiUrl}/api/evidence/items/${item.id}`, {
+              const updateResponse = await secureApiFetch(`${apiUrl}/api/evidence/items/${item.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ document_category: categoryName }),
@@ -3102,7 +3106,7 @@
                 // Also add to collection if we have a collection ID
                 if (collectionId) {
                   try {
-                    const addResponse = await fetch(
+                    const addResponse = await secureApiFetch(
                       `${apiUrl}/api/evidence/collections/${collectionId}/items/${item.id}`,
                       { method: "POST" }
                     );
@@ -3196,7 +3200,7 @@
     async function assignEvidenceToCollection(collectionId) {
       if (!selectedEvidence || !collectionId) return;
       try {
-        const response = await fetch(
+        const response = await secureApiFetch(
           `${apiUrl}/api/evidence/collections/${collectionId}/items/${selectedEvidence.id}`,
           { method: "POST" },
         );
@@ -4128,7 +4132,7 @@
             // Fetch related documents/correspondence for this evidence item
             const evidenceId = params.data.id;
             try {
-              const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/correspondence`);
+              const response = await secureApiFetch(`${apiUrl}/api/evidence/items/${evidenceId}/correspondence`);
               if (response.ok) {
                 const data = await response.json();
                 params.successCallback(data.items || []);
@@ -4230,7 +4234,7 @@
             const newCategory = params.newValue || "";
             const filename = params.data.filename || params.data.title || "";
             try {
-              const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}`, {
+              const response = await secureApiFetch(`${apiUrl}/api/evidence/items/${evidenceId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ document_category: newCategory }),
@@ -4337,7 +4341,7 @@
     async function updateIntelligenceStats() {
       try {
         // Fetch intelligence summary from backend
-        const response = await fetch(`${apiUrl}/api/enhanced/services/status`);
+        const response = await secureApiFetch(`${apiUrl}/api/enhanced/services/status`);
         if (response.ok) {
           const data = await response.json();
           console.log("[AI Intelligence] Services status:", data);
@@ -4490,7 +4494,7 @@
         // Semantic search for content-based queries
         try {
           const caseId = new URLSearchParams(window.location.search).get("case") || "";
-          const searchResponse = await fetch(`${apiUrl}/api/enhanced/search/semantic?query=${encodeURIComponent(query)}&case_id=${caseId}&limit=5`, {
+          const searchResponse = await secureApiFetch(`${apiUrl}/api/enhanced/search/semantic?query=${encodeURIComponent(query)}&case_id=${caseId}&limit=5`, {
             method: "POST"
           });
           
@@ -4849,10 +4853,19 @@
     
     // Open Case Insights panel
     async function openCaseInsights() {
-      const caseId = currentCaseId || new URLSearchParams(window.location.search).get('case_id');
-      const projectId = currentProjectId || new URLSearchParams(window.location.search).get('project_id');
+      const params = new URLSearchParams(window.location.search);
+      const ctxCaseId =
+        caseId ||
+        params.get("caseId") ||
+        params.get("case_id") ||
+        "";
+      const ctxProjectId =
+        projectId ||
+        params.get("projectId") ||
+        params.get("project_id") ||
+        "";
       
-      if (!caseId && !projectId) {
+      if (!ctxCaseId && !ctxProjectId) {
         showChartPopup("Case Insights", `
           <div style="padding: 20px; text-align: center; color: var(--text-muted);">
             <i class="fas fa-info-circle" style="font-size: 2rem; margin-bottom: 12px;"></i>
@@ -4872,11 +4885,11 @@
       `);
       
       try {
-        const endpoint = caseId 
-          ? `${apiUrl}/api/enhanced/case/${caseId}/insights`
-          : `${apiUrl}/api/enhanced/project/${projectId}/insights`;
+        const endpoint = ctxCaseId 
+          ? `${apiUrl}/api/enhanced/case/${ctxCaseId}/insights`
+          : `${apiUrl}/api/enhanced/project/${ctxProjectId}/insights`;
           
-        const response = await fetch(endpoint);
+        const response = await secureApiFetch(endpoint);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch insights: ${response.status}`);
@@ -5114,13 +5127,13 @@
       const reason = window.prompt("Reason (optional)", "");
 
       try {
-        const response = await fetch(`${apiUrl}/api/evidence/items/bulk/exclude`, {
+        const response = await secureApiFetch(`${apiUrl}/api/evidence/items/bulk/exclude`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             evidence_ids: ids,
-            project_id: currentProjectId || null,
-            case_id: currentCaseId || null,
+            project_id: projectId || null,
+            case_id: caseId || null,
             excluded: true,
             reason: (reason || "").trim() || null,
           }),
@@ -5151,13 +5164,13 @@
       if (!ok) return;
 
       try {
-        const response = await fetch(`${apiUrl}/api/evidence/items/bulk/delete`, {
+        const response = await secureApiFetch(`${apiUrl}/api/evidence/items/bulk/delete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             evidence_ids: ids,
-            project_id: currentProjectId || null,
-            case_id: currentCaseId || null,
+            project_id: projectId || null,
+            case_id: caseId || null,
           }),
         });
 
@@ -5340,7 +5353,7 @@
               },
             };
 
-            const response = await fetch(
+            const response = await secureApiFetch(
               `${apiUrl}/api/evidence/items/server-side?${query.toString()}`,
               {
                 method: "POST",
@@ -5510,7 +5523,7 @@
         if (projectId) params.append("project_id", projectId);
         if (caseId) params.append("case_id", caseId);
 
-        const response = await fetch(`${apiUrl}/api/evidence/collections?${params.toString()}`);
+        const response = await secureApiFetch(`${apiUrl}/api/evidence/collections?${params.toString()}`);
         if (response.ok) {
           const collections = await response.json();
           renderCollections(collections);
@@ -5528,7 +5541,7 @@
       const parentId = activeCollection?.dataset.id || null;
 
       try {
-        const response = await fetch(`${apiUrl}/api/evidence/collections`, {
+        const response = await secureApiFetch(`${apiUrl}/api/evidence/collections`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -5583,10 +5596,10 @@
     async function loadStats() {
       try {
         const params = new URLSearchParams();
-        if (currentProjectId) params.append("project_id", currentProjectId);
-        if (currentCaseId) params.append("case_id", currentCaseId);
+        if (projectId) params.append("project_id", projectId);
+        if (caseId) params.append("case_id", caseId);
         const url = `${apiUrl}/api/evidence/stats${params.toString() ? "?" + params.toString() : ""}`;
-        const response = await fetch(url);
+        const response = await secureApiFetch(url);
         if (response.ok) {
           const stats = await response.json();
           renderStats(stats);
@@ -5622,7 +5635,7 @@
 
       try {
         const fetchFull = async () => {
-          const fullRes = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/full`);
+          const fullRes = await secureApiFetch(`${apiUrl}/api/evidence/items/${evidenceId}/full`);
           if (!fullRes.ok) {
             throw new Error(`Failed to load evidence full detail: ${fullRes.status}`);
           }
@@ -5664,7 +5677,7 @@
             `;
 
           try {
-            const extractRes = await fetch(
+            const extractRes = await secureApiFetch(
               `${apiUrl}/api/evidence/items/${evidenceId}/extract-metadata`,
               {
                 method: "POST",
@@ -5777,7 +5790,7 @@
                         </div>
                     `;
 
-            fetch(
+            secureApiFetch(
               `${apiUrl}/api/evidence/items/${detail.id}/text-content?max_length=100000`,
             )
               .then(async (response) =>
@@ -6274,7 +6287,7 @@
 
       try {
         // Fetch suggestions from API
-        const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/suggestions`);
+        const response = await secureApiFetch(`${apiUrl}/api/evidence/items/${evidenceId}/suggestions`);
         let suggestions = null;
         
         if (response.ok) {
@@ -6500,7 +6513,7 @@
 
     async function toggleStar(evidenceId) {
       try {
-        const response = await fetch(
+        const response = await secureApiFetch(
           `${apiUrl}/api/evidence/items/${evidenceId}/star`,
           {
             method: "POST",
@@ -6570,7 +6583,7 @@
         case "office":
           if (currentPreviewData.preview_type === "office") {
             try {
-              const resp = await fetch(
+              const resp = await secureApiFetch(
                 `${apiUrl}/api/evidence/items/${selectedEvidence.id}/office-render?max_rows=200&max_cols=40`,
               );
               if (resp.ok) {
@@ -6593,7 +6606,7 @@
           }
 
           try {
-            const response = await fetch(
+            const response = await secureApiFetch(
               `${apiUrl}/api/evidence/items/${selectedEvidence.id}/text-content?max_length=100000`,
             );
             if (response.ok) {
@@ -6640,7 +6653,7 @@
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
       try {
-        const response = await fetch(
+        const response = await secureApiFetch(
           `${apiUrl}/api/evidence/items/${selectedEvidence.id}/extract-metadata`,
           {
             method: "POST",
@@ -6707,7 +6720,7 @@
       if (existing?.id) return existing.id;
 
       try {
-        const response = await fetch(`${apiUrl}/api/evidence/collections`, {
+        const response = await secureApiFetch(`${apiUrl}/api/evidence/collections`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -6774,7 +6787,7 @@
           const rel = file.webkitRelativePath || "";
           if (rel) formData.append("original_path", rel);
 
-          const response = await fetch(`${apiUrl}/api/evidence/upload/direct`, {
+          const response = await secureApiFetch(`${apiUrl}/api/evidence/upload/direct`, {
             method: "POST",
             body: formData,
           });
@@ -6831,7 +6844,7 @@
           const rel = file.webkitRelativePath || "";
           if (rel) formData.append("original_path", rel);
 
-          const response = await fetch(
+          const response = await secureApiFetch(
             `${apiUrl}/api/evidence/upload/direct`,
             {
               method: "POST",
@@ -6889,7 +6902,7 @@
       });
 
       try {
-        const resp = await fetch(endpoint, {
+        const resp = await secureApiFetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

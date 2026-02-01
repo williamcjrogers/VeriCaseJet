@@ -58,6 +58,24 @@ function getCsrfToken() {
  * @returns {string} API base URL with protocol
  */
 function getApiUrl() {
+  // If the main frontend config is present, prefer it to keep all callers consistent.
+  // This supports overrides like `window.VERICASE_API_URL` that are handled by config.js.
+  try {
+    if (
+      window.VeriCaseConfig &&
+      typeof window.VeriCaseConfig.getApiUrl === "function"
+    ) {
+      const cfgUrl = window.VeriCaseConfig.getApiUrl();
+      if (cfgUrl) return cfgUrl;
+    }
+    if (window.VeriCaseConfig && typeof window.VeriCaseConfig.apiUrl === "string") {
+      const cfgUrl = window.VeriCaseConfig.apiUrl;
+      if (cfgUrl) return cfgUrl;
+    }
+  } catch {
+    // ignore
+  }
+
   if (
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1"
@@ -65,6 +83,7 @@ function getApiUrl() {
     // Development: Use same protocol as current page
     return `${window.location.protocol}//localhost:8010`;
   }
+  if (window.VERICASE_API_URL) return window.VERICASE_API_URL;
   // Production: Use current origin (should be HTTPS)
   return window.location.origin || "";
 }
@@ -78,6 +97,11 @@ function getApiUrl() {
  */
 async function secureApiFetch(endpoint, options = {}) {
   const apiUrl = getApiUrl();
+  const isAbsoluteUrl =
+    typeof endpoint === "string" && /^https?:\/\//i.test(endpoint);
+  const url = isAbsoluteUrl
+    ? endpoint
+    : `${apiUrl}${String(endpoint || "").startsWith("/") ? "" : "/"}${endpoint}`;
   const token =
     localStorage.getItem("vericase_token") ||
     localStorage.getItem("token") ||
@@ -85,8 +109,11 @@ async function secureApiFetch(endpoint, options = {}) {
     localStorage.getItem("access_token");
   const csrfToken = getCsrfToken();
 
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+
   const defaultHeaders = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     "X-CSRF-Token": csrfToken,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
@@ -101,7 +128,7 @@ async function secureApiFetch(endpoint, options = {}) {
   };
 
   try {
-    const response = await fetch(`${apiUrl}${endpoint}`, fetchOptions);
+    const response = await fetch(url, fetchOptions);
     return response;
   } catch (error) {
     console.error(`API request failed: ${endpoint}`, error);
