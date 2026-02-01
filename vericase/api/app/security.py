@@ -30,7 +30,6 @@ from .models import User
 from .security_enhanced import (  # noqa: F401 – re-export
     bearer,
     check_password_history,
-    clean_old_attempts,
     current_user,
     current_user_enhanced,
     generate_token,
