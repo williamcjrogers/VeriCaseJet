@@ -225,6 +225,9 @@ class AnalysisSession(BaseModel):
     use_deliberative_planning: bool = True  # Default: use the new thorough planning
     deliberation_events: list[dict[str, Any]] = Field(default_factory=list)
 
+    # Planning progress (visible to frontend during PLANNING status)
+    planning_step: str = ""  # "gathering_evidence" | "configuring_agents" | "formulating_strategy"
+
 
 # Session store (uses Redis if available, otherwise in-memory)
 _analysis_sessions: dict[str, AnalysisSession] = {}
@@ -351,6 +354,9 @@ class AnalysisStatusResponse(BaseModel):
 
     # Deliberative planning events for chain-of-thought UI
     deliberation_events: list[dict[str, Any]] = Field(default_factory=list)
+
+    # Planning sub-step for progress visibility
+    planning_step: str = ""
 
 
 class AnalysisReportResponse(BaseModel):
@@ -2005,6 +2011,7 @@ class VeriCaseOrchestrator:
         """Legacy quick planning - single LLM call with truncated context."""
         self.session.status = AnalysisStatus.PLANNING
         self.session.updated_at = datetime.now(timezone.utc)
+        save_session(self.session)
 
         plan = await self.planner.create_plan(
             self.session.topic,
@@ -2015,6 +2022,7 @@ class VeriCaseOrchestrator:
         self.session.plan = plan
         self.session.status = AnalysisStatus.AWAITING_APPROVAL
         self.session.updated_at = datetime.now(timezone.utc)
+        save_session(self.session)
 
         return plan
 
@@ -2807,27 +2815,51 @@ async def start_vericase_analysis(
         from .db import SessionLocal
 
         async def run_planning():
-            task_db = SessionLocal()
+            task_db = None
             try:
+                # Step 1: Signal that the background task has started
+                session.status = AnalysisStatus.PLANNING
+                session.planning_step = "gathering_evidence"
+                session.updated_at = datetime.now(timezone.utc)
+                save_session(session)
+
+                task_db = SessionLocal()
                 evidence_context = await build_evidence_context(
                     task_db, user_id, project_id, case_id
                 )
 
+                # Step 2: Evidence gathered, now configuring agents
+                session.planning_step = "configuring_agents"
+                session.updated_at = datetime.now(timezone.utc)
+                save_session(session)
+
                 master = VeriCaseOrchestrator(task_db, session)
+
+                # Step 3: Agents ready, formulating strategy
+                session.planning_step = "formulating_strategy"
+                session.updated_at = datetime.now(timezone.utc)
+                save_session(session)
+
                 await master.run_planning_phase(evidence_context, focus_areas)
 
             except Exception as e:
-                logger.exception(f"Planning failed: {e}")
+                logger.exception(f"Planning failed for session {session.id}: {e}")
                 session.status = AnalysisStatus.FAILED
                 session.error_message = str(e)
             finally:
-                task_db.close()
+                if task_db is not None:
+                    task_db.close()
                 save_session(session)
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(run_planning())
+        except Exception as e:
+            logger.exception(f"Background planning task crashed for session {session.id}: {e}")
+            session.status = AnalysisStatus.FAILED
+            session.error_message = f"Background task error: {e}"
+            save_session(session)
         finally:
             loop.close()
 
@@ -2892,6 +2924,7 @@ async def get_analysis_status(
         models_used=list(session.models_used.values()),
         # Include deliberation events for chain-of-thought visibility
         deliberation_events=session.deliberation_events[-20:] if session.deliberation_events else [],
+        planning_step=session.planning_step,
     )
 
 

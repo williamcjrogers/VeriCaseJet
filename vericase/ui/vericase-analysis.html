@@ -958,6 +958,166 @@
         font-weight: 600;
       }
 
+      /* Planning progress panel */
+      .planning-panel {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-card);
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .planning-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .planning-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--vc-teal), #6366f1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1rem;
+        animation: think-pulse 2s ease-in-out infinite;
+      }
+
+      .planning-title {
+        flex: 1;
+      }
+
+      .planning-title h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+      }
+
+      .planning-title span {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .planning-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+
+      .planning-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--border-subtle);
+        opacity: 0.4;
+        transition: opacity 0.4s ease;
+      }
+
+      .planning-step:last-child {
+        border-bottom: none;
+      }
+
+      .planning-step.active {
+        opacity: 1;
+      }
+
+      .planning-step.done {
+        opacity: 0.7;
+      }
+
+      .planning-step-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.75rem;
+        background: var(--bg-tertiary);
+        color: var(--text-muted);
+        transition: all 0.4s ease;
+      }
+
+      .planning-step.active .planning-step-icon {
+        background: rgba(var(--vericase-teal-rgb), 0.12);
+        color: var(--vc-teal);
+      }
+
+      .planning-step.done .planning-step-icon {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+      }
+
+      .planning-step-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .planning-step-label {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 0.15rem;
+      }
+
+      .planning-step.active .planning-step-label {
+        color: var(--text-primary);
+      }
+
+      .planning-step-detail {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .planning-step-bar {
+        height: 3px;
+        background: var(--bg-tertiary);
+        border-radius: 2px;
+        margin-top: 0.5rem;
+        overflow: hidden;
+      }
+
+      .planning-step.active .planning-step-bar {
+        background: rgba(var(--vericase-teal-rgb), 0.15);
+      }
+
+      .planning-step-bar-fill {
+        height: 100%;
+        width: 0;
+        background: var(--vc-teal);
+        border-radius: 2px;
+        transition: width 0.6s ease;
+      }
+
+      .planning-step.active .planning-step-bar-fill {
+        animation: bar-indeterminate 2s ease-in-out infinite;
+      }
+
+      .planning-step.done .planning-step-bar-fill {
+        width: 100%;
+        background: #10b981;
+        animation: none;
+      }
+
+      @keyframes bar-indeterminate {
+        0% { width: 5%; margin-left: 0; }
+        50% { width: 40%; margin-left: 30%; }
+        100% { width: 5%; margin-left: 95%; }
+      }
+
       /* Angle tags with icons */
       .angle-tag {
         display: inline-flex;
@@ -1792,6 +1952,55 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
               </div>
             </div>
 
+            <!-- Planning Progress Panel -->
+            <div id="planningPanel" class="planning-panel" style="display: none">
+              <div class="planning-header">
+                <div class="planning-icon">
+                  <i class="fas fa-microscope"></i>
+                </div>
+                <div class="planning-title">
+                  <h3>Preparing Analysis</h3>
+                  <span id="planningPhaseText">Gathering evidence from project...</span>
+                </div>
+                <div class="delib-timer" id="planningTimer">00:00</div>
+              </div>
+
+              <div class="planning-steps">
+                <div class="planning-step active" id="planStep1" data-step="1">
+                  <div class="planning-step-icon">
+                    <i class="fas fa-folder-open"></i>
+                  </div>
+                  <div class="planning-step-content">
+                    <div class="planning-step-label">Gathering evidence</div>
+                    <div class="planning-step-detail">Loading emails, documents, and workspace context</div>
+                    <div class="planning-step-bar"><div class="planning-step-bar-fill"></div></div>
+                  </div>
+                </div>
+
+                <div class="planning-step" id="planStep2" data-step="2">
+                  <div class="planning-step-icon">
+                    <i class="fas fa-cogs"></i>
+                  </div>
+                  <div class="planning-step-content">
+                    <div class="planning-step-label">Configuring agents</div>
+                    <div class="planning-step-detail">Initialising planner, researcher, and synthesiser agents</div>
+                    <div class="planning-step-bar"><div class="planning-step-bar-fill"></div></div>
+                  </div>
+                </div>
+
+                <div class="planning-step" id="planStep3" data-step="3">
+                  <div class="planning-step-icon">
+                    <i class="fas fa-sitemap"></i>
+                  </div>
+                  <div class="planning-step-content">
+                    <div class="planning-step-label">Formulating research strategy</div>
+                    <div class="planning-step-detail">Building a DAG of research questions from your evidence</div>
+                    <div class="planning-step-bar"><div class="planning-step-bar-fill"></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Chain-of-Thought Deliberation Panel -->
             <div id="deliberationPanel" class="deliberation-panel" style="display: none">
               <div class="deliberation-header">
@@ -2343,18 +2552,24 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             statusMessage.textContent =
               "Analyzing your topic and creating a research strategy...";
             progressFill.style.width = "15%";
+            showPlanningPanel();
+            if (data.planning_step) {
+              updatePlanningStep(data.planning_step);
+            }
             break;
 
           case "deliberating":
             statusMessage.textContent =
               "Deep analysis in progress — visible reasoning enabled...";
             progressFill.style.width = "15%";
+            hidePlanningPanel();
             showDeliberationPanel(data.deliberation_events || []);
             break;
 
           case "awaiting_approval":
             statusMessage.textContent = "Research plan ready for your review.";
             progressFill.style.width = "25%";
+            hidePlanningPanel();
             hideDeliberationPanel();
             showPlanReview(data.plan);
             break;
@@ -2366,6 +2581,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             progressFill.style.width = `${pct}%`;
             progressText.textContent = `${completed} / ${total} questions`;
             statusMessage.textContent = `Investigating research questions in parallel...`;
+            hidePlanningPanel();
             updateQuestionProgress(data.plan);
             break;
 
@@ -2378,6 +2594,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           case "completed":
             statusMessage.textContent = "Research complete!";
             progressFill.style.width = "100%";
+            hidePlanningPanel();
             // Fetch full report data (includes cited_evidence for appendix)
             await fetchAndShowReport(currentSessionId);
             loadHistory();
@@ -2386,6 +2603,8 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           case "failed":
             statusMessage.textContent = `Error: ${data.error_message || "Unknown error"}`;
             statusMessage.style.color = "var(--accent-danger)";
+            hidePlanningPanel();
+            hideDeliberationPanel();
             break;
         }
       }
@@ -2442,6 +2661,101 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
       
       let deliberationStartTime = null;
       let deliberationTimerInterval = null;
+
+      // Planning panel state
+      let planningStartTime = null;
+      let planningTimerInterval = null;
+      let planningStepIndex = 0;
+
+      function showPlanningPanel() {
+        const panel = document.getElementById('planningPanel');
+        if (!panel) return;
+        panel.style.display = 'block';
+
+        // Reset steps
+        planningStepIndex = 0;
+        document.querySelectorAll('.planning-step').forEach((el, i) => {
+          el.classList.remove('active', 'done');
+          if (i === 0) el.classList.add('active');
+        });
+        document.getElementById('planningPhaseText').textContent = 'Gathering evidence from project...';
+
+        // Start timer
+        if (!planningStartTime) {
+          planningStartTime = Date.now();
+          updatePlanningTimer();
+          planningTimerInterval = setInterval(() => {
+            updatePlanningTimer();
+            advancePlanningSteps();
+          }, 1000);
+        }
+      }
+
+      function hidePlanningPanel() {
+        const panel = document.getElementById('planningPanel');
+        if (panel) panel.style.display = 'none';
+        if (planningTimerInterval) {
+          clearInterval(planningTimerInterval);
+          planningTimerInterval = null;
+        }
+        planningStartTime = null;
+        planningStepIndex = 0;
+      }
+
+      function updatePlanningTimer() {
+        if (!planningStartTime) return;
+        const elapsed = Math.floor((Date.now() - planningStartTime) / 1000);
+        const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const secs = (elapsed % 60).toString().padStart(2, '0');
+        const timer = document.getElementById('planningTimer');
+        if (timer) timer.textContent = `${mins}:${secs}`;
+      }
+
+      function advancePlanningSteps() {
+        if (!planningStartTime) return;
+        const elapsed = Math.floor((Date.now() - planningStartTime) / 1000);
+
+        // Only time-based fallback if backend hasn't sent a step yet
+        if (planningStepIndex > 0) return;
+
+        const steps = [
+          { at: 0, label: 'Gathering evidence from project...' },
+          { at: 8, label: 'Configuring analysis agents...' },
+          { at: 15, label: 'Formulating research strategy...' },
+        ];
+
+        let newIndex = 0;
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (elapsed >= steps[i].at) { newIndex = i; break; }
+        }
+
+        if (newIndex !== planningStepIndex) {
+          setPlanningVisual(newIndex, steps[newIndex].label);
+        }
+      }
+
+      function updatePlanningStep(step) {
+        const stepMap = {
+          'gathering_evidence': { index: 0, label: 'Gathering evidence from project...' },
+          'configuring_agents': { index: 1, label: 'Configuring analysis agents...' },
+          'formulating_strategy': { index: 2, label: 'Formulating research strategy...' },
+        };
+        const info = stepMap[step];
+        if (info) {
+          setPlanningVisual(info.index, info.label);
+        }
+      }
+
+      function setPlanningVisual(index, label) {
+        planningStepIndex = index;
+        document.getElementById('planningPhaseText').textContent = label;
+
+        document.querySelectorAll('.planning-step').forEach((el, i) => {
+          el.classList.remove('active', 'done');
+          if (i < index) el.classList.add('done');
+          else if (i === index) el.classList.add('active');
+        });
+      }
       
       function showDeliberationPanel(events) {
         const panel = document.getElementById('deliberationPanel');
