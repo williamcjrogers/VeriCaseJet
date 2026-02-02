@@ -2064,17 +2064,11 @@ class VeriCaseOrchestrator:
                     "recipients": item.get("recipients", []),
                 })
 
-            # Create LLM caller function
+            # Create LLM caller function using the planner agent's provider
+            # fallback chain (Bedrock → OpenAI → Gemini → Anthropic)
             async def llm_caller(prompt: str, system_prompt: str) -> str:
-                """Call the AI model."""
-                return await complete_chat(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=0.3,
-                    max_tokens=4096,
-                )
+                """Call the AI model via the planner's provider chain."""
+                return await self.planner._call_llm(prompt, system_prompt)
 
             # Initialize deliberative planner
             planner = DeliberativePlanner(
@@ -2153,7 +2147,16 @@ class VeriCaseOrchestrator:
             # Fall back to quick planning
             logger.info("Falling back to quick planning...")
             self.session.use_deliberative_planning = False
-            return await self._run_quick_planning(evidence_context, focus_areas)
+            try:
+                return await self._run_quick_planning(evidence_context, focus_areas)
+            except Exception as fallback_err:
+                logger.exception(
+                    f"Quick planning fallback also failed: {fallback_err}"
+                )
+                raise RuntimeError(
+                    f"Both deliberative and quick planning failed. "
+                    f"Deliberative: {e}. Quick: {fallback_err}"
+                ) from fallback_err
 
     async def run_research_phase(self, evidence_context: EvidenceContext) -> None:
         """
@@ -2815,6 +2818,10 @@ async def start_vericase_analysis(
         from .db import SessionLocal
 
         async def run_planning():
+            # Maximum time allowed for the entire planning phase (10 minutes).
+            # Deliberative planning can be slow but should never hang indefinitely.
+            PLANNING_TIMEOUT_SECONDS = 600
+
             task_db = None
             try:
                 # Step 1: Signal that the background task has started
@@ -2840,7 +2847,17 @@ async def start_vericase_analysis(
                 session.updated_at = datetime.now(timezone.utc)
                 save_session(session)
 
-                await master.run_planning_phase(evidence_context, focus_areas)
+                try:
+                    await asyncio.wait_for(
+                        master.run_planning_phase(evidence_context, focus_areas),
+                        timeout=PLANNING_TIMEOUT_SECONDS,
+                    )
+                except asyncio.TimeoutError:
+                    raise TimeoutError(
+                        f"Planning phase timed out after {PLANNING_TIMEOUT_SECONDS}s. "
+                        "This may indicate an AI provider connectivity issue. "
+                        "Please check your API key configuration and try again."
+                    )
 
             except Exception as e:
                 logger.exception(f"Planning failed for session {session.id}: {e}")
