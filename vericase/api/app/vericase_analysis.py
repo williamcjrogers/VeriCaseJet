@@ -2169,6 +2169,7 @@ class VeriCaseOrchestrator:
 
         self.session.status = AnalysisStatus.RESEARCHING
         self.session.updated_at = datetime.now(timezone.utc)
+        save_session(self.session)
 
         plan = self.session.plan
         completed: set[str] = set()
@@ -3242,20 +3243,20 @@ async def get_evidence_item(
         raise HTTPException(404, f"Citation {citation_number} not found")
 
     # Try to find the actual evidence/attachment
-    from .models import Attachment, Evidence
+    from .models import EmailAttachment, EvidenceItem
 
     evidence_item = None
     attachment = None
 
-    # Check if it's an attachment ID
+    # Check if it's an attachment ID or evidence item ID
     if citation.evidence_id:
-        attachment = db.query(Attachment).filter(
-            Attachment.id == citation.evidence_id
+        attachment = db.query(EmailAttachment).filter(
+            EmailAttachment.id == citation.evidence_id
         ).first()
         if not attachment:
-            # Try as evidence ID
-            evidence_item = db.query(Evidence).filter(
-                Evidence.id == citation.evidence_id
+            # Try as evidence item ID
+            evidence_item = db.query(EvidenceItem).filter(
+                EvidenceItem.id == citation.evidence_id
             ).first()
 
     response_data = {
@@ -3268,19 +3269,17 @@ async def get_evidence_item(
     }
 
     if download and (attachment or evidence_item):
-        # Generate presigned download URL
-        from .aws_services import get_aws_services
-        aws = get_aws_services()
-        
         if attachment and attachment.s3_key:
             try:
-                url = aws.generate_presigned_url(attachment.s3_key, expiration=3600)
+                from .storage import presign_get
+                url = presign_get(attachment.s3_key, expires=3600)
                 response_data["download_url"] = url
                 response_data["filename"] = attachment.filename
             except Exception as e:
                 logger.warning(f"Could not generate download URL: {e}")
         elif evidence_item:
-            response_data["content_preview"] = evidence_item.body_text[:2000] if evidence_item.body_text else None
+            content = evidence_item.extracted_text or evidence_item.description or ""
+            response_data["content_preview"] = content[:2000] if content else None
 
     return response_data
 
@@ -3314,7 +3313,7 @@ async def download_evidence_bundle(
             "message": "No evidence was cited in this analysis",
         }
 
-    from .models import Attachment, Evidence
+    from .models import EmailAttachment, EvidenceItem
     from .aws_services import get_aws_services
     aws = get_aws_services()
 
@@ -3333,13 +3332,14 @@ async def download_evidence_bundle(
 
         # Try to find downloadable content
         if citation.evidence_id:
-            attachment = db.query(Attachment).filter(
-                Attachment.id == citation.evidence_id
+            attachment = db.query(EmailAttachment).filter(
+                EmailAttachment.id == citation.evidence_id
             ).first()
             if attachment and attachment.s3_key:
                 try:
-                    item_data["download_url"] = aws.generate_presigned_url(
-                        attachment.s3_key, expiration=3600
+                    from .storage import presign_get
+                    item_data["download_url"] = presign_get(
+                        attachment.s3_key, expires=3600
                     )
                     item_data["filename"] = attachment.filename
                     item_data["can_download"] = True

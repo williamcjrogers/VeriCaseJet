@@ -2585,10 +2585,29 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             updateQuestionProgress(data.plan);
             break;
 
+          case "running_timeline":
+            statusMessage.textContent =
+              "Building chronological timeline from evidence...";
+            progressFill.style.width = "78%";
+            hidePlanningPanel();
+            break;
+
+          case "running_delay":
+            statusMessage.textContent =
+              "Analysing delay events and critical path impacts...";
+            progressFill.style.width = "82%";
+            break;
+
           case "synthesizing":
             statusMessage.textContent =
               "Synthesizing findings into comprehensive report...";
-            progressFill.style.width = "85%";
+            progressFill.style.width = "88%";
+            break;
+
+          case "validating":
+            statusMessage.textContent =
+              "Validating report accuracy and checking citations...";
+            progressFill.style.width = "95%";
             break;
 
           case "completed":
@@ -2980,17 +2999,17 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         plan.questions.forEach((q) => {
           const node = document.querySelector(`[data-question-id="${q.id}"]`);
           if (node) {
-            const statusEl = node.querySelector(".question-status");
-            statusEl.className = `question-status ${q.status}`;
+            const statusEl = node.querySelector(".question-status-badge");
+            if (statusEl) {
+              statusEl.className = `question-status-badge ${q.status}`;
+            }
           }
         });
       }
 
       async function fetchAndShowReport(sessionId) {
         try {
-          const response = await fetch(`/api/vericase-analysis/report/${sessionId}`, {
-            credentials: 'include'
-          });
+          const response = await secureApiFetch(`/api/vericase-analysis/report/${sessionId}`);
           if (!response.ok) {
             console.error('Failed to fetch full report');
             return;
@@ -3008,13 +3027,14 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
 
         // Build meta items
         const metaItems = [];
-        if (typeof data.processing_time_seconds === "number") {
-          metaItems.push(`<span class="report-meta-item"><i class="fas fa-clock"></i> ${data.processing_time_seconds.toFixed(1)}s</span>`);
+        const durationSecs = data.total_duration_seconds || data.processing_time_seconds;
+        if (typeof durationSecs === "number" && durationSecs > 0) {
+          metaItems.push(`<span class="report-meta-item"><i class="fas fa-clock"></i> ${durationSecs.toFixed(1)}s</span>`);
         }
         if (Array.isArray(data.models_used) && data.models_used.length) {
           metaItems.push(`<span class="report-meta-item"><i class="fas fa-microchip"></i> ${data.models_used.join(", ")}</span>`);
         }
-        const questionsCount = data.plan?.questions?.length || 0;
+        const questionsCount = data.research_summary?.questions_analyzed || data.plan?.questions?.length || 0;
         const questionsCompleted = data.research_summary?.questions_completed || questionsCount;
         if (questionsCount > 0) {
           metaItems.push(`<span class="report-meta-item"><i class="fas fa-search"></i> ${questionsCompleted}/${questionsCount} questions analyzed</span>`);
@@ -3107,12 +3127,10 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
       async function previewEvidence(citationNumber) {
         if (!currentSessionId) return;
         try {
-          const response = await fetch(`/api/vericase-analysis/${currentSessionId}/evidence/${citationNumber}`, {
-            credentials: 'include'
-          });
+          const response = await secureApiFetch(`/api/vericase-analysis/${currentSessionId}/evidence/${citationNumber}`);
           if (!response.ok) throw new Error('Failed to fetch evidence');
           const data = await response.json();
-          
+
           // Show preview modal or alert
           alert(`Evidence Preview:\n\nTitle: ${data.title}\nType: ${data.evidence_type}\nDate: ${data.date || 'N/A'}\n\nExcerpt:\n${data.excerpt}`);
         } catch (err) {
@@ -3124,9 +3142,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
       async function downloadEvidence(citationNumber) {
         if (!currentSessionId) return;
         try {
-          const response = await fetch(`/api/vericase-analysis/${currentSessionId}/evidence/${citationNumber}?download=true`, {
-            credentials: 'include'
-          });
+          const response = await secureApiFetch(`/api/vericase-analysis/${currentSessionId}/evidence/${citationNumber}?download=true`);
           if (!response.ok) throw new Error('Failed to fetch evidence');
           const data = await response.json();
           
@@ -3144,9 +3160,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
       async function downloadEvidenceBundle() {
         if (!currentSessionId) return;
         try {
-          const response = await fetch(`/api/vericase-analysis/${currentSessionId}/evidence-bundle`, {
-            credentials: 'include'
-          });
+          const response = await secureApiFetch(`/api/vericase-analysis/${currentSessionId}/evidence-bundle`);
           if (!response.ok) throw new Error('Failed to fetch evidence bundle');
           const data = await response.json();
           
