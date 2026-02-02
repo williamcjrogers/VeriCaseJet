@@ -444,9 +444,7 @@ def _adapt_chronology_items(
         if not item.event_date:
             continue
 
-        tags = []
-        if item.event_type:
-            tags.append(item.event_type)
+        tags = list(item.parties_involved or [])
 
         related_ids = item.evidence_ids or []
         dep_uris = [

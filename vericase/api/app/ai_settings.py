@@ -366,6 +366,31 @@ class AISettings:
             },
         },
         # ------------------------------------------------------------------
+        # CHRONOLOGY LENSE - Forensic chronology with citations
+        # ------------------------------------------------------------------
+        "chronology_lense": {
+            "enabled": True,
+            "display_name": "Chronology Lense",
+            "description": "Forensic chronology with citations and milestone scoring",
+            "category": "timeline",
+            "provider": "openai",
+            "model": "gpt-5.2-thinking",
+            "max_tokens": 8000,
+            "temperature": 0.1,
+            "max_duration_seconds": 300,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-pro-v1:0"),
+                ("openai", "gpt-5.2-thinking"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("gemini", "gemini-2.5-flash-lite"),
+            ],
+            "features": {
+                "citation_enforcement": True,
+                "milestone_scoring": True,
+                "parallel_retrieval": True,
+            },
+        },
+        # ------------------------------------------------------------------
         # DELAY ANALYSIS - Causation analysis for construction disputes
         # ------------------------------------------------------------------
         "delay_analysis": {

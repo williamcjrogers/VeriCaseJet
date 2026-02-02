@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chronology Lense Agent | VeriCase</title>
+    <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=10" />
+    <link rel="stylesheet" href="design-system.css?v=10" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
+    <script src="config.js"></script>
+    <script src="app-state.js"></script>
+    <script src="security.js"></script>
+    <style>
+      :root {
+        --bg-primary: var(--vericase-cream);
+        --bg-card: #ffffff;
+        --text-primary: var(--vericase-navy);
+        --text-secondary: #4b5563;
+        --text-muted: #6b7280;
+        --border-color: #e5e7eb;
+        --vc-teal: var(--vericase-teal);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+      }
+
+      .page-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+      }
+
+      .page-subtitle {
+        color: var(--text-secondary);
+        font-size: 0.9375rem;
+      }
+
+      .page-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--vc-teal) 0%, #0a7b79 100%);
+        color: white;
+      }
+
+      .btn-secondary {
+        background: #ffffff;
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+      }
+
+      .agent-layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 1.5rem;
+      }
+
+      .panel {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+
+      .panel + .panel {
+        margin-top: 1rem;
+      }
+
+      .panel-title {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .form-group {
+        margin-bottom: 1rem;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+      }
+
+      .form-input,
+      .form-select,
+      .form-textarea {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-family: inherit;
+        background: white;
+        transition: border-color 0.2s;
+      }
+
+      .form-textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+
+      .form-input:focus,
+      .form-select:focus,
+      .form-textarea:focus {
+        outline: none;
+        border-color: var(--vc-teal);
+        box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.1);
+      }
+
+      .stage-list {
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      .stage-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+      }
+
+      .stage-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #e5e7eb;
+      }
+
+      .stage-item.active {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .stage-item.active .stage-dot {
+        background: var(--vc-teal);
+      }
+
+      .stage-item.complete .stage-dot {
+        background: #10b981;
+      }
+
+      .chat-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .chat-messages {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        min-height: 260px;
+        max-height: 420px;
+        overflow-y: auto;
+      }
+
+      .chat-empty {
+        color: var(--text-muted);
+        text-align: center;
+        padding: 2rem 1rem;
+      }
+
+      .chat-message {
+        margin-bottom: 1rem;
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      .chat-role {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3f4f6;
+        color: var(--text-primary);
+      }
+
+      .chat-bubble {
+        flex: 1;
+        background: #f9fafb;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+
+      .chat-message.user .chat-role {
+        background: rgba(14, 165, 233, 0.15);
+        color: #0369a1;
+      }
+
+      .chat-message.user .chat-bubble {
+        background: rgba(14, 165, 233, 0.1);
+        color: #0f172a;
+      }
+
+      .qa-panel,
+      .results-panel {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+      }
+
+      .qa-panel.hidden,
+      .results-panel.hidden {
+        display: none;
+      }
+
+      .question-item + .question-item {
+        margin-top: 0.75rem;
+      }
+
+      .results-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+
+      .results-grid {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .result-card {
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1rem;
+        background: #f9fafb;
+      }
+
+      .result-title {
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+      }
+
+      .result-meta {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+      }
+
+      .result-citations {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        background: #eef2ff;
+        color: #3730a3;
+      }
+
+      @media (max-width: 1100px) {
+        .agent-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Chronology Lense Agent</h1>
+          <p class="page-subtitle">
+            Chat-driven, forensic chronology building with citations and milestone scoring.
+          </p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" onclick="openChronologyViewer()">
+            <i class="fas fa-list"></i>
+            <span>Chronology Viewer</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="agent-layout">
+        <aside>
+          <div class="panel">
+            <div class="panel-title"><i class="fas fa-bullseye"></i> Focus</div>
+            <form id="startForm">
+              <div class="form-group">
+                <label class="form-label" for="topicInput">Topic *</label>
+                <input class="form-input" id="topicInput" required placeholder="e.g. Variations affecting S278 works" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="keywordsInput">Keywords</label>
+                <textarea class="form-textarea" id="keywordsInput" placeholder="Comma-separated keywords"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="detailLevel">Detail Level</label>
+                <select class="form-select" id="detailLevel">
+                  <option value="summary">Summary</option>
+                  <option value="standard" selected>Standard</option>
+                  <option value="comprehensive">Comprehensive</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="scopeMode">Scope</label>
+                <select class="form-select" id="scopeMode">
+                  <option value="lifecycle" selected>Lifecycle</option>
+                  <option value="date_range">Date Range</option>
+                </select>
+              </div>
+              <div class="form-group" id="dateRangeGroup" style="display: none;">
+                <label class="form-label" for="dateStart">Date Range</label>
+                <div style="display: grid; gap: 0.5rem;">
+                  <input class="form-input" type="date" id="dateStart" aria-label="Start date" />
+                  <input class="form-input" type="date" id="dateEnd" aria-label="End date" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  <input type="checkbox" id="hardEvidenceOnly" />
+                  Hard evidence milestones only
+                </label>
+              </div>
+              <button class="btn btn-primary" type="submit">
+                <i class="fas fa-play"></i>
+                <span>Start Session</span>
+              </button>
+            </form>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title"><i class="fas fa-layer-group"></i> Status</div>
+            <div class="stage-list">
+              <div class="stage-item" data-stage="retrieving">
+                <span class="stage-dot"></span>Retrieving
+              </div>
+              <div class="stage-item" data-stage="scoring">
+                <span class="stage-dot"></span>Scoring
+              </div>
+              <div class="stage-item" data-stage="synthesizing">
+                <span class="stage-dot"></span>Synthesizing
+              </div>
+              <div class="stage-item" data-stage="validating">
+                <span class="stage-dot"></span>Validating
+              </div>
+            </div>
+            <div style="margin-top: 0.75rem; font-size: 0.8125rem; color: var(--text-muted);" id="statusMessage">
+              Awaiting input
+            </div>
+          </div>
+        </aside>
+
+        <main class="chat-panel">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-empty">Start by defining the topic and keywords.</div>
+          </div>
+
+          <div class="qa-panel hidden" id="qaPanel">
+            <div class="panel-title"><i class="fas fa-question-circle"></i> Guided Questions</div>
+            <form id="qaForm"></form>
+            <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+              <button class="btn btn-secondary" type="button" id="submitAnswers">
+                <i class="fas fa-paper-plane"></i>
+                <span>Submit Answers</span>
+              </button>
+              <button class="btn btn-primary" type="button" id="approveBuild" style="display: none;">
+                <i class="fas fa-check"></i>
+                <span>Approve & Build</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="results-panel hidden" id="resultsPanel">
+            <div class="results-header">
+              <div class="panel-title"><i class="fas fa-flag-checkered"></i> Results</div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary" type="button" onclick="exportResults('json')">
+                  <i class="fas fa-file-code"></i> JSON
+                </button>
+                <button class="btn btn-secondary" type="button" onclick="exportResults('csv')">
+                  <i class="fas fa-file-csv"></i> CSV
+                </button>
+                <button class="btn btn-secondary" type="button" onclick="exportResults('pdf')">
+                  <i class="fas fa-file-pdf"></i> PDF
+                </button>
+                <button class="btn btn-primary" type="button" onclick="publishResults()">
+                  <i class="fas fa-cloud-upload-alt"></i> Publish
+                </button>
+              </div>
+            </div>
+            <div class="results-grid" id="resultsGrid"></div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      let currentSessionId = null;
+      let currentContextId = null;
+      let currentContextType = "project";
+      let pollingInterval = null;
+      let latestResults = null;
+
+      function getWorkspaceContext() {
+        if (window.VericaseShell && typeof window.VericaseShell.getContext === "function") {
+          const ctx = window.VericaseShell.getContext();
+          if (ctx?.id) {
+            currentContextType = ctx.type || "project";
+            return String(ctx.id);
+          }
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const caseId = params.get("caseId") || params.get("case_id");
+        if (caseId && caseId !== "undefined" && caseId !== "null") {
+          currentContextType = "case";
+          return caseId;
+        }
+
+        const projectId = params.get("projectId") || params.get("project_id");
+        if (projectId && projectId !== "undefined" && projectId !== "null") {
+          currentContextType = "project";
+          return projectId;
+        }
+
+        const storedCase =
+          localStorage.getItem("currentCaseId") ||
+          localStorage.getItem("caseId") ||
+          localStorage.getItem("vericase_current_case");
+        if (storedCase && storedCase !== "undefined" && storedCase !== "null") {
+          currentContextType = "case";
+          try {
+            const parsed = JSON.parse(storedCase);
+            return parsed?.id ? String(parsed.id) : String(parsed);
+          } catch {
+            return String(storedCase);
+          }
+        }
+
+        const storedProject =
+          localStorage.getItem("vericase_current_project") ||
+          localStorage.getItem("projectId");
+        if (storedProject && storedProject !== "undefined" && storedProject !== "null") {
+          currentContextType = "project";
+          try {
+            const parsed = JSON.parse(storedProject);
+            return parsed?.id ? String(parsed.id) : String(parsed);
+          } catch {
+            return String(storedProject);
+          }
+        }
+
+        return "";
+      }
+
+      function openChronologyViewer() {
+        const url = new URL("chronology-lense.html", window.location.href);
+        if (currentContextId) {
+          const paramKey = currentContextType === "case" ? "caseId" : "projectId";
+          url.searchParams.set(paramKey, currentContextId);
+        }
+        window.location.href = url.toString();
+      }
+
+      function addMessage(role, text) {
+        const container = document.getElementById("chatMessages");
+        const empty = container.querySelector(".chat-empty");
+        if (empty) empty.remove();
+        const wrapper = document.createElement("div");
+        wrapper.className = `chat-message ${role}`;
+        const roleIcon = role === "user" ? "fa-user" : "fa-robot";
+        wrapper.innerHTML = `
+          <div class="chat-role"><i class="fas ${roleIcon}"></i></div>
+          <div class="chat-bubble">${escapeHtml(text)}</div>
+        `;
+        container.appendChild(wrapper);
+        container.scrollTop = container.scrollHeight;
+      }
+
+      function updateStage(stage) {
+        const stages = ["retrieving", "scoring", "synthesizing", "validating"];
+        stages.forEach((name, index) => {
+          const item = document.querySelector(`[data-stage="${name}"]`);
+          if (!item) return;
+          item.classList.remove("active", "complete");
+          const stageIndex = stages.indexOf(stage);
+          if (stageIndex === index) {
+            item.classList.add("active");
+          } else if (stageIndex > index) {
+            item.classList.add("complete");
+          }
+        });
+      }
+
+      function renderQuestions(questions) {
+        const panel = document.getElementById("qaPanel");
+        const form = document.getElementById("qaForm");
+        if (!questions || questions.length === 0) {
+          panel.classList.add("hidden");
+          return;
+        }
+        panel.classList.remove("hidden");
+        form.innerHTML = questions
+          .map(
+            (q) => `
+          <div class="question-item form-group">
+            <label class="form-label">${escapeHtml(q.prompt)}</label>
+            <textarea class="form-textarea" data-question="${q.id}"></textarea>
+          </div>
+        `
+          )
+          .join("");
+      }
+
+      function renderResults(events) {
+        const panel = document.getElementById("resultsPanel");
+        const grid = document.getElementById("resultsGrid");
+        if (!events || events.length === 0) {
+          panel.classList.add("hidden");
+          grid.innerHTML = "";
+          return;
+        }
+        panel.classList.remove("hidden");
+        grid.innerHTML = events
+          .map((event) => {
+            const citations = (event.citations || [])
+              .map(
+                (c) =>
+                  `${c.source_type.toUpperCase()} ${c.source_id}: ${escapeHtml(
+                    c.excerpt || ""
+                  )}`
+              )
+              .join("<br />");
+            return `
+              <div class="result-card">
+                <div class="result-title">${escapeHtml(event.title || "Untitled")}</div>
+                <div class="result-meta">
+                  ${new Date(event.event_date).toLocaleDateString("en-GB")} ·
+                  <span class="tag">${escapeHtml(event.milestone_band || "Supported")}</span>
+                </div>
+                <div>${escapeHtml(event.description || "")}</div>
+                ${
+                  event.parties_involved && event.parties_involved.length
+                    ? `<div class="result-meta">Parties: ${escapeHtml(
+                        event.parties_involved.join(", ")
+                      )}</div>`
+                    : ""
+                }
+                <div class="result-citations">${citations}</div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      async function startSession(e) {
+        e.preventDefault();
+        const topic = document.getElementById("topicInput").value.trim();
+        if (!topic) return;
+        if (!currentContextId) {
+          alert("Please select a project or case first.");
+          return;
+        }
+
+        const keywords = document
+          .getElementById("keywordsInput")
+          .value.split(",")
+          .map((k) => k.trim())
+          .filter(Boolean);
+
+        const detailLevel = document.getElementById("detailLevel").value;
+        const scopeMode = document.getElementById("scopeMode").value;
+        const dateStart = document.getElementById("dateStart").value;
+        const dateEnd = document.getElementById("dateEnd").value;
+        const hardEvidenceOnly = document.getElementById("hardEvidenceOnly").checked;
+
+        const payload = {
+          topic,
+          keywords,
+          detail_level: detailLevel,
+          scope: scopeMode,
+          date_range_start: dateStart ? new Date(dateStart).toISOString() : null,
+          date_range_end: dateEnd ? new Date(dateEnd + "T23:59:59").toISOString() : null,
+          hard_evidence_only: hardEvidenceOnly,
+          project_id: currentContextType === "project" ? currentContextId : null,
+          case_id: currentContextType === "case" ? currentContextId : null,
+        };
+
+        try {
+          const response = await secureApiFetch("/api/chronology-lense/start", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Failed to start");
+          currentSessionId = data.session_id;
+          addMessage("user", `Topic: ${topic}`);
+          addMessage("assistant", "Great. Answer a few questions and I will build the chronology.");
+          renderQuestions(data.questions || []);
+          updateStage("retrieving");
+          document.getElementById("statusMessage").textContent = "Awaiting answers";
+        } catch (error) {
+          alert("Failed to start session: " + error.message);
+        }
+      }
+
+      async function submitAnswers() {
+        if (!currentSessionId) return;
+        const answers = {};
+        document.querySelectorAll("[data-question]").forEach((el) => {
+          answers[el.dataset.question] = el.value.trim();
+        });
+        try {
+          const response = await secureApiFetch("/api/chronology-lense/respond", {
+            method: "POST",
+            body: JSON.stringify({ session_id: currentSessionId, answers }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Failed to respond");
+          addMessage("user", "Provided guided answers.");
+          document.getElementById("approveBuild").style.display = data.ready_for_approval
+            ? "inline-flex"
+            : "none";
+          document.getElementById("statusMessage").textContent = data.ready_for_approval
+            ? "Ready for approval"
+            : "Awaiting more input";
+        } catch (error) {
+          alert("Failed to submit answers: " + error.message);
+        }
+      }
+
+      async function approveBuild() {
+        if (!currentSessionId) return;
+        try {
+          const response = await secureApiFetch("/api/chronology-lense/approve", {
+            method: "POST",
+            body: JSON.stringify({ session_id: currentSessionId }),
+          });
+          if (!response.ok) throw new Error("Failed to approve build");
+          document.getElementById("statusMessage").textContent = "Building chronology...";
+          addMessage("assistant", "Building chronology. I will update you as stages complete.");
+          startPolling();
+        } catch (error) {
+          alert("Failed to approve build: " + error.message);
+        }
+      }
+
+      async function pollStatus() {
+        if (!currentSessionId) return;
+        try {
+          const response = await secureApiFetch(
+            `/api/chronology-lense/status/${currentSessionId}`
+          );
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Failed to fetch status");
+          if (data.stage) updateStage(data.stage);
+          if (data.status === "completed") {
+            stopPolling();
+            await loadResults();
+          }
+          if (data.status === "failed") {
+            stopPolling();
+            document.getElementById("statusMessage").textContent =
+              data.error_message || "Build failed.";
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      async function loadResults() {
+        if (!currentSessionId) return;
+        try {
+          const response = await secureApiFetch(
+            `/api/chronology-lense/results/${currentSessionId}`
+          );
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Failed to load results");
+          latestResults = data.events || [];
+          addMessage("assistant", "Chronology ready. Review and publish when ready.");
+          document.getElementById("statusMessage").textContent = "Completed";
+          renderResults(latestResults);
+        } catch (error) {
+          alert("Failed to load results: " + error.message);
+        }
+      }
+
+      async function publishResults() {
+        if (!currentSessionId) return;
+        if (!confirm("Publish chronology items to the timeline?")) return;
+        try {
+          const response = await secureApiFetch("/api/chronology-lense/publish", {
+            method: "POST",
+            body: JSON.stringify({ session_id: currentSessionId, only_milestones: false }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Publish failed");
+          alert(`Published ${data.published_count || 0} events.`);
+        } catch (error) {
+          alert("Failed to publish: " + error.message);
+        }
+      }
+
+      function exportResults(format) {
+        if (!latestResults || latestResults.length === 0) return;
+        if (format === "json") {
+          const json = JSON.stringify(latestResults, null, 2);
+          downloadFile(json, "chronology-lense.json", "application/json");
+        } else if (format === "csv") {
+          const headers = [
+            "Date",
+            "Title",
+            "Description",
+            "Milestone Band",
+            "Parties",
+            "Evidence IDs",
+          ];
+          const rows = latestResults.map((event) => [
+            new Date(event.event_date).toISOString(),
+            event.title,
+            event.description || "",
+            event.milestone_band || "",
+            (event.parties_involved || []).join("; "),
+            (event.evidence_ids || []).join("; "),
+          ]);
+          const csv = [headers, ...rows]
+            .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+            .join("\n");
+          downloadFile(csv, "chronology-lense.csv", "text/csv");
+        } else if (format === "pdf") {
+          window.print();
+        }
+      }
+
+      function downloadFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      function startPolling() {
+        if (pollingInterval) clearInterval(pollingInterval);
+        pollingInterval = setInterval(pollStatus, 2000);
+      }
+
+      function stopPolling() {
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text || "";
+        return div.innerHTML;
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        if (window.VericaseShell) {
+          const ctx =
+            typeof window.VericaseShell.getContext === "function"
+              ? window.VericaseShell.getContext()
+              : { type: "project", id: window.VericaseShell.getProjectId() };
+          const ctxType = ctx?.type === "case" ? "case" : "project";
+          const ctxLabel = ctxType === "case" ? "Case Overview" : "Project Overview";
+          const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+          const ctxId = ctx?.id ? String(ctx.id) : "";
+          const ctxUrl = ctxId
+            ? `projectdashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+            : "projectdashboard.html";
+
+          window.VericaseShell.inject({
+            title: "Chronology Lense Agent",
+            breadcrumbs: [
+              { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+              { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
+              { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+              { label: "Chronology Lense Agent", icon: "fa-magnifying-glass" },
+            ],
+          });
+        }
+
+        currentContextId = getWorkspaceContext();
+        if (!currentContextId) {
+          document.getElementById("statusMessage").textContent =
+            "Select a project or case to start.";
+        }
+
+        document.getElementById("startForm").addEventListener("submit", startSession);
+        document.getElementById("submitAnswers").addEventListener("click", submitAnswers);
+        document.getElementById("approveBuild").addEventListener("click", approveBuild);
+        document.getElementById("scopeMode").addEventListener("change", (e) => {
+          const show = e.target.value === "date_range";
+          document.getElementById("dateRangeGroup").style.display = show ? "block" : "none";
+        });
+      });
+    </script>
+  </body>
+</html>

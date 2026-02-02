@@ -342,6 +342,13 @@
           contexts: ["project", "case"],
         },
         {
+          id: "chronology-agent",
+          label: "Chronology Lense Agent",
+          icon: "fa-magnifying-glass",
+          url: "chronology-lense-agent.html",
+          contexts: ["project", "case"],
+        },
+        {
           id: "stakeholders",
           label: "Stakeholders",
           icon: "fa-id-badge",
@@ -904,6 +911,10 @@
     ],
     "chronology-lense.html": [
       { icon: "fa-history", pos: "wm-mr", rotate: -6, size: 285 },
+      { icon: "fa-calendar-check", pos: "wm-bl", rotate: 12, size: 250 },
+    ],
+    "chronology-lense-agent.html": [
+      { icon: "fa-magnifying-glass", pos: "wm-tr", rotate: -8, size: 280 },
       { icon: "fa-calendar-check", pos: "wm-bl", rotate: 12, size: 250 },
     ],
     "stakeholders.html": [

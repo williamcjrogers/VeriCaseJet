@@ -135,6 +135,9 @@ from .routers.contract_intelligence import (
 from .chronology_builder import (
     router as chronology_builder_router,
 )  # Chronology Builder
+from .chronology_lense import (
+    router as chronology_lense_router,
+)  # Chronology Lense Agent
 from .jobs import router as jobs_router  # Job status + progress (Celery)
 from .upload_routes import router as upload_router  # Upload + admin PST endpoints
 from .document_routes import router as document_router  # Document CRUD + search
@@ -339,6 +342,7 @@ app.include_router(caselaw_router)  # Case Law Intelligence
 app.include_router(lex_router)  # Lex legislation/caselaw API
 app.include_router(contract_intelligence_router)  # Contract Intelligence API
 app.include_router(chronology_builder_router)  # Chronology Builder
+app.include_router(chronology_lense_router)  # Chronology Lense Agent
 app.include_router(upload_router)  # Upload + admin PST endpoints
 app.include_router(document_router)  # Document CRUD + search
 

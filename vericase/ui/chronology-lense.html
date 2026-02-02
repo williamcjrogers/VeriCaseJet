@@ -14,6 +14,7 @@
     <script src="nav-shell.js"></script>
     <script src="config.js"></script>
     <script src="app-state.js"></script>
+    <script src="security.js"></script>
     <style>
       :root {
         --vc-teal: var(--vericase-teal);
@@ -270,9 +271,34 @@
         color: #64748b;
       }
 
+      .event-type-badge.chronology {
+        background: #f1f5f9;
+        color: #475569;
+      }
+
+      .event-type-badge.activity {
+        background: #e0f2fe;
+        color: #075985;
+      }
+
       .event-type-badge.milestone {
         background: #fef3c7;
         color: #92400e;
+      }
+
+      .event-type-badge.delay {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+
+      .event-type-badge.email {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+
+      .event-type-badge.document {
+        background: #ede9fe;
+        color: #6b21a8;
       }
 
       .event-type-badge.correspondence {
@@ -501,6 +527,10 @@
           <p class="page-subtitle">Create detailed event-by-event narratives from your evidence</p>
         </div>
         <div class="page-actions">
+          <button class="btn btn-secondary" onclick="openChronologyAgent()">
+            <i class="fas fa-magnifying-glass"></i>
+            <span>Powerhouse Agent</span>
+          </button>
           <button class="btn btn-secondary" onclick="openVisualTimeline()">
             <i class="fas fa-chart-gantt"></i>
             <span>Visual Timeline</span>
@@ -544,27 +574,27 @@
       <div class="filters-panel">
         <div class="filters-row">
           <div class="filter-group">
-            <label class="filter-label">Search</label>
+            <label class="filter-label" for="searchInput">Search</label>
             <input type="text" class="filter-input" id="searchInput" placeholder="Search events..." />
           </div>
           <div class="filter-group">
-            <label class="filter-label">Event Type</label>
+            <label class="filter-label" for="typeFilter">Event Type</label>
             <select class="filter-select" id="typeFilter">
               <option value="">All Types</option>
-              <option value="manual">Manual</option>
+              <option value="chronology">Chronology</option>
+              <option value="activity">Activity</option>
               <option value="milestone">Milestone</option>
-              <option value="correspondence">Correspondence</option>
-              <option value="notice">Notice</option>
-              <option value="meeting">Meeting</option>
-              <option value="site_event">Site Event</option>
+              <option value="delay">Delay</option>
+              <option value="email">Correspondence</option>
+              <option value="document">Document</option>
             </select>
           </div>
           <div class="filter-group">
-            <label class="filter-label">From Date</label>
+            <label class="filter-label" for="startDateFilter">From Date</label>
             <input type="date" class="filter-input" id="startDateFilter" />
           </div>
           <div class="filter-group">
-            <label class="filter-label">To Date</label>
+            <label class="filter-label" for="endDateFilter">To Date</label>
             <input type="date" class="filter-input" id="endDateFilter" />
           </div>
           <div class="filter-group">
@@ -622,34 +652,22 @@
             <input type="hidden" id="eventId" />
             
             <div class="form-group">
-              <label class="form-label">Event Date *</label>
+              <label class="form-label" for="eventDate">Event Date *</label>
               <input type="datetime-local" class="form-input" id="eventDate" required />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Event Type *</label>
-              <select class="form-select" id="eventType" required>
-                <option value="manual">Manual Entry</option>
-                <option value="milestone">Milestone</option>
-                <option value="correspondence">Correspondence</option>
-                <option value="notice">Notice</option>
-                <option value="meeting">Meeting</option>
-                <option value="site_event">Site Event</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Title *</label>
+              <label class="form-label" for="eventTitle">Title *</label>
               <input type="text" class="form-input" id="eventTitle" placeholder="Brief description of the event" required />
             </div>
 
             <div class="form-group">
-              <label class="form-label">Description</label>
+              <label class="form-label" for="eventDescription">Description</label>
               <textarea class="form-textarea" id="eventDescription" placeholder="Detailed description of what happened..."></textarea>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Parties Involved</label>
+              <label class="form-label" for="eventParties">Parties Involved</label>
               <input type="text" class="form-input" id="eventParties" placeholder="Comma-separated list of parties" />
             </div>
           </form>
@@ -679,7 +697,7 @@
           </p>
           
           <div class="form-group">
-            <label class="form-label">Source</label>
+            <label class="form-label" for="importSource">Source</label>
             <select class="form-select" id="importSource">
               <option value="programme">Programme Milestones</option>
               <option value="delay_event">Delay Events</option>
@@ -688,10 +706,10 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">Date Range (Optional)</label>
+            <label class="form-label" for="importStartDate">Date Range (Optional)</label>
             <div style="display: flex; gap: 0.75rem;">
-              <input type="date" class="form-input" id="importStartDate" placeholder="From" />
-              <input type="date" class="form-input" id="importEndDate" placeholder="To" />
+              <input type="date" class="form-input" id="importStartDate" placeholder="From" aria-label="From date" />
+              <input type="date" class="form-input" id="importEndDate" placeholder="To" aria-label="To date" />
             </div>
           </div>
         </div>
@@ -769,14 +787,73 @@
         return '';
       }
 
-      // Helper to get the API base path based on context type
-      function getApiBasePath() {
-        return currentContextType === 'case' ? 'cases' : 'projects';
+      const EVENT_TYPE_LABELS = {
+        chronology: 'Chronology',
+        activity: 'Activity',
+        milestone: 'Milestone',
+        delay: 'Delay',
+        email: 'Correspondence',
+        document: 'Document'
+      };
+
+      function getEventStartDate(event) {
+        return event.start_date || event.event_date;
+      }
+
+      function getEventSummary(event) {
+        return event.summary || event.description || '';
+      }
+
+      function getEventTags(event) {
+        if (Array.isArray(event.tags)) return event.tags;
+        if (Array.isArray(event.parties_involved)) return event.parties_involved;
+        return [];
+      }
+
+      function getEventTypeKey(event) {
+        return (event.event_type || 'chronology').toLowerCase();
+      }
+
+      function formatEventType(typeKey) {
+        return EVENT_TYPE_LABELS[typeKey] || typeKey.replace(/_/g, ' ');
+      }
+
+      function canEditEvent(event) {
+        return (
+          event?.event_type === 'chronology' &&
+          typeof event.id === 'string' &&
+          event.id.startsWith('chrono-')
+        );
+      }
+
+      function normalizeEvent(event) {
+        const normalized = { ...event };
+        if (!normalized.start_date && normalized.event_date) {
+          normalized.start_date = normalized.event_date;
+        }
+        if (!normalized.summary && normalized.description) {
+          normalized.summary = normalized.description;
+        }
+        if (!normalized.tags && normalized.parties_involved) {
+          normalized.tags = normalized.parties_involved;
+        }
+        return normalized;
       }
 
       // Open Visual Timeline (integrated from Timeline feature)
       function openVisualTimeline() {
         const url = new URL("project-timeline.html", window.location.href);
+        
+        if (currentCaseId) {
+          const paramKey = currentContextType === 'case' ? 'caseId' : 'projectId';
+          url.searchParams.set(paramKey, currentCaseId);
+        }
+        
+        window.location.href = url.toString();
+      }
+
+      function openChronologyAgent() {
+        const url = new URL("chronology-lense-agent.html", window.location.href);
         
         if (currentCaseId) {
           const paramKey = currentContextType === 'case' ? 'caseId' : 'projectId';
@@ -832,18 +909,25 @@
       // Load chronology from API
       async function loadChronology() {
         try {
-          const apiUrl = window.CONFIG?.apiUrl || '';
-          const response = await fetch(`${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
-          });
+          const params = new URLSearchParams();
+          params.append('limit', '500');
+          let endpoint = '';
+          if (currentContextType === 'project') {
+            params.append('types', 'chronology');
+            endpoint = `/api/timeline/projects/${currentCaseId}?${params.toString()}`;
+          } else {
+            endpoint = `/api/timeline/cases/${currentCaseId}/chronology?${params.toString()}`;
+          }
+
+          const response = await secureApiFetch(endpoint);
 
           if (!response.ok) {
             throw new Error('Failed to load chronology');
           }
 
-          allEvents = await response.json();
+          const payload = await response.json();
+          const rawEvents = Array.isArray(payload) ? payload : (payload.events || []);
+          allEvents = rawEvents.map(normalizeEvent);
           renderEvents(allEvents);
           updateStats(allEvents);
           
@@ -874,42 +958,58 @@
         emptyState.style.display = 'none';
 
         // Sort by date descending
-        events.sort((a, b) => new Date(b.event_date) - new Date(a.event_date));
+        const sortedEvents = [...events].sort((a, b) => {
+          const aDate = new Date(getEventStartDate(a) || 0);
+          const bDate = new Date(getEventStartDate(b) || 0);
+          return bDate - aDate;
+        });
 
-        tbody.innerHTML = events.map(event => `
-          <tr>
-            <td>
-              <div class="event-date">${formatDate(event.event_date)}</div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
-                ${formatTime(event.event_date)}
-              </div>
-            </td>
-            <td>
-              <span class="event-type-badge ${event.event_type || 'manual'}">
-                ${(event.event_type || 'manual').replace('_', ' ')}
-              </span>
-            </td>
-            <td>
-              <div class="event-title">${escapeHtml(event.title)}</div>
-              ${event.description ? `<div class="event-description">${escapeHtml(event.description)}</div>` : ''}
-              ${event.parties_involved && event.parties_involved.length > 0 ? `
-                <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
-                  <i class="fas fa-id-badge"></i> ${event.parties_involved.join(', ')}
+        tbody.innerHTML = sortedEvents.map(event => {
+          const eventDate = getEventStartDate(event);
+          const eventType = getEventTypeKey(event);
+          const description = getEventSummary(event);
+          const tags = getEventTags(event);
+          const actionsHtml = canEditEvent(event)
+            ? `
+              <button class="action-btn" onclick="editEvent('${event.id}')" title="Edit">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="action-btn danger" onclick="deleteEvent('${event.id}')" title="Delete">
+                <i class="fas fa-trash"></i>
+              </button>
+            `
+            : `<span style="font-size: 0.75rem; color: var(--text-muted);">Read-only</span>`;
+
+          return `
+            <tr>
+              <td>
+                <div class="event-date">${formatDate(eventDate)}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                  ${formatTime(eventDate)}
                 </div>
-              ` : ''}
-            </td>
-            <td>
-              <div class="event-actions">
-                <button class="action-btn" onclick="editEvent('${event.id}')" title="Edit">
-                  <i class="fas fa-edit"></i>
-                </button>
-                <button class="action-btn danger" onclick="deleteEvent('${event.id}')" title="Delete">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        `).join('');
+              </td>
+              <td>
+                <span class="event-type-badge ${eventType}">
+                  ${formatEventType(eventType)}
+                </span>
+              </td>
+              <td>
+                <div class="event-title">${escapeHtml(event.title || 'Untitled Event')}</div>
+                ${description ? `<div class="event-description">${escapeHtml(description)}</div>` : ''}
+                ${tags.length > 0 ? `
+                  <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+                    <i class="fas fa-id-badge"></i> ${tags.join(', ')}
+                  </div>
+                ` : ''}
+              </td>
+              <td>
+                <div class="event-actions">
+                  ${actionsHtml}
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
       }
 
       // Update statistics
@@ -917,16 +1017,23 @@
         document.getElementById('statTotal').textContent = events.length;
 
         if (events.length > 0) {
-          const dates = events.map(e => new Date(e.event_date)).sort((a, b) => a - b);
-          const minDate = dates[0];
-          const maxDate = dates[dates.length - 1];
-          document.getElementById('statDateRange').textContent = 
-            `${minDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} - ${maxDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
+          const dates = events
+            .map(e => new Date(getEventStartDate(e) || 0))
+            .filter(d => !Number.isNaN(d.valueOf()))
+            .sort((a, b) => a - b);
+          if (dates.length > 0) {
+            const minDate = dates[0];
+            const maxDate = dates[dates.length - 1];
+            document.getElementById('statDateRange').textContent = 
+              `${minDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} - ${maxDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
+          } else {
+            document.getElementById('statDateRange').textContent = '-';
+          }
 
           const types = new Set(events.map(e => e.event_type));
           document.getElementById('statTypes').textContent = types.size;
 
-          const evidenceCount = events.filter(e => e.evidence_ids && e.evidence_ids.length > 0).length;
+          const evidenceCount = events.filter(e => Array.isArray(e.related_ids) && e.related_ids.length > 0).length;
           document.getElementById('statEvidence').textContent = evidenceCount;
         } else {
           document.getElementById('statDateRange').textContent = '-';
@@ -944,18 +1051,20 @@
 
         let filtered = allEvents.filter(event => {
           // Search filter
-          if (search && !event.title.toLowerCase().includes(search) && 
-              (!event.description || !event.description.toLowerCase().includes(search))) {
+          const summary = getEventSummary(event);
+          const title = (event.title || '').toLowerCase();
+          if (search && !title.includes(search) && 
+              (!summary || !summary.toLowerCase().includes(search))) {
             return false;
           }
 
           // Type filter
-          if (type && event.event_type !== type) {
+          if (type && getEventTypeKey(event) !== type) {
             return false;
           }
 
           // Date filters
-          const eventDate = new Date(event.event_date);
+          const eventDate = new Date(getEventStartDate(event));
           if (startDate && eventDate < new Date(startDate)) {
             return false;
           }
@@ -993,17 +1102,20 @@
       function editEvent(eventId) {
         const event = allEvents.find(e => e.id === eventId);
         if (!event) return;
+        if (!canEditEvent(event)) {
+          showError('Only chronology entries can be edited.');
+          return;
+        }
 
         editingEventId = eventId;
         document.getElementById('modalTitle').textContent = 'Edit Event';
         document.getElementById('saveButtonText').textContent = 'Update Event';
         
         document.getElementById('eventId').value = event.id;
-        document.getElementById('eventDate').value = new Date(event.event_date).toISOString().slice(0, 16);
-        document.getElementById('eventType').value = event.event_type || 'manual';
+        document.getElementById('eventDate').value = new Date(getEventStartDate(event)).toISOString().slice(0, 16);
         document.getElementById('eventTitle').value = event.title;
-        document.getElementById('eventDescription').value = event.description || '';
-        document.getElementById('eventParties').value = event.parties_involved ? event.parties_involved.join(', ') : '';
+        document.getElementById('eventDescription').value = getEventSummary(event) || '';
+        document.getElementById('eventParties').value = getEventTags(event).join(', ');
 
         document.getElementById('eventModal').classList.add('active');
       }
@@ -1019,29 +1131,28 @@
         e.preventDefault();
 
         const eventData = {
-          event_date: new Date(document.getElementById('eventDate').value).toISOString(),
-          event_type: document.getElementById('eventType').value,
           title: document.getElementById('eventTitle').value,
-          description: document.getElementById('eventDescription').value || null,
-          parties_involved: document.getElementById('eventParties').value
+          summary: document.getElementById('eventDescription').value || null,
+          start_date: new Date(document.getElementById('eventDate').value).toISOString(),
+          tags: document.getElementById('eventParties').value
             ? document.getElementById('eventParties').value.split(',').map(p => p.trim()).filter(p => p)
             : []
         };
 
         try {
-          const apiUrl = window.CONFIG?.apiUrl || '';
-          const url = editingEventId 
-            ? `${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology/${editingEventId}`
-            : `${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology`;
+          if (!editingEventId && currentContextType !== 'case') {
+            showError('Please open a case to add chronology entries.');
+            return;
+          }
+
+          const url = editingEventId
+            ? `/api/timeline/events/${editingEventId}`
+            : `/api/timeline/cases/${currentCaseId}/events`;
           
           const method = editingEventId ? 'PUT' : 'POST';
 
-          const response = await fetch(url, {
+          const response = await secureApiFetch(url, {
             method,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            },
             body: JSON.stringify(eventData)
           });
 
@@ -1065,12 +1176,14 @@
         }
 
         try {
-          const apiUrl = window.CONFIG?.apiUrl || '';
-          const response = await fetch(`${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology/${eventId}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
+          const event = allEvents.find(e => e.id === eventId);
+          if (!canEditEvent(event)) {
+            showError('Only chronology entries can be deleted.');
+            return;
+          }
+
+          const response = await secureApiFetch(`/api/timeline/events/${eventId}`, {
+            method: 'DELETE'
           });
 
           if (!response.ok) {
@@ -1097,37 +1210,7 @@
 
       // Perform import
       async function performImport() {
-        const source = document.getElementById('importSource').value;
-        const startDate = document.getElementById('importStartDate').value || null;
-        const endDate = document.getElementById('importEndDate').value || null;
-
-        try {
-          const apiUrl = window.CONFIG?.apiUrl || '';
-          const response = await fetch(`${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology/import`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            },
-            body: JSON.stringify({
-              source_type: source,
-              date_range_start: startDate ? new Date(startDate).toISOString() : null,
-              date_range_end: endDate ? new Date(endDate + 'T23:59:59').toISOString() : null
-            })
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to import events');
-          }
-
-          const result = await response.json();
-          closeImportModal();
-          await loadChronology();
-          showSuccess(`Successfully imported ${result.imported_count || 0} events`);
-        } catch (error) {
-          console.error('Error importing events:', error);
-          showError('Failed to import events. Please try again.');
-        }
+        showError('Import is not available yet.');
       }
 
       // Export chronology
@@ -1140,12 +1223,12 @@
         // Create CSV
         const headers = ['Date', 'Time', 'Type', 'Title', 'Description', 'Parties Involved'];
         const rows = allEvents.map(event => [
-          formatDate(event.event_date),
-          formatTime(event.event_date),
-          event.event_type || 'manual',
+          formatDate(getEventStartDate(event)),
+          formatTime(getEventStartDate(event)),
+          formatEventType(getEventTypeKey(event)),
           event.title,
-          event.description || '',
-          event.parties_involved ? event.parties_involved.join('; ') : ''
+          getEventSummary(event) || '',
+          getEventTags(event).join('; ')
         ]);
 
         const csv = [
@@ -1169,12 +1252,16 @@
 
       // Utility functions
       function formatDate(dateString) {
+        if (!dateString) return '-';
         const date = new Date(dateString);
+        if (Number.isNaN(date.valueOf())) return '-';
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       }
 
       function formatTime(dateString) {
+        if (!dateString) return '-';
         const date = new Date(dateString);
+        if (Number.isNaN(date.valueOf())) return '-';
         return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       }
 
