@@ -1,1357 +1,1361 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VeriCase | Initialize Workspace</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="brand-styles.css?v=10" />
-    <script src="nav-shell.js"></script>
+    <link rel="stylesheet" href="design-system.css?v=10" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="vericase-ui.js"></script>
+    <script src="context-manager.js"></script>
+    <script src="nav-shell.js"></script>
     <script src="config.js"></script>
     <script src="app-state.js"></script>
 
     <style>
-        :root {
-            --navy: #0F172A;
-            --gold: #C5A065;
-            --stone: var(--bg-primary);
-            --slate: #64748B;
-            --border: #E2E8F0;
-            --success: #10B981;
-            --error: #EF4444;
+      body {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+      }
+
+      .app-shell .breadcrumb { display: none; }
+
+      .ws-container {
+        max-width: 1000px;
+        margin: 2.5rem auto;
+        padding: 0 2rem 3rem;
+      }
+
+      .page-header {
+        margin-bottom: 1.5rem;
+      }
+
+      .page-title {
+        font-size: 2rem;
+        margin: 0 0 0.35rem;
+        color: var(--vericase-navy);
+      }
+
+      .page-subtitle {
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      /* --- Progress Tracker --- */
+      .setup-progress {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        padding: 1rem 1.25rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--gray-100);
+        margin-bottom: 1.5rem;
+      }
+
+      .setup-progress-step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+
+      .setup-progress-step .step-circle {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+        background: var(--gray-200);
+        color: var(--text-muted);
+        flex-shrink: 0;
+        transition: all 0.2s;
+      }
+
+      .setup-progress-step.active {
+        background: rgba(var(--vericase-teal-rgb), 0.08);
+        color: var(--vericase-teal-dark);
+      }
+
+      .setup-progress-step.active .step-circle {
+        background: var(--vericase-teal);
+        color: white;
+        box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.15);
+      }
+
+      .setup-progress-step.completed {
+        color: var(--success);
+      }
+
+      .setup-progress-step.completed .step-circle {
+        background: var(--success);
+        color: white;
+      }
+
+      .setup-progress-connector {
+        flex: 1;
+        height: 2px;
+        background: var(--gray-200);
+        margin: 0 0.25rem;
+        min-width: 24px;
+        border-radius: 1px;
+        transition: background 0.2s;
+      }
+
+      .setup-progress-connector.completed {
+        background: var(--success);
+      }
+
+      /* --- Config Sections (matches project-setup) --- */
+      .config-section {
+        background: white;
+        border-radius: 16px;
+        box-shadow: var(--shadow-md);
+        padding: 1.75rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--gray-100);
+      }
+
+      .config-section h3 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--vericase-navy);
+        margin: 0 0 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .config-section h3 i {
+        color: var(--vericase-teal);
+        font-size: 1rem;
+      }
+
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+
+      .form-group:last-child {
+        margin-bottom: 0;
+      }
+
+      .form-label {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .form-label .required { color: var(--error); }
+
+      .form-input,
+      .form-select,
+      .form-textarea {
+        width: 100%;
+        padding: 0.7rem 0.9rem;
+        border-radius: 10px;
+        border: 1px solid var(--border-default);
+        font-size: 0.95rem;
+        font-family: var(--font-sans);
+        color: var(--text-primary);
+        background: white;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .form-input:focus,
+      .form-select:focus,
+      .form-textarea:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+        box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.1);
+      }
+
+      .form-input:disabled,
+      .form-select:disabled,
+      .form-textarea:disabled {
+        background: var(--gray-100);
+        cursor: not-allowed;
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+
+      .helper-text {
+        margin-top: 0.35rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* --- Linked Items --- */
+      .empty-slot {
+        border: 2px dashed var(--gray-300);
+        border-radius: 10px;
+        padding: 2rem;
+        text-align: center;
+        background: var(--gray-50);
+        color: var(--text-muted);
+        font-size: 0.875rem;
+      }
+
+      .empty-slot i {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        display: block;
+        opacity: 0.5;
+      }
+
+      .linked-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .linked-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        background: var(--gray-50);
+        border-radius: 10px;
+        border: 1px solid var(--border-default);
+      }
+
+      .linked-item-info { flex: 1; }
+
+      .linked-item-title {
+        font-weight: 600;
+        color: var(--vericase-navy);
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .linked-item-meta {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 2px;
+      }
+
+      .linked-item-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.625rem;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .badge-project {
+        background: rgba(var(--vericase-blue-rgb), 0.12);
+        color: var(--vericase-blue);
+      }
+
+      .badge-case {
+        background: rgba(197, 160, 101, 0.15);
+        color: #8b7355;
+      }
+
+      .next-steps {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: var(--gray-50);
+        border-radius: 10px;
+        border: 1px solid var(--border-default);
+      }
+
+      .next-steps.highlight {
+        border-color: var(--vericase-gold);
+        animation: pulse-highlight 2s ease-in-out;
+      }
+
+      .next-steps-title {
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: var(--vericase-navy);
+        margin-bottom: 0.5rem;
+      }
+
+      .next-steps-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      /* --- Link Existing Section --- */
+      .link-existing-section {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: white;
+        border-radius: 10px;
+        border: 1px solid var(--border-default);
+      }
+
+      .link-existing-title {
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: var(--vericase-navy);
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .link-existing-row {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-end;
+      }
+
+      .link-existing-row .form-group {
+        flex: 1;
+        margin-bottom: 0;
+      }
+
+      .link-existing-row .form-group .form-label {
+        margin-top: 0;
+      }
+
+      /* --- Team Access --- */
+      .team-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+
+      .team-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: var(--gray-50);
+        border-radius: 10px;
+        border: 1px solid var(--border-default);
+      }
+
+      .team-row-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .team-row-name {
+        font-weight: 600;
+        color: var(--vericase-navy);
+        font-size: 0.875rem;
+      }
+
+      .team-row-meta {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .team-row-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .team-role-pill {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgba(var(--vericase-teal-rgb), 0.08);
+        color: var(--vericase-teal-dark);
+        white-space: nowrap;
+      }
+
+      .team-empty {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        padding: 0.75rem 0;
+      }
+
+      .team-highlight {
+        border-color: var(--vericase-gold);
+        animation: pulse-highlight 2s ease-in-out;
+      }
+
+      /* --- Action Row --- */
+      .action-row {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--gray-200);
+      }
+
+      .action-row .btn {
+        padding: 0.75rem 1.5rem;
+      }
+
+      /* --- Security Notice --- */
+      .security-notice {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 1rem;
+      }
+
+      .security-notice i {
+        flex-shrink: 0;
+        color: var(--text-muted);
+      }
+
+      @keyframes pulse-highlight {
+        0% { box-shadow: 0 0 0 0 rgba(197, 160, 101, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(197, 160, 101, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(197, 160, 101, 0); }
+      }
+
+      @media (max-width: 640px) {
+        .ws-container {
+          padding: 0 1rem 2rem;
         }
-
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: var(--stone);
-            background-image: radial-gradient(var(--gray-200) 1px, transparent 1px);
-            background-size: 24px 24px;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .config-section {
+          padding: 1.25rem;
         }
-
-        .case-file-container {
-            width: 1100px;
-            max-width: 95%;
-            height: 700px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            display: flex;
-            overflow: hidden;
-            border: 1px solid #CBD5E1;
+        .form-row {
+          grid-template-columns: 1fr;
         }
-
-        .form-section {
-            flex: 2;
-            padding: 48px;
-            overflow-y: auto;
+        .setup-progress {
+          flex-wrap: wrap;
+          justify-content: center;
         }
-
-        .context-panel {
-            flex: 1;
-            background-color: var(--navy);
-            color: white;
-            padding: 48px 32px;
-            position: relative;
-            border-left: 4px solid var(--gold);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            overflow: hidden;
+        .setup-progress-connector {
+          display: none;
         }
-
-        h1 {
-            font-family: 'Source Serif 4', serif;
-            font-size: 28px;
-            color: var(--navy);
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        .sub-head {
-            color: var(--slate);
-            font-size: 14px;
-            margin-bottom: 32px;
-        }
-
-        label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--navy);
-            margin-bottom: 8px;
-            margin-top: 24px;
-        }
-
-        label:first-of-type { margin-top: 0; }
-
-        .input-group { position: relative; }
-
-        input, select, textarea {
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            background-color: #F8FAFC;
-            font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            color: var(--navy);
-            transition: all 0.2s;
-        }
-
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: var(--navy);
-            background-color: #fff;
-            box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.05);
-        }
-
-        input:disabled, select:disabled, textarea:disabled {
-            background-color: #E2E8F0;
-            cursor: not-allowed;
-        }
-
-        .helper-text {
-            font-size: 12px;
-            color: var(--slate);
-            margin-top: 6px;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-        }
-
-        .linked-items-section {
-            margin-top: 24px;
-        }
-
-        .linked-items-title {
-            font-family: 'Source Serif 4', serif;
-            font-size: 18px;
-            color: var(--navy);
-            margin-bottom: 12px;
-        }
-
-        .empty-slot {
-            border: 2px dashed #CBD5E1;
-            border-radius: 6px;
-            padding: 32px;
-            text-align: center;
-            background: #F8FAFC;
-            color: var(--slate);
-            font-size: 13px;
-            margin-top: 8px;
-        }
-
-        .linked-items {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .linked-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: #F8FAFC;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-
-        .linked-item-info { flex: 1; }
-
-        .linked-item-title {
-            font-weight: 600;
-            color: var(--navy);
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .linked-item-meta {
-            font-size: 12px;
-            color: var(--slate);
-            margin-top: 2px;
-        }
-
-        .linked-item-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .badge-project {
-            background: rgba(47, 134, 200, 0.15);
-            color: #2f86c8;
-        }
-
-        .badge-case {
-            background: rgba(197, 160, 101, 0.2);
-            color: #8b7355;
-        }
-
-        .btn {
-            border: none;
-            padding: 10px 16px;
-            border-radius: 6px;
-            font-weight: 500;
-            cursor: pointer;
-            font-size: 13px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.15s;
-        }
-
-        .btn-primary {
-            background-color: var(--navy);
-            color: white;
-            padding: 12px 24px;
-            font-size: 14px;
-            box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.2);
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 10px -1px rgba(15, 23, 42, 0.25);
-        }
-
-        .btn-primary:disabled {
-            background-color: #94A3B8;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background-color: #F1F5F9;
-            color: var(--navy);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background-color: #E2E8F0;
-        }
-
-        .btn-icon {
-            padding: 8px;
-            width: 32px;
-            height: 32px;
-        }
-
-        .action-bar {
-            margin-top: 48px;
-            border-top: 1px solid var(--border);
-            padding-top: 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .action-bar-left {
-            display: flex;
-            gap: 12px;
-        }
-
-        .next-steps {
-            margin-top: 24px;
-            padding: 16px;
-            background: #F8FAFC;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-
-        .next-steps.highlight {
-            border-color: var(--gold);
-            animation: pulse-highlight 2s ease-in-out;
-        }
-
-        .next-steps-title {
-            font-weight: 600;
-            font-size: 13px;
-            color: var(--navy);
-            margin-bottom: 8px;
-        }
-
-        .next-steps-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .team-access-section {
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid var(--border);
-        }
-
-        .team-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 16px;
-        }
-
-        .team-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 12px 16px;
-            background: #F8FAFC;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-
-        .team-row-info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .team-row-name {
-            font-weight: 600;
-            color: var(--navy);
-            font-size: 14px;
-        }
-
-        .team-row-meta {
-            font-size: 12px;
-            color: var(--slate);
-        }
-
-        .team-row-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .team-role-pill {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: rgba(15, 23, 42, 0.08);
-            color: var(--navy);
-            white-space: nowrap;
-        }
-
-        .team-empty {
-            font-size: 12px;
-            color: var(--slate);
-            padding: 12px 0;
-        }
-
-        .team-highlight {
-            border-color: var(--gold);
-            animation: pulse-highlight 2s ease-in-out;
-        }
-
-        /* Context Panel Styling */
-        .guide-step {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 24px;
-            opacity: 0.8;
-            transition: opacity 0.2s;
-        }
-
-        .guide-step.active { opacity: 1; }
-        .guide-step.completed { opacity: 0.8; }
-
-        .step-num {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            border: 1px solid rgba(255,255,255,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-family: 'Source Serif 4', serif;
-            flex-shrink: 0;
-            font-weight: 600;
-        }
-
-        .guide-step.active .step-num {
-            background: var(--gold);
-            border-color: var(--gold);
-            color: var(--navy);
-            font-weight: bold;
-        }
-
-        .guide-step.completed .step-num {
-            background: var(--success);
-            border-color: var(--success);
-            color: white;
-        }
-
-        .step-content { flex: 1; }
-
-        .step-title {
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
-
-        .step-desc {
-            font-size: 12px;
-            opacity: 0.7;
-            margin-top: 4px;
-        }
-
-        .security-notice {
-            font-size: 11px;
-            opacity: 0.5;
-            line-height: 1.5;
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-        }
-
-        .link-existing-section {
-            margin-top: 16px;
-            padding: 16px;
-            background: white;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-
-        .link-existing-title {
-            font-weight: 600;
-            font-size: 13px;
-            color: var(--navy);
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .link-existing-row {
-            display: flex;
-            gap: 12px;
-            align-items: flex-end;
-        }
-
-        .link-existing-row .input-group { flex: 1; }
-        .link-existing-row .input-group label { margin-top: 0; }
-
-        @keyframes pulse-highlight {
-            0% { box-shadow: 0 0 0 0 rgba(197, 160, 101, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(197, 160, 101, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(197, 160, 101, 0); }
-        }
-
-        @media (max-width: 900px) {
-            .case-file-container {
-                flex-direction: column;
-                height: auto;
-            }
-            .context-panel {
-                border-left: none;
-                border-top: 4px solid var(--gold);
-                min-width: auto;
-            }
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
+    <main id="main-content">
+      <div class="ws-container">
 
-    <div class="case-file-container">
-
-        <div class="form-section">
-            <nav class="breadcrumb" id="breadcrumbNav" style="margin-bottom: 12px; font-size: 13px;">
-	                <a href="workspace-hub.html" style="color: var(--gold); text-decoration: none;">
-	                    <i class="ph ph-squares-four"></i> Workspaces
-	                </a>
-                <span style="color: var(--slate); margin: 0 8px;">›</span>
-                <span style="color: var(--slate);" id="breadcrumbCurrent">New Workspace</span>
-            </nav>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                <h1 id="pageTitle">Initialize Workspace</h1>
-                <span id="stepIndicator" style="font-size:12px; font-weight:600; color:var(--slate); background:#F1F5F9; padding:4px 8px; border-radius:4px;">Step 1 of 3</span>
-            </div>
-            <p class="sub-head" id="pageSubtitle">Establish the container for evidence, timeline analysis, and dispute resolution.</p>
-
-            <form id="workspaceForm" onsubmit="return false;">
-                <div class="input-group">
-                    <label>Workspace Name <span style="color:var(--gold)">*</span></label>
-                    <input type="text" id="workspaceName" placeholder="e.g. Welbourne Tottenham Hale - Adjudication 01" autofocus required>
-                </div>
-
-                <div class="form-grid">
-                    <div class="input-group">
-                        <label>Matter Reference</label>
-                        <input type="text" id="workspaceCode" placeholder="e.g. WEL-2025-001">
-                    </div>
-                    <div class="input-group">
-                        <label>Contract Form</label>
-                        <select id="contractType" aria-label="Contract Form">
-                            <option value="">Select Contract...</option>
-                            <option value="JCT Design & Build 2016">JCT Design & Build 2016</option>
-                            <option value="JCT">JCT (Other)</option>
-                            <option value="NEC4 ECC Option A">NEC4 ECC Option A</option>
-                            <option value="NEC4 ECC Option C">NEC4 ECC Option C</option>
-                            <option value="NEC">NEC (Other)</option>
-                            <option value="FIDIC Yellow Book">FIDIC Yellow Book</option>
-                            <option value="FIDIC">FIDIC (Other)</option>
-                            <option value="Custom">Custom</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="input-group">
-                    <label>Description & Scope</label>
-                    <textarea id="workspaceDescription" rows="4" placeholder="Briefly describe the scope of the dispute or project..."></textarea>
-                </div>
-
-                <div class="linked-items-section">
-                    <div class="linked-items-title">Linked Projects &amp; Cases</div>
-                    <div id="linkedItemsContainer">
-                        <div class="empty-slot">
-                            <i class="ph ph-folder-open" style="font-size: 24px; margin-bottom:8px; display:block; opacity:0.5;"></i>
-                            No projects or cases linked yet.<br>You can link projects and cases after the workspace is initialized.
-                        </div>
-                    </div>
-
-                    <div id="linkExistingSection" class="link-existing-section" style="display: none;">
-                        <div class="link-existing-title">
-                            <i class="ph ph-arrows-left-right"></i>
-                            Move an existing project into this workspace
-                        </div>
-                        <div class="link-existing-row">
-                            <div class="input-group">
-                                <label>Select Project</label>
-                                <select id="existingProjectSelect">
-                                    <option value="">Loading projects...</option>
-                                </select>
-                            </div>
-                            <button type="button" class="btn btn-secondary" id="linkProjectBtn" onclick="linkExistingProject()">
-                                <i class="ph ph-arrows-left-right"></i> Move
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="next-steps" id="nextStepsSection">
-                        <div class="next-steps-title">Add Projects or Cases</div>
-                        <div class="next-steps-actions">
-                            <button type="button" class="btn btn-secondary" id="addProjectBtn" onclick="openProjectSetup()" disabled>
-                                <i class="ph ph-folders"></i> New Project
-                            </button>
-                            <button type="button" class="btn btn-secondary" id="addCaseBtn" onclick="openCaseSetup()" disabled>
-                                <i class="ph ph-briefcase"></i> New Case
-                            </button>
-                        </div>
-                        <div class="helper-text" id="nextStepsHelper" style="margin-top: 8px;">
-                            Save the workspace first to add projects or cases.
-                        </div>
-                    </div>
-
-                    <div class="team-access-section" id="teamAccessSection" style="display: none;">
-                        <div class="linked-items-title">Team Access</div>
-                        <div class="helper-text" id="teamAccessHelper">
-                            Add existing platform users to this workspace.
-                        </div>
-                        <div class="team-list" id="teamMembersList"></div>
-                        <div class="team-list" id="teamUserList"></div>
-                    </div>
-                </div>
-
-                <div class="action-bar">
-                    <div class="action-bar-left">
-                        <button type="button" class="btn btn-secondary" onclick="goBack()">
-                            <i class="ph ph-arrow-left"></i> Back
-                        </button>
-                    </div>
-                    <button type="button" class="btn btn-primary" id="saveBtn" onclick="saveWorkspace()">
-                        <i class="ph ph-arrow-right"></i> Create &amp; Continue
-                    </button>
-                </div>
-            </form>
+        <div class="page-header">
+          <nav class="breadcrumb" id="breadcrumbNav" style="margin-bottom: 0.75rem; font-size: 0.875rem;">
+            <a href="workspace-hub.html" style="color: var(--vericase-teal); text-decoration: none;">
+              <i class="ph ph-squares-four"></i> Workspaces
+            </a>
+            <span style="color: var(--text-muted); margin: 0 0.5rem;">&rsaquo;</span>
+            <span style="color: var(--text-secondary);" id="breadcrumbCurrent">New Workspace</span>
+          </nav>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h1 class="page-title" id="pageTitle">Initialize Workspace</h1>
+            <span id="stepIndicator" style="font-size:0.75rem; font-weight:600; color:var(--text-muted); background:var(--gray-100); padding:4px 10px; border-radius:999px;">Step 1 of 3</span>
+          </div>
+          <p class="page-subtitle" id="pageSubtitle">Establish the container for evidence, timeline analysis, and dispute resolution.</p>
         </div>
 
-        <div class="context-panel">
-
-            <i class="ph ph-scales" style="position: absolute; top: -20px; right: -20px; font-size: 250px; color: #FFFFFF; opacity: 0.05; transform: rotate(15deg); pointer-events: none;"></i>
-
-            <div style="position: relative; z-index: 10;">
-                <i class="ph ph-bank" style="font-size: 48px; margin-bottom: 24px; color: var(--gold);"></i>
-                <h3 style="font-family:'Source Serif 4', serif; font-size: 20px; margin-bottom: 24px;">Setup Guide</h3>
-
-                <div class="guide-step active" id="step1">
-                    <div class="step-num">1</div>
-                    <div class="step-content">
-                        <div class="step-title">Workspace Definition</div>
-                        <div class="step-desc">Define the high-level container for the matter.</div>
-                    </div>
-                </div>
-
-                <div class="guide-step" id="step2">
-                    <div class="step-num">2</div>
-                    <div class="step-content">
-                        <div class="step-title">Evidence Parameters</div>
-                        <div class="step-desc">Set date ranges and document types.</div>
-                    </div>
-                </div>
-
-                <div class="guide-step" id="step3">
-                    <div class="step-num">3</div>
-                    <div class="step-content">
-                        <div class="step-title">Team Access</div>
-                        <div class="step-desc">Assign counsel and experts.</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="security-notice">
-                <i class="ph ph-lock-key" style="font-size: 14px; flex-shrink: 0;"></i>
-                <span>This workspace is secure. Audit logging will begin immediately upon creation.</span>
-            </div>
+        <!-- Setup Progress Tracker -->
+        <div class="setup-progress" id="setupProgress">
+          <div class="setup-progress-step active" id="step1">
+            <span class="step-circle">1</span>
+            <span>Workspace Definition</span>
+          </div>
+          <div class="setup-progress-connector" id="connector1"></div>
+          <div class="setup-progress-step" id="step2">
+            <span class="step-circle">2</span>
+            <span>Evidence Parameters</span>
+          </div>
+          <div class="setup-progress-connector" id="connector2"></div>
+          <div class="setup-progress-step" id="step3">
+            <span class="step-circle">3</span>
+            <span>Team Access</span>
+          </div>
         </div>
 
-    </div>
+        <form id="workspaceForm" onsubmit="return false;">
+
+          <!-- Section: Workspace Identification -->
+          <section class="config-section">
+            <h3><i class="ph ph-bank"></i> Workspace Identification</h3>
+
+            <div class="form-group">
+              <label class="form-label" for="workspaceName">
+                Workspace Name <span class="required">*</span>
+              </label>
+              <input
+                class="form-input"
+                type="text"
+                id="workspaceName"
+                placeholder="e.g. Welbourne Tottenham Hale - Adjudication 01"
+                autofocus
+                required
+              />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="workspaceCode">Matter Reference</label>
+                <input
+                  class="form-input"
+                  type="text"
+                  id="workspaceCode"
+                  placeholder="e.g. WEL-2025-001"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="contractType">Contract Form</label>
+                <select class="form-select" id="contractType" aria-label="Contract Form">
+                  <option value="">Select Contract...</option>
+                  <option value="JCT Design & Build 2016">JCT Design &amp; Build 2016</option>
+                  <option value="JCT">JCT (Other)</option>
+                  <option value="NEC4 ECC Option A">NEC4 ECC Option A</option>
+                  <option value="NEC4 ECC Option C">NEC4 ECC Option C</option>
+                  <option value="NEC">NEC (Other)</option>
+                  <option value="FIDIC Yellow Book">FIDIC Yellow Book</option>
+                  <option value="FIDIC">FIDIC (Other)</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="workspaceDescription">Description &amp; Scope</label>
+              <textarea
+                class="form-textarea"
+                id="workspaceDescription"
+                rows="4"
+                placeholder="Briefly describe the scope of the dispute or project..."
+              ></textarea>
+            </div>
+          </section>
+
+          <!-- Section: Linked Projects & Cases -->
+          <section class="config-section">
+            <h3><i class="ph ph-folders"></i> Linked Projects &amp; Cases</h3>
+
+            <div id="linkedItemsContainer">
+              <div class="empty-slot">
+                <i class="ph ph-folder-open"></i>
+                No projects or cases linked yet.<br>You can link items after the workspace is initialized.
+              </div>
+            </div>
+
+            <div id="linkExistingSection" class="link-existing-section" style="display: none;">
+              <div class="link-existing-title">
+                <i class="ph ph-arrows-left-right"></i>
+                Move an existing project into this workspace
+              </div>
+              <div class="link-existing-row">
+                <div class="form-group">
+                  <label class="form-label">Select Project</label>
+                  <select class="form-select" id="existingProjectSelect">
+                    <option value="">Loading projects...</option>
+                  </select>
+                </div>
+                <button type="button" class="btn btn-outline" id="linkProjectBtn" onclick="linkExistingProject()">
+                  <i class="ph ph-arrows-left-right"></i> Move
+                </button>
+              </div>
+            </div>
+
+            <div class="next-steps" id="nextStepsSection">
+              <div class="next-steps-title">Add Projects or Cases</div>
+              <div class="next-steps-actions">
+                <button type="button" class="btn btn-outline btn-sm" id="addProjectBtn" onclick="openProjectSetup()" disabled>
+                  <i class="ph ph-folders"></i> New Project
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" id="addCaseBtn" onclick="openCaseSetup()" disabled>
+                  <i class="ph ph-briefcase"></i> New Case
+                </button>
+              </div>
+              <div class="helper-text" id="nextStepsHelper" style="margin-top: 0.5rem;">
+                Save the workspace first to add projects or cases.
+              </div>
+            </div>
+          </section>
+
+          <!-- Section: Team Access (shown after evidence configured) -->
+          <section class="config-section" id="teamAccessSection" style="display: none;">
+            <h3><i class="ph ph-users-three"></i> Team Access</h3>
+            <div class="helper-text" id="teamAccessHelper" style="margin-bottom: 0.5rem;">
+              Add existing platform users to this workspace.
+            </div>
+            <div class="team-list" id="teamMembersList"></div>
+            <div class="team-list" id="teamUserList"></div>
+          </section>
+
+          <!-- Action Row -->
+          <div class="action-row">
+            <button type="button" class="btn btn-ghost" onclick="goBack()">
+              <i class="ph ph-arrow-left"></i> Back
+            </button>
+            <div style="flex:1;"></div>
+            <button type="button" class="btn btn-vericase" id="saveBtn" onclick="saveWorkspace()">
+              <i class="ph ph-arrow-right"></i> Create &amp; Continue
+            </button>
+          </div>
+        </form>
+
+        <div class="security-notice">
+          <i class="ph ph-lock-key"></i>
+          <span>This workspace is secure. Audit logging will begin immediately upon creation.</span>
+        </div>
+
+      </div>
+    </main>
 
     <script>
-        let workspaceId = null;
-        let workspaceData = null;
-        let isNewWorkspace = true;
-        let codeManuallyEdited = false;
-        let lastAutoCode = "";
-        let platformUsers = [];
-        let usersLoadState = "idle";
-        let usersLoadMessage = "";
-        let evidenceCompletedOnce = false;
+      let workspaceId = null;
+      let workspaceData = null;
+      let isNewWorkspace = true;
+      let codeManuallyEdited = false;
+      let lastAutoCode = "";
+      let platformUsers = [];
+      let usersLoadState = "idle";
+      let usersLoadMessage = "";
+      let evidenceCompletedOnce = false;
 
-        function getAuthHeaders() {
-            const token = localStorage.getItem("vericase_token") || localStorage.getItem("token") || localStorage.getItem("jwt");
-            return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+      function getAuthHeaders() {
+        const token = localStorage.getItem("vericase_token") || localStorage.getItem("token") || localStorage.getItem("jwt");
+        return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function buildWorkspaceCode(name) {
+        const cleaned = String(name || "")
+          .replace(/[^a-zA-Z0-9]+/g, " ")
+          .trim();
+        const parts = cleaned ? cleaned.split(/\s+/) : [];
+        const abbrev = parts
+          .map((part) => part.slice(0, 3))
+          .join("")
+          .slice(0, 6)
+          .toUpperCase();
+        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+        return `${abbrev || "WS"}-${suffix}`;
+      }
+
+      function syncAutoCode() {
+        const nameInput = document.getElementById("workspaceName");
+        const codeInput = document.getElementById("workspaceCode");
+        if (!nameInput || !codeInput || codeManuallyEdited) return;
+
+        const nextCode = buildWorkspaceCode(nameInput.value);
+        if (!codeInput.value || codeInput.value === lastAutoCode) {
+          codeInput.value = nextCode;
+          lastAutoCode = nextCode;
         }
-
-        function escapeHtml(text) {
-            const div = document.createElement("div");
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function buildWorkspaceCode(name) {
-            const cleaned = String(name || "")
-                .replace(/[^a-zA-Z0-9]+/g, " ")
-                .trim();
-            const parts = cleaned ? cleaned.split(/\s+/) : [];
-            const abbrev = parts
-                .map((part) => part.slice(0, 3))
-                .join("")
-                .slice(0, 6)
-                .toUpperCase();
-            const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-            return `${abbrev || "WS"}-${suffix}`;
-        }
-
-        function syncAutoCode() {
-            const nameInput = document.getElementById("workspaceName");
-            const codeInput = document.getElementById("workspaceCode");
-            if (!nameInput || !codeInput || codeManuallyEdited) return;
-
-            const nextCode = buildWorkspaceCode(nameInput.value);
-            if (!codeInput.value || codeInput.value === lastAutoCode) {
-                codeInput.value = nextCode;
-                lastAutoCode = nextCode;
-            }
-        }
-
-        function updateStepGuide() {
-            const stepIndicator = document.getElementById("stepIndicator");
-            const step1 = document.getElementById("step1");
-            const step2 = document.getElementById("step2");
-            const step3 = document.getElementById("step3");
-
-            const hasWorkspace = Boolean(workspaceId);
-            const hasEvidenceParams = hasEvidenceConfigured();
-            const hasTeamAccess = (workspaceData?.team_members || []).length > 0;
-
-            [step1, step2, step3].forEach((step) => {
-                if (!step) return;
-                step.classList.remove("active", "completed");
-            });
-
-            if (!hasWorkspace) {
-                if (step1) step1.classList.add("active");
-                if (stepIndicator) stepIndicator.textContent = "Step 1 of 3";
-                return;
-            }
-
-            if (step1) step1.classList.add("completed");
-
-            if (!hasEvidenceParams) {
-                if (step2) step2.classList.add("active");
-                if (stepIndicator) stepIndicator.textContent = "Step 2 of 3";
-                return;
-            }
-
-            if (step2) step2.classList.add("completed");
-
-            if (!hasTeamAccess) {
-                if (step3) step3.classList.add("active");
-                if (stepIndicator) stepIndicator.textContent = "Step 3 of 3";
-                return;
-            }
-
-            if (step3) step3.classList.add("completed");
-            if (stepIndicator) stepIndicator.textContent = "Setup Complete";
-        }
-
-        function hasEvidenceConfigured() {
-            const projectCount = workspaceData?.projects?.length || 0;
-            const caseCount = workspaceData?.cases?.length || 0;
-            return projectCount + caseCount > 0;
-        }
-
-        function renderTeamMembers() {
-            const container = document.getElementById("teamMembersList");
-            if (!container) return;
-
-            const members = workspaceData?.team_members || [];
-            if (!members.length) {
-                container.innerHTML = '<div class="team-empty">No users added yet.</div>';
-                return;
-            }
-
-            const rows = members.map((member) => {
-                const name = escapeHtml(member.name || member.email || "User");
-                const email = escapeHtml(member.email || "");
-                const role = escapeHtml(member.role || "member");
-                return `
-                    <div class="team-row">
-                        <div class="team-row-info">
-                            <div class="team-row-name">${name}</div>
-                            <div class="team-row-meta">${email}</div>
-                        </div>
-                        <div class="team-row-actions">
-                            <span class="team-role-pill">${role}</span>
-                            <button class="btn btn-secondary btn-icon" onclick="removeTeamMember('${member.id}')" title="Remove user">
-                                <i class="ph ph-x"></i>
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join("");
-
-            container.innerHTML = `
-                <div class="helper-text">Added Users</div>
-                ${rows}
-            `;
-        }
-
-        function renderPlatformUsers() {
-            const container = document.getElementById("teamUserList");
-            if (!container) return;
-
-            if (usersLoadState === "loading") {
-                container.innerHTML = '<div class="team-empty">Loading users...</div>';
-                return;
-            }
-
-            if (usersLoadState === "error") {
-                const message = usersLoadMessage || "Unable to load users for this workspace.";
-                container.innerHTML = `<div class="team-empty">${escapeHtml(message)}</div>`;
-                return;
-            }
-
-            const members = workspaceData?.team_members || [];
-            const memberEmails = new Set(members.map((m) => (m.email || "").toLowerCase()));
-            const available = platformUsers.filter((u) => {
-                const email = (u.email || "").toLowerCase();
-                return email && !memberEmails.has(email);
-            });
-
-            if (!platformUsers.length) {
-                container.innerHTML = '<div class="team-empty">No platform users available.</div>';
-                return;
-            }
-
-            const rows = available.map((user) => {
-                const name = escapeHtml(user.display_name || user.email || "User");
-                const email = escapeHtml(user.email || "");
-                return `
-                    <div class="team-row">
-                        <div class="team-row-info">
-                            <div class="team-row-name">${name}</div>
-                            <div class="team-row-meta">${email}</div>
-                        </div>
-                        <div class="team-row-actions">
-                            <button class="btn btn-secondary" onclick="addTeamMember('${user.email}')">
-                                <i class="ph ph-user-plus"></i> Add
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join("");
-
-            container.innerHTML = `
-                <div class="helper-text">Available Users</div>
-                ${rows || '<div class="team-empty">All users are already assigned.</div>'}
-            `;
-        }
-
-        async function loadPlatformUsers(force = false) {
-            if (!workspaceId) return;
-            if (usersLoadState === "loading") return;
-            if (!force && usersLoadState === "ready") {
-                renderPlatformUsers();
-                return;
-            }
-
-            usersLoadState = "loading";
-            usersLoadMessage = "";
-            renderPlatformUsers();
-
-            try {
-                const response = await fetch("/api/users", { headers: getAuthHeaders() });
-                if (!response.ok) {
-                    if (response.status === 401 || response.status === 403) {
-                        usersLoadMessage = "You do not have permission to list users.";
-                    } else {
-                        usersLoadMessage = `Failed to load users (${response.status}).`;
-                    }
-                    throw new Error(usersLoadMessage);
-                }
-                const data = await response.json();
-                platformUsers = Array.isArray(data) ? data : [];
-                usersLoadState = "ready";
-            } catch (error) {
-                console.error("Error loading users:", error);
-                platformUsers = [];
-                usersLoadState = "error";
-                if (!usersLoadMessage) {
-                    usersLoadMessage = "Unable to load users for this workspace.";
-                }
-            }
-
-            renderPlatformUsers();
-        }
-
-        async function addTeamMember(email) {
-            try {
-                if (!workspaceId) {
-                    VericaseUI.Toast.info("Create the workspace first, then add users.");
-                    return;
-                }
-                const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/team`, {
-                    method: "POST",
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ email, role: "member" }),
-                });
-
-                if (!response.ok) {
-                    let detail = "Failed to add user";
-                    try {
-                        const raw = await response.text();
-                        if (raw) {
-                            try {
-                                const parsed = JSON.parse(raw);
-                                detail = parsed?.detail || parsed?.message || detail;
-                            } catch {
-                                detail = raw;
-                            }
-                        }
-                    } catch {}
-                    throw new Error(detail);
-                }
-
-                VericaseUI.Toast.success("User added to workspace");
-                await loadWorkspace();
-            } catch (error) {
-                console.error("Error adding user:", error);
-                VericaseUI.Toast.error(error.message || "Failed to add user");
-            }
-        }
-
-        async function removeTeamMember(memberId) {
-            try {
-                if (!workspaceId) return;
-                const response = await fetch(
-                    `/api/workspaces/${encodeURIComponent(workspaceId)}/team/${encodeURIComponent(memberId)}`,
-                    { method: "DELETE", headers: getAuthHeaders() }
-                );
-
-                if (!response.ok) {
-                    let detail = "Failed to remove user";
-                    try {
-                        const raw = await response.text();
-                        if (raw) {
-                            try {
-                                const parsed = JSON.parse(raw);
-                                detail = parsed?.detail || parsed?.message || detail;
-                            } catch {
-                                detail = raw;
-                            }
-                        }
-                    } catch {}
-                    throw new Error(detail);
-                }
-
-                VericaseUI.Toast.success("User removed from workspace");
-                await loadWorkspace();
-            } catch (error) {
-                console.error("Error removing user:", error);
-                VericaseUI.Toast.error(error.message || "Failed to remove user");
-            }
-        }
-
-        function updateTeamAccessVisibility() {
-            const section = document.getElementById("teamAccessSection");
-            if (!section) return;
-
-            const canShow = Boolean(workspaceId) && hasEvidenceConfigured();
-            section.style.display = canShow ? "block" : "none";
-
-            if (!canShow) return;
-
-            renderTeamMembers();
-            loadPlatformUsers();
-
-            if (!evidenceCompletedOnce) {
-                evidenceCompletedOnce = true;
-                section.classList.add("team-highlight");
-                section.scrollIntoView({ behavior: "smooth", block: "center" });
-                setTimeout(() => section.classList.remove("team-highlight"), 2500);
-            }
-        }
-
-        function updateUIState() {
-            const saveBtn = document.getElementById("saveBtn");
-            const pageTitle = document.getElementById("pageTitle");
-            const pageSubtitle = document.getElementById("pageSubtitle");
-            const addProjectBtn = document.getElementById("addProjectBtn");
-            const addCaseBtn = document.getElementById("addCaseBtn");
-            const nextStepsHelper = document.getElementById("nextStepsHelper");
-            const linkExistingSection = document.getElementById("linkExistingSection");
-
-            if (isNewWorkspace) {
-                saveBtn.innerHTML = '<i class="ph ph-arrow-right"></i> Create & Continue';
-                pageTitle.textContent = "Initialize Workspace";
-                pageSubtitle.textContent = "Establish the container for evidence, timeline analysis, and dispute resolution.";
-                addProjectBtn.disabled = true;
-                addCaseBtn.disabled = true;
-                nextStepsHelper.style.display = "block";
-                linkExistingSection.style.display = "none";
-            } else {
-                saveBtn.innerHTML = '<i class="ph ph-floppy-disk"></i> Save Changes';
-                pageTitle.textContent = workspaceData?.name || "Workspace Setup";
-                pageSubtitle.textContent = `Configure workspace settings and linked items.`;
-                addProjectBtn.disabled = false;
-                addCaseBtn.disabled = false;
-                nextStepsHelper.style.display = "none";
-                linkExistingSection.style.display = "block";
-            }
-
-            updateStepGuide();
-            updateTeamAccessVisibility();
-        }
-
-        function setCurrentWorkspaceStorage() {
-            if (!workspaceId) return;
-            try {
-                localStorage.setItem("currentWorkspaceId", workspaceId);
-                if (workspaceData?.name) {
-                    localStorage.setItem("currentWorkspaceName", workspaceData.name);
-                }
-            } catch {
-                // ignore storage failures
-            }
-        }
-
-        async function loadProjectsForLinking() {
-            const select = document.getElementById("existingProjectSelect");
-            const btn = document.getElementById("linkProjectBtn");
-
-            if (!workspaceId || !select) return;
-
-            select.innerHTML = '<option value="">Loading projects...</option>';
-            if (btn) btn.disabled = true;
-
-            try {
-                const response = await fetch("/api/projects", { headers: getAuthHeaders() });
-                if (!response.ok) {
-                    throw new Error("Failed to load projects");
-                }
-
-                const projects = await response.json();
-                const linkedIds = new Set((workspaceData?.projects || []).map(p => String(p.id)));
-                const available = (Array.isArray(projects) ? projects : [])
-                    .filter(p => p && p.id && !linkedIds.has(String(p.id)));
-
-                if (!available.length) {
-                    select.innerHTML = '<option value="">No other projects available</option>';
-                    return;
-                }
-
-                select.innerHTML = '<option value="">-- Select a project --</option>';
-                available.forEach((p) => {
-                    const name = escapeHtml(p.project_name || p.name || "Untitled Project");
-                    const code = escapeHtml(p.project_code || p.code || "");
-                    const label = code ? `${name} (${code})` : name;
-                    select.innerHTML += `<option value="${p.id}">${label}</option>`;
-                });
-            } catch (error) {
-                console.error("Error loading projects for linking:", error);
-                select.innerHTML = '<option value="">Unable to load projects</option>';
-            } finally {
-                if (btn) btn.disabled = false;
-            }
-        }
-
-        async function linkExistingProject() {
-            try {
-                if (!workspaceId) {
-                    VericaseUI.Toast.info("Create the workspace first, then link projects.");
-                    return;
-                }
-
-                const select = document.getElementById("existingProjectSelect");
-                const projectId = (select?.value || "").trim();
-                if (!projectId) {
-                    VericaseUI.Toast.error("Please select a project to move");
-                    return;
-                }
-
-                const btn = document.getElementById("linkProjectBtn");
-                if (btn) {
-                    btn.disabled = true;
-                    btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Moving...';
-                }
-
-                const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}`, {
-                    method: "PUT",
-                    headers: getAuthHeaders(),
-                });
-
-                if (!response.ok) {
-                    let detail = "Failed to move project";
-                    try {
-                        const raw = await response.text();
-                        if (raw) {
-                            try {
-                                const parsed = JSON.parse(raw);
-                                detail = parsed?.detail || parsed?.message || detail;
-                            } catch {
-                                detail = raw;
-                            }
-                        }
-                    } catch {}
-                    throw new Error(detail);
-                }
-
-                VericaseUI.Toast.success("Project moved into workspace");
-                await loadWorkspace();
-            } catch (error) {
-                console.error("Error moving project:", error);
-                VericaseUI.Toast.error(error.message || "Failed to move project");
-            } finally {
-                const btn = document.getElementById("linkProjectBtn");
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="ph ph-arrows-left-right"></i> Move';
-                }
-            }
-        }
-
-        function openProjectSetup() {
-            if (!workspaceId) {
-                VericaseUI.Toast.info("Create the workspace first, then add a project.");
-                return;
-            }
-            window.location.href = `project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
-        }
-
-        function openCaseSetup() {
-            if (!workspaceId) {
-                VericaseUI.Toast.info("Create the workspace first, then add a case.");
-                return;
-            }
-            window.location.href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
-        }
-
-	        function goBack() {
-	            if (workspaceId) {
-	                window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(workspaceId)}`;
-	                return;
-	            }
-	            window.location.href = "workspace-hub.html";
-	        }
-
-        async function loadWorkspace() {
-            const params = new URLSearchParams(window.location.search);
-            workspaceId = params.get("workspaceId");
-
-            if (!workspaceId) {
-                isNewWorkspace = true;
-                workspaceData = { projects: [], cases: [] };
-                updateUIState();
-                renderLinkedItems();
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/workspaces/${workspaceId}`, {
-                    headers: getAuthHeaders()
-                });
-
-                if (!response.ok) {
-                    let detail = `Failed to load workspace (${response.status})`;
-                    try {
-                        const errorData = await response.json();
-                        detail = errorData.detail || detail;
-                    } catch {}
-                    throw new Error(detail);
-                }
-
-                workspaceData = await response.json();
-
-                document.getElementById("workspaceName").value = workspaceData.name || "";
-                document.getElementById("workspaceCode").value = workspaceData.code || "";
-                document.getElementById("contractType").value = workspaceData.contract_type || "";
-                document.getElementById("workspaceDescription").value = workspaceData.description || "";
-
-                codeManuallyEdited = true;
-                lastAutoCode = workspaceData.code || "";
-                isNewWorkspace = false;
-
-                updateUIState();
-                setCurrentWorkspaceStorage();
-                renderLinkedItems();
-                renderTeamMembers();
-                updateTeamAccessVisibility();
-                loadProjectsForLinking();
-            } catch (error) {
-                console.error("Error loading workspace:", error);
-                VericaseUI.Toast.error(error.message || "Failed to load workspace");
-            }
-        }
-
-        function renderLinkedItems() {
-            const container = document.getElementById("linkedItemsContainer");
-            const projects = workspaceData?.projects || [];
-            const cases = workspaceData?.cases || [];
-
-            if (projects.length === 0 && cases.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-slot">
-                        <i class="ph ph-briefcase" style="font-size: 24px; margin-bottom:8px; display:block; opacity:0.5;"></i>
-                        No projects or cases linked yet. <br> ${isNewWorkspace ? 'You can link items after the workspace is created.' : 'Add a project or case below.'}
-                    </div>
-                `;
-                return;
-            }
-
-            let html = '<div class="linked-items">';
-
-            projects.forEach(p => {
-                html += `
-                    <div class="linked-item">
-                        <div class="linked-item-info">
-                            <div class="linked-item-title">
-                                <span class="linked-item-badge badge-project">Project</span>
-                                ${escapeHtml(p.name || p.project_name || 'Untitled')}
-                            </div>
-                            <div class="linked-item-meta">${escapeHtml(p.code || p.project_code || '')}</div>
-                        </div>
-                        <button class="btn btn-secondary btn-icon" onclick="openProject('${p.id}')" title="Open Project">
-                            <i class="ph ph-arrow-square-out"></i>
-                        </button>
-                    </div>
-                `;
-            });
-
-            cases.forEach(c => {
-                html += `
-                    <div class="linked-item">
-                        <div class="linked-item-info">
-                            <div class="linked-item-title">
-                                <span class="linked-item-badge badge-case">Case</span>
-                                ${escapeHtml(c.name || c.case_name || 'Untitled')}
-                            </div>
-                            <div class="linked-item-meta">${escapeHtml(c.code || c.case_code || '')}</div>
-                        </div>
-                        <button class="btn btn-secondary btn-icon" onclick="openCase('${c.id}')" title="Open Case">
-                            <i class="ph ph-arrow-square-out"></i>
-                        </button>
-                    </div>
-                `;
-            });
-
-            html += '</div>';
-            container.innerHTML = html;
-        }
-
-        function openProject(projectId) {
-            window.location.href = `projectdashboard.html?projectId=${projectId}`;
-        }
-
-        function openCase(caseId) {
-            window.location.href = `projectdashboard.html?caseId=${caseId}`;
-        }
-
-        async function saveWorkspace() {
-            try {
-                const nameValue = document.getElementById("workspaceName").value.trim();
-                if (!nameValue) {
-                    VericaseUI.Toast.error("Please enter a workspace name");
-                    document.getElementById("workspaceName").focus();
-                    return;
-                }
-
-                const codeValue = document.getElementById("workspaceCode").value.trim();
-                const resolvedCode = codeValue || buildWorkspaceCode(nameValue);
-                if (!codeValue) {
-                    document.getElementById("workspaceCode").value = resolvedCode;
-                    lastAutoCode = resolvedCode;
-                }
-
-                const saveBtn = document.getElementById("saveBtn");
-                const originalBtnHtml = saveBtn.innerHTML;
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Saving...';
-
-                const payload = {
-                    name: nameValue,
-                    code: resolvedCode,
-                    description: document.getElementById("workspaceDescription").value,
-                    contract_type: document.getElementById("contractType").value
-                };
-
-                const headers = getAuthHeaders();
-                let createdNow = false;
-
-                if (!workspaceId) {
-                    // Create new workspace
-                    let createResponse = await fetch("/api/workspaces", {
-                        method: "POST",
-                        headers,
-                        body: JSON.stringify(payload)
-                    });
-
-                    // Fallback to projects API if workspaces not available
-                    if (createResponse.status === 404 || createResponse.status === 405) {
-                        const projectPayload = {
-                            project_name: nameValue,
-                            project_code: resolvedCode,
-                            contract_type: payload.contract_type || null
-                        };
-                        createResponse = await fetch("/api/projects", {
-                            method: "POST",
-                            headers,
-                            body: JSON.stringify(projectPayload)
-                        });
-
-                        if (createResponse.ok) {
-                            VericaseUI.Toast.success("Project created successfully");
-                            window.location.href = "master-dashboard.html";
-                            return;
-                        }
-                    }
-
-                    if (!createResponse.ok) {
-                        const errorData = await createResponse.json();
-                        throw new Error(errorData.detail || "Failed to create workspace");
-                    }
-
-                    const created = await createResponse.json();
-                    workspaceId = created.id;
-                    createdNow = true;
-                    isNewWorkspace = false;
-
-                    const url = new URL(window.location.href);
-                    url.searchParams.set("workspaceId", workspaceId);
-                    history.replaceState(null, "", url.toString());
-                } else {
-                    // Update existing workspace
-                    const updateResponse = await fetch(`/api/workspaces/${workspaceId}`, {
-                        method: "PUT",
-                        headers,
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!updateResponse.ok) {
-                        let detail = "Failed to update workspace";
-                        try {
-                            const raw = await updateResponse.text();
-                            if (raw) {
-                                try {
-                                    const parsed = JSON.parse(raw);
-                                    detail = parsed?.detail || parsed?.message || detail;
-                                } catch {
-                                    detail = raw;
-                                }
-                            }
-                        } catch {}
-                        throw new Error(detail);
-                    }
-                }
-
-                VericaseUI.Toast.success(createdNow ? "Workspace created successfully" : "Workspace saved");
-                setCurrentWorkspaceStorage();
-                await loadWorkspace();
-
-                if (createdNow) {
-                    const nextSteps = document.getElementById("nextStepsSection");
-                    if (nextSteps) {
-                        nextSteps.classList.add("highlight");
-                        nextSteps.scrollIntoView({ behavior: "smooth", block: "center" });
-                        VericaseUI.Toast.info("Now add a project or case to get started!");
-                        setTimeout(() => nextSteps.classList.remove("highlight"), 2500);
-                    }
-                }
-            } catch (error) {
-                console.error("Error saving workspace:", error);
-                VericaseUI.Toast.error(error.message || "Failed to save workspace");
-            } finally {
-                const saveBtn = document.getElementById("saveBtn");
-                saveBtn.disabled = false;
-                updateUIState();
-            }
-        }
-
-        // Initialize
-        document.addEventListener("DOMContentLoaded", () => {
-            const nameInput = document.getElementById("workspaceName");
-            const codeInput = document.getElementById("workspaceCode");
-
-            if (nameInput) {
-                nameInput.addEventListener("input", syncAutoCode);
-            }
-            if (codeInput) {
-                codeInput.addEventListener("input", () => {
-                    codeManuallyEdited = codeInput.value.trim().length > 0 && codeInput.value !== lastAutoCode;
-                });
-            }
-
-            loadWorkspace();
+      }
+
+      function updateStepGuide() {
+        const stepIndicator = document.getElementById("stepIndicator");
+        const step1 = document.getElementById("step1");
+        const step2 = document.getElementById("step2");
+        const step3 = document.getElementById("step3");
+        const conn1 = document.getElementById("connector1");
+        const conn2 = document.getElementById("connector2");
+
+        const hasWorkspace = Boolean(workspaceId);
+        const hasEvidenceParams = hasEvidenceConfigured();
+        const hasTeamAccess = (workspaceData?.team_members || []).length > 0;
+
+        [step1, step2, step3].forEach((step) => {
+          if (!step) return;
+          step.classList.remove("active", "completed");
         });
-    </script>
+        [conn1, conn2].forEach((c) => {
+          if (c) c.classList.remove("completed");
+        });
 
-</body>
+        if (!hasWorkspace) {
+          if (step1) step1.classList.add("active");
+          if (stepIndicator) stepIndicator.textContent = "Step 1 of 3";
+          return;
+        }
+
+        if (step1) step1.classList.add("completed");
+        if (conn1) conn1.classList.add("completed");
+
+        if (!hasEvidenceParams) {
+          if (step2) step2.classList.add("active");
+          if (stepIndicator) stepIndicator.textContent = "Step 2 of 3";
+          return;
+        }
+
+        if (step2) step2.classList.add("completed");
+        if (conn2) conn2.classList.add("completed");
+
+        if (!hasTeamAccess) {
+          if (step3) step3.classList.add("active");
+          if (stepIndicator) stepIndicator.textContent = "Step 3 of 3";
+          return;
+        }
+
+        if (step3) step3.classList.add("completed");
+        if (stepIndicator) stepIndicator.textContent = "Setup Complete";
+      }
+
+      function hasEvidenceConfigured() {
+        const projectCount = workspaceData?.projects?.length || 0;
+        const caseCount = workspaceData?.cases?.length || 0;
+        return projectCount + caseCount > 0;
+      }
+
+      function renderTeamMembers() {
+        const container = document.getElementById("teamMembersList");
+        if (!container) return;
+
+        const members = workspaceData?.team_members || [];
+        if (!members.length) {
+          container.innerHTML = '<div class="team-empty">No users added yet.</div>';
+          return;
+        }
+
+        const rows = members.map((member) => {
+          const name = escapeHtml(member.name || member.email || "User");
+          const email = escapeHtml(member.email || "");
+          const role = escapeHtml(member.role || "member");
+          return `
+            <div class="team-row">
+              <div class="team-row-info">
+                <div class="team-row-name">${name}</div>
+                <div class="team-row-meta">${email}</div>
+              </div>
+              <div class="team-row-actions">
+                <span class="team-role-pill">${role}</span>
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="removeTeamMember('${member.id}')" title="Remove user">
+                  <i class="ph ph-x"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        container.innerHTML = `
+          <div class="helper-text" style="margin-bottom: 0.25rem;">Added Users</div>
+          ${rows}
+        `;
+      }
+
+      function renderPlatformUsers() {
+        const container = document.getElementById("teamUserList");
+        if (!container) return;
+
+        if (usersLoadState === "loading") {
+          container.innerHTML = '<div class="team-empty">Loading users...</div>';
+          return;
+        }
+
+        if (usersLoadState === "error") {
+          const message = usersLoadMessage || "Unable to load users for this workspace.";
+          container.innerHTML = `<div class="team-empty">${escapeHtml(message)}</div>`;
+          return;
+        }
+
+        const members = workspaceData?.team_members || [];
+        const memberEmails = new Set(members.map((m) => (m.email || "").toLowerCase()));
+        const available = platformUsers.filter((u) => {
+          const email = (u.email || "").toLowerCase();
+          return email && !memberEmails.has(email);
+        });
+
+        if (!platformUsers.length) {
+          container.innerHTML = '<div class="team-empty">No platform users available.</div>';
+          return;
+        }
+
+        const rows = available.map((user) => {
+          const name = escapeHtml(user.display_name || user.email || "User");
+          const email = escapeHtml(user.email || "");
+          return `
+            <div class="team-row">
+              <div class="team-row-info">
+                <div class="team-row-name">${name}</div>
+                <div class="team-row-meta">${email}</div>
+              </div>
+              <div class="team-row-actions">
+                <button class="btn btn-outline btn-sm" onclick="addTeamMember('${user.email}')">
+                  <i class="ph ph-user-plus"></i> Add
+                </button>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        container.innerHTML = `
+          <div class="helper-text" style="margin-bottom: 0.25rem;">Available Users</div>
+          ${rows || '<div class="team-empty">All users are already assigned.</div>'}
+        `;
+      }
+
+      async function loadPlatformUsers(force = false) {
+        if (!workspaceId) return;
+        if (usersLoadState === "loading") return;
+        if (!force && usersLoadState === "ready") {
+          renderPlatformUsers();
+          return;
+        }
+
+        usersLoadState = "loading";
+        usersLoadMessage = "";
+        renderPlatformUsers();
+
+        try {
+          const response = await fetch("/api/users", { headers: getAuthHeaders() });
+          if (!response.ok) {
+            if (response.status === 401 || response.status === 403) {
+              usersLoadMessage = "You do not have permission to list users.";
+            } else {
+              usersLoadMessage = `Failed to load users (${response.status}).`;
+            }
+            throw new Error(usersLoadMessage);
+          }
+          const data = await response.json();
+          platformUsers = Array.isArray(data) ? data : [];
+          usersLoadState = "ready";
+        } catch (error) {
+          console.error("Error loading users:", error);
+          platformUsers = [];
+          usersLoadState = "error";
+          if (!usersLoadMessage) {
+            usersLoadMessage = "Unable to load users for this workspace.";
+          }
+        }
+
+        renderPlatformUsers();
+      }
+
+      async function addTeamMember(email) {
+        try {
+          if (!workspaceId) {
+            VericaseUI.Toast.info("Create the workspace first, then add users.");
+            return;
+          }
+          const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/team`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ email, role: "member" }),
+          });
+
+          if (!response.ok) {
+            let detail = "Failed to add user";
+            try {
+              const raw = await response.text();
+              if (raw) {
+                try {
+                  const parsed = JSON.parse(raw);
+                  detail = parsed?.detail || parsed?.message || detail;
+                } catch {}
+              }
+            } catch {}
+            throw new Error(detail);
+          }
+
+          VericaseUI.Toast.success("User added to workspace");
+          await loadWorkspace();
+        } catch (error) {
+          console.error("Error adding user:", error);
+          VericaseUI.Toast.error(error.message || "Failed to add user");
+        }
+      }
+
+      async function removeTeamMember(memberId) {
+        try {
+          if (!workspaceId) return;
+          const response = await fetch(
+            `/api/workspaces/${encodeURIComponent(workspaceId)}/team/${encodeURIComponent(memberId)}`,
+            { method: "DELETE", headers: getAuthHeaders() }
+          );
+
+          if (!response.ok) {
+            let detail = "Failed to remove user";
+            try {
+              const raw = await response.text();
+              if (raw) {
+                try {
+                  const parsed = JSON.parse(raw);
+                  detail = parsed?.detail || parsed?.message || detail;
+                } catch {}
+              }
+            } catch {}
+            throw new Error(detail);
+          }
+
+          VericaseUI.Toast.success("User removed from workspace");
+          await loadWorkspace();
+        } catch (error) {
+          console.error("Error removing user:", error);
+          VericaseUI.Toast.error(error.message || "Failed to remove user");
+        }
+      }
+
+      function updateTeamAccessVisibility() {
+        const section = document.getElementById("teamAccessSection");
+        if (!section) return;
+
+        const canShow = Boolean(workspaceId) && hasEvidenceConfigured();
+        section.style.display = canShow ? "block" : "none";
+
+        if (!canShow) return;
+
+        renderTeamMembers();
+        loadPlatformUsers();
+
+        if (!evidenceCompletedOnce) {
+          evidenceCompletedOnce = true;
+          section.classList.add("team-highlight");
+          section.scrollIntoView({ behavior: "smooth", block: "center" });
+          setTimeout(() => section.classList.remove("team-highlight"), 2500);
+        }
+      }
+
+      function updateUIState() {
+        const saveBtn = document.getElementById("saveBtn");
+        const pageTitle = document.getElementById("pageTitle");
+        const pageSubtitle = document.getElementById("pageSubtitle");
+        const addProjectBtn = document.getElementById("addProjectBtn");
+        const addCaseBtn = document.getElementById("addCaseBtn");
+        const nextStepsHelper = document.getElementById("nextStepsHelper");
+        const linkExistingSection = document.getElementById("linkExistingSection");
+
+        if (isNewWorkspace) {
+          saveBtn.innerHTML = '<i class="ph ph-arrow-right"></i> Create & Continue';
+          pageTitle.textContent = "Initialize Workspace";
+          pageSubtitle.textContent = "Establish the container for evidence, timeline analysis, and dispute resolution.";
+          addProjectBtn.disabled = true;
+          addCaseBtn.disabled = true;
+          nextStepsHelper.style.display = "block";
+          linkExistingSection.style.display = "none";
+        } else {
+          saveBtn.innerHTML = '<i class="ph ph-floppy-disk"></i> Save Changes';
+          pageTitle.textContent = workspaceData?.name || "Workspace Setup";
+          pageSubtitle.textContent = "Configure workspace settings and linked items.";
+          addProjectBtn.disabled = false;
+          addCaseBtn.disabled = false;
+          nextStepsHelper.style.display = "none";
+          linkExistingSection.style.display = "block";
+        }
+
+        updateStepGuide();
+        updateTeamAccessVisibility();
+      }
+
+      function setCurrentWorkspaceStorage() {
+        if (!workspaceId) return;
+        try {
+          localStorage.setItem("currentWorkspaceId", workspaceId);
+          if (workspaceData?.name) {
+            localStorage.setItem("currentWorkspaceName", workspaceData.name);
+          }
+        } catch {
+          // ignore storage failures
+        }
+      }
+
+      async function loadProjectsForLinking() {
+        const select = document.getElementById("existingProjectSelect");
+        const btn = document.getElementById("linkProjectBtn");
+
+        if (!workspaceId || !select) return;
+
+        select.innerHTML = '<option value="">Loading projects...</option>';
+        if (btn) btn.disabled = true;
+
+        try {
+          const response = await fetch("/api/projects", { headers: getAuthHeaders() });
+          if (!response.ok) {
+            throw new Error("Failed to load projects");
+          }
+
+          const projects = await response.json();
+          const linkedIds = new Set((workspaceData?.projects || []).map(p => String(p.id)));
+          const available = (Array.isArray(projects) ? projects : [])
+            .filter(p => p && p.id && !linkedIds.has(String(p.id)));
+
+          if (!available.length) {
+            select.innerHTML = '<option value="">No other projects available</option>';
+            return;
+          }
+
+          select.innerHTML = '<option value="">-- Select a project --</option>';
+          available.forEach((p) => {
+            const name = escapeHtml(p.project_name || p.name || "Untitled Project");
+            const code = escapeHtml(p.project_code || p.code || "");
+            const label = code ? `${name} (${code})` : name;
+            select.innerHTML += `<option value="${p.id}">${label}</option>`;
+          });
+        } catch (error) {
+          console.error("Error loading projects for linking:", error);
+          select.innerHTML = '<option value="">Unable to load projects</option>';
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      }
+
+      async function linkExistingProject() {
+        try {
+          if (!workspaceId) {
+            VericaseUI.Toast.info("Create the workspace first, then link projects.");
+            return;
+          }
+
+          const select = document.getElementById("existingProjectSelect");
+          const projectId = (select?.value || "").trim();
+          if (!projectId) {
+            VericaseUI.Toast.error("Please select a project to move");
+            return;
+          }
+
+          const btn = document.getElementById("linkProjectBtn");
+          if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Moving...';
+          }
+
+          const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}`, {
+            method: "PUT",
+            headers: getAuthHeaders(),
+          });
+
+          if (!response.ok) {
+            let detail = "Failed to move project";
+            try {
+              const raw = await response.text();
+              if (raw) {
+                try {
+                  const parsed = JSON.parse(raw);
+                  detail = parsed?.detail || parsed?.message || detail;
+                } catch {}
+              }
+            } catch {}
+            throw new Error(detail);
+          }
+
+          VericaseUI.Toast.success("Project moved into workspace");
+          await loadWorkspace();
+        } catch (error) {
+          console.error("Error moving project:", error);
+          VericaseUI.Toast.error(error.message || "Failed to move project");
+        } finally {
+          const btn = document.getElementById("linkProjectBtn");
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-arrows-left-right"></i> Move';
+          }
+        }
+      }
+
+      function openProjectSetup() {
+        if (!workspaceId) {
+          VericaseUI.Toast.info("Create the workspace first, then add a project.");
+          return;
+        }
+        window.location.href = `project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+      }
+
+      function openCaseSetup() {
+        if (!workspaceId) {
+          VericaseUI.Toast.info("Create the workspace first, then add a case.");
+          return;
+        }
+        window.location.href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+      }
+
+      function goBack() {
+        if (workspaceId) {
+          window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+          return;
+        }
+        window.location.href = "workspace-hub.html";
+      }
+
+      async function loadWorkspace() {
+        const params = new URLSearchParams(window.location.search);
+        workspaceId = params.get("workspaceId");
+
+        if (!workspaceId) {
+          isNewWorkspace = true;
+          workspaceData = { projects: [], cases: [] };
+          updateUIState();
+          renderLinkedItems();
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/workspaces/${workspaceId}`, {
+            headers: getAuthHeaders()
+          });
+
+          if (!response.ok) {
+            let detail = `Failed to load workspace (${response.status})`;
+            try {
+              const errorData = await response.json();
+              detail = errorData.detail || detail;
+            } catch {}
+            throw new Error(detail);
+          }
+
+          workspaceData = await response.json();
+
+          document.getElementById("workspaceName").value = workspaceData.name || "";
+          document.getElementById("workspaceCode").value = workspaceData.code || "";
+          document.getElementById("contractType").value = workspaceData.contract_type || "";
+          document.getElementById("workspaceDescription").value = workspaceData.description || "";
+
+          codeManuallyEdited = true;
+          lastAutoCode = workspaceData.code || "";
+          isNewWorkspace = false;
+
+          updateUIState();
+          setCurrentWorkspaceStorage();
+          renderLinkedItems();
+          renderTeamMembers();
+          updateTeamAccessVisibility();
+          loadProjectsForLinking();
+        } catch (error) {
+          console.error("Error loading workspace:", error);
+          VericaseUI.Toast.error(error.message || "Failed to load workspace");
+        }
+      }
+
+      function renderLinkedItems() {
+        const container = document.getElementById("linkedItemsContainer");
+        const projects = workspaceData?.projects || [];
+        const cases = workspaceData?.cases || [];
+
+        if (projects.length === 0 && cases.length === 0) {
+          container.innerHTML = `
+            <div class="empty-slot">
+              <i class="ph ph-folder-open"></i>
+              No projects or cases linked yet.<br>${isNewWorkspace ? 'You can link items after the workspace is created.' : 'Add a project or case below.'}
+            </div>
+          `;
+          return;
+        }
+
+        let html = '<div class="linked-items">';
+
+        projects.forEach(p => {
+          html += `
+            <div class="linked-item">
+              <div class="linked-item-info">
+                <div class="linked-item-title">
+                  <span class="linked-item-badge badge-project">Project</span>
+                  ${escapeHtml(p.name || p.project_name || 'Untitled')}
+                </div>
+                <div class="linked-item-meta">${escapeHtml(p.code || p.project_code || '')}</div>
+              </div>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick="openProject('${p.id}')" title="Open Project">
+                <i class="ph ph-arrow-square-out"></i>
+              </button>
+            </div>
+          `;
+        });
+
+        cases.forEach(c => {
+          html += `
+            <div class="linked-item">
+              <div class="linked-item-info">
+                <div class="linked-item-title">
+                  <span class="linked-item-badge badge-case">Case</span>
+                  ${escapeHtml(c.name || c.case_name || 'Untitled')}
+                </div>
+                <div class="linked-item-meta">${escapeHtml(c.code || c.case_code || '')}</div>
+              </div>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick="openCase('${c.id}')" title="Open Case">
+                <i class="ph ph-arrow-square-out"></i>
+              </button>
+            </div>
+          `;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+      }
+
+      function openProject(projectId) {
+        window.location.href = `projectdashboard.html?projectId=${projectId}`;
+      }
+
+      function openCase(caseId) {
+        window.location.href = `projectdashboard.html?caseId=${caseId}`;
+      }
+
+      async function saveWorkspace() {
+        try {
+          const nameValue = document.getElementById("workspaceName").value.trim();
+          if (!nameValue) {
+            VericaseUI.Toast.error("Please enter a workspace name");
+            document.getElementById("workspaceName").focus();
+            return;
+          }
+
+          const codeValue = document.getElementById("workspaceCode").value.trim();
+          const resolvedCode = codeValue || buildWorkspaceCode(nameValue);
+          if (!codeValue) {
+            document.getElementById("workspaceCode").value = resolvedCode;
+            lastAutoCode = resolvedCode;
+          }
+
+          const saveBtn = document.getElementById("saveBtn");
+          const originalBtnHtml = saveBtn.innerHTML;
+          saveBtn.disabled = true;
+          saveBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Saving...';
+
+          const payload = {
+            name: nameValue,
+            code: resolvedCode,
+            description: document.getElementById("workspaceDescription").value,
+            contract_type: document.getElementById("contractType").value
+          };
+
+          const headers = getAuthHeaders();
+          let createdNow = false;
+
+          if (!workspaceId) {
+            // Create new workspace
+            let createResponse = await fetch("/api/workspaces", {
+              method: "POST",
+              headers,
+              body: JSON.stringify(payload)
+            });
+
+            // Fallback to projects API if workspaces not available
+            if (createResponse.status === 404 || createResponse.status === 405) {
+              const projectPayload = {
+                project_name: nameValue,
+                project_code: resolvedCode,
+                contract_type: payload.contract_type || null
+              };
+              createResponse = await fetch("/api/projects", {
+                method: "POST",
+                headers,
+                body: JSON.stringify(projectPayload)
+              });
+
+              if (createResponse.ok) {
+                VericaseUI.Toast.success("Project created successfully");
+                window.location.href = "master-dashboard.html";
+                return;
+              }
+            }
+
+            if (!createResponse.ok) {
+              const errorData = await createResponse.json();
+              throw new Error(errorData.detail || "Failed to create workspace");
+            }
+
+            const created = await createResponse.json();
+            workspaceId = created.id;
+            createdNow = true;
+            isNewWorkspace = false;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set("workspaceId", workspaceId);
+            history.replaceState(null, "", url.toString());
+          } else {
+            // Update existing workspace
+            const updateResponse = await fetch(`/api/workspaces/${workspaceId}`, {
+              method: "PUT",
+              headers,
+              body: JSON.stringify(payload)
+            });
+
+            if (!updateResponse.ok) {
+              let detail = "Failed to update workspace";
+              try {
+                const raw = await updateResponse.text();
+                if (raw) {
+                  try {
+                    const parsed = JSON.parse(raw);
+                    detail = parsed?.detail || parsed?.message || detail;
+                  } catch {}
+                }
+              } catch {}
+              throw new Error(detail);
+            }
+          }
+
+          VericaseUI.Toast.success(createdNow ? "Workspace created successfully" : "Workspace saved");
+          setCurrentWorkspaceStorage();
+          await loadWorkspace();
+
+          if (createdNow) {
+            const nextSteps = document.getElementById("nextStepsSection");
+            if (nextSteps) {
+              nextSteps.classList.add("highlight");
+              nextSteps.scrollIntoView({ behavior: "smooth", block: "center" });
+              VericaseUI.Toast.info("Now add a project or case to get started!");
+              setTimeout(() => nextSteps.classList.remove("highlight"), 2500);
+            }
+          }
+        } catch (error) {
+          console.error("Error saving workspace:", error);
+          VericaseUI.Toast.error(error.message || "Failed to save workspace");
+        } finally {
+          const saveBtn = document.getElementById("saveBtn");
+          saveBtn.disabled = false;
+          updateUIState();
+        }
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", () => {
+        const nameInput = document.getElementById("workspaceName");
+        const codeInput = document.getElementById("workspaceCode");
+
+        if (nameInput) {
+          nameInput.addEventListener("input", syncAutoCode);
+        }
+        if (codeInput) {
+          codeInput.addEventListener("input", () => {
+            codeManuallyEdited = codeInput.value.trim().length > 0 && codeInput.value !== lastAutoCode;
+          });
+        }
+
+        // Nav shell integration
+        if (window.VericaseShell?.inject) {
+          const params = new URLSearchParams(window.location.search);
+          const wsId = params.get("workspaceId");
+          VericaseShell.inject({
+            title: wsId ? "Workspace Setup" : "Initialize Workspace",
+            breadcrumbs: VericaseShell.buildHierarchicalBreadcrumbs
+              ? VericaseShell.buildHierarchicalBreadcrumbs({
+                  includeHome: true,
+                  entityName: wsId ? "Workspace Setup" : "New Workspace",
+                  entityType: "workspace",
+                })
+              : undefined,
+            headerActions: ""
+          });
+        }
+
+        loadWorkspace();
+      });
+    </script>
+  </body>
 </html>
